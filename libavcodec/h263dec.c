@@ -723,6 +723,7 @@ AVCodec mpeg4_decoder = {
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1 | CODEC_CAP_TRUNCATED | CODEC_CAP_DELAY,
     .flush= ff_mpeg_flush,
+    .long_name= "MPEG-4 part 2",
 };
 
 AVCodec h263_decoder = {
@@ -736,6 +737,7 @@ AVCodec h263_decoder = {
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1 | CODEC_CAP_TRUNCATED | CODEC_CAP_DELAY,
     .flush= ff_mpeg_flush,
+    .long_name="H.263",
 };
 
 AVCodec msmpeg4v1_decoder = {
@@ -748,6 +750,7 @@ AVCodec msmpeg4v1_decoder = {
     ff_h263_decode_end,
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .long_name="MPEG-4 part 2 Microsoft variant version 1",
 };
 
 AVCodec msmpeg4v2_decoder = {
@@ -760,6 +763,7 @@ AVCodec msmpeg4v2_decoder = {
     ff_h263_decode_end,
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .long_name="MPEG-4 part 2 Microsoft variant version 2",
 };
 
 AVCodec msmpeg4v3_decoder = {
@@ -772,6 +776,7 @@ AVCodec msmpeg4v3_decoder = {
     ff_h263_decode_end,
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .long_name="MPEG-4 part 2 Microsoft variant version 3",
 };
 
 AVCodec wmv1_decoder = {
@@ -784,6 +789,7 @@ AVCodec wmv1_decoder = {
     ff_h263_decode_end,
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .long_name= "Windows Media Video 7",
 };
 
 AVCodec h263i_decoder = {
@@ -796,6 +802,7 @@ AVCodec h263i_decoder = {
     ff_h263_decode_end,
     ff_h263_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .long_name = "H.263i",
 };
 
 AVCodec flv_decoder = {
@@ -807,5 +814,6 @@ AVCodec flv_decoder = {
     NULL,
     ff_h263_decode_end,
     ff_h263_decode_frame,
-    CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1
+    CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1,
+    .long_name= "Flash Video",
 };

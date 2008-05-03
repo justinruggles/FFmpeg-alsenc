@@ -47,7 +47,7 @@ static int rv30_parse_slice_header(RV34DecContext *r, GetBitContext *gb, SliceIn
         return -1;
     si->quant = get_bits(gb, 5);
     skip_bits1(gb);
-    skip_bits(gb, 13); // timestamp
+    si->pts = get_bits(gb, 13);
     skip_bits(gb, r->rpr);
     si->width  = w;
     si->height = h;
@@ -144,4 +144,5 @@ AVCodec rv30_decoder = {
     ff_rv34_decode_end,
     ff_rv34_decode_frame,
     CODEC_CAP_DR1 | CODEC_CAP_DELAY,
+    .long_name = "RealVideo 3.0",
 };

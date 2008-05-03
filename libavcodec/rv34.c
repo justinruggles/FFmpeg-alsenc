@@ -466,19 +466,21 @@ static void rv34_pred_mv(RV34DecContext *r, int block_type, int subblock_no, int
     }
 }
 
+#define GET_PTS_DIFF(a, b) ((a - b + 8192) & 0x1FFF)
+
 /**
  * Calculate motion vector component that should be added for direct blocks.
  */
-static int calc_add_mv(MpegEncContext *s, int dir, int component)
+static int calc_add_mv(RV34DecContext *r, int dir, int val)
 {
-    int mv_pos = s->mb_x * 2 + s->mb_y * 2 * s->b8_stride;
-    int sum;
+    int refdist = GET_PTS_DIFF(r->next_pts, r->last_pts);
+    int dist = dir ? GET_PTS_DIFF(r->next_pts, r->cur_pts) : GET_PTS_DIFF(r->cur_pts, r->last_pts);
 
-    sum = (s->next_picture_ptr->motion_val[0][mv_pos][component] +
-           s->next_picture_ptr->motion_val[0][mv_pos + 1][component] +
-           s->next_picture_ptr->motion_val[0][mv_pos + s->b8_stride][component] +
-           s->next_picture_ptr->motion_val[0][mv_pos + s->b8_stride + 1][component]) >> 2;
-    return dir ? -(sum >> 1) : ((sum + 1) >> 1);
+    if(!refdist) return 0;
+    if(!dir)
+        return (val * dist + refdist - 1) / refdist;
+    else
+        return -(val * dist / refdist);
 }
 
 /**
@@ -545,10 +547,6 @@ static void rv34_pred_mv_b(RV34DecContext *r, int block_type, int dir)
     mx += r->dmv[dir][0];
     my += r->dmv[dir][1];
 
-    if(block_type == RV34_MB_B_DIRECT){
-        mx += calc_add_mv(s, dir, 0);
-        my += calc_add_mv(s, dir, 1);
-    }
     for(j = 0; j < 2; j++){
         for(i = 0; i < 2; i++){
             cur_pic->motion_val[dir][mv_pos + i + j*s->b8_stride][0] = mx;
@@ -667,6 +665,22 @@ static void rv34_mc_2mv(RV34DecContext *r, const int block_type)
             r->s.dsp.avg_h264_chroma_pixels_tab);
 }
 
+static void rv34_mc_2mv_skip(RV34DecContext *r)
+{
+    int i, j, k;
+    for(j = 0; j < 2; j++)
+        for(i = 0; i < 2; i++){
+             rv34_mc(r, RV34_MB_P_8x8, i*8, j*8, i+j*r->s.b8_stride, 1, 1, 0, r->rv30,
+                    r->rv30 ? r->s.dsp.put_rv30_tpel_pixels_tab
+                            : r->s.dsp.put_h264_qpel_pixels_tab,
+                    r->s.dsp.put_h264_chroma_pixels_tab);
+             rv34_mc(r, RV34_MB_P_8x8, i*8, j*8, i+j*r->s.b8_stride, 1, 1, 1, r->rv30,
+                    r->rv30 ? r->s.dsp.avg_rv30_tpel_pixels_tab
+                            : r->s.dsp.avg_h264_qpel_pixels_tab,
+                    r->s.dsp.avg_h264_chroma_pixels_tab);
+        }
+}
+
 /** number of motion vectors in each macroblock type */
 static const int num_mvs[RV34_MB_TYPES] = { 0, 0, 1, 4, 1, 1, 0, 0, 2, 2, 2, 1 };
 
@@ -678,7 +692,9 @@ static int rv34_decode_mv(RV34DecContext *r, int block_type)
 {
     MpegEncContext *s = &r->s;
     GetBitContext *gb = &s->gb;
-    int i;
+    int i, j, k, l;
+    int mv_pos = s->mb_x * 2 + s->mb_y * 2 * s->b8_stride;
+    int next_bt;
 
     memset(r->dmv, 0, sizeof(r->dmv));
     for(i = 0; i < num_mvs[block_type]; i++){
@@ -697,9 +713,18 @@ static int rv34_decode_mv(RV34DecContext *r, int block_type)
             break;
         }
     case RV34_MB_B_DIRECT:
-        rv34_pred_mv_b  (r, RV34_MB_B_DIRECT, 0);
-        rv34_pred_mv_b  (r, RV34_MB_B_DIRECT, 1);
-        rv34_mc_2mv     (r, RV34_MB_B_DIRECT);
+        //surprisingly, it uses motion scheme from next reference frame
+        next_bt = s->next_picture_ptr->mb_type[s->mb_x + s->mb_y * s->mb_stride];
+        for(j = 0; j < 2; j++)
+            for(i = 0; i < 2; i++)
+                for(k = 0; k < 2; k++)
+                    for(l = 0; l < 2; l++)
+                        s->current_picture_ptr->motion_val[l][mv_pos + i + j*s->b8_stride][k] = calc_add_mv(r, l, s->next_picture_ptr->motion_val[0][mv_pos + i + j*s->b8_stride][k]);
+        if(IS_16X16(next_bt)) //we can use whole macroblock MC
+            rv34_mc_2mv(r, block_type);
+        else
+            rv34_mc_2mv_skip(r);
+        fill_rectangle(s->current_picture_ptr->motion_val[0][s->mb_x * 2 + s->mb_y * 2 * s->b8_stride], 2, 2, s->b8_stride, 0, 4);
         break;
     case RV34_MB_P_16x16:
     case RV34_MB_P_MIX16x16:
@@ -1076,7 +1101,8 @@ static inline int slice_compare(SliceInfo *si1, SliceInfo *si2)
     return si1->type   != si2->type  ||
            si1->start  >= si2->start ||
            si1->width  != si2->width ||
-           si1->height != si2->height;
+           si1->height != si2->height||
+           si1->pts    != si2->pts;
 }
 
 static int rv34_decode_slice(RV34DecContext *r, int end, uint8_t* buf, int buf_size)
@@ -1112,6 +1138,11 @@ static int rv34_decode_slice(RV34DecContext *r, int end, uint8_t* buf, int buf_s
             return -1;
         ff_er_frame_start(s);
         s->current_picture_ptr = &s->current_picture;
+        r->cur_pts = r->si.pts;
+        if(s->pict_type != FF_B_TYPE){
+            r->last_pts = r->next_pts;
+            r->next_pts = r->cur_pts;
+        }
         s->mb_x = s->mb_y = 0;
     }
 

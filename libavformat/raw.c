@@ -24,6 +24,7 @@
 #include "raw.h"
 #include "crc.h"
 #include "bitstream.h"
+#include "bytestream.h"
 
 #ifdef CONFIG_MUXERS
 /* simple formats */
@@ -221,83 +222,14 @@ int pcm_read_seek(AVFormatContext *s,
     return 0;
 }
 
-/* ac3 read */
-static int ac3_read_header(AVFormatContext *s,
-                           AVFormatParameters *ap)
+static int audio_read_header(AVFormatContext *s,
+                             AVFormatParameters *ap)
 {
-    AVStream *st;
-
-    st = av_new_stream(s, 0);
-    if (!st)
-        return AVERROR(ENOMEM);
-
-    st->codec->codec_type = CODEC_TYPE_AUDIO;
-    st->codec->codec_id = CODEC_ID_AC3;
-    st->need_parsing = AVSTREAM_PARSE_FULL;
-    /* the parameters will be extracted from the compressed bitstream */
-    return 0;
-}
-
-static int shorten_read_header(AVFormatContext *s,
-                               AVFormatParameters *ap)
-{
-    AVStream *st;
-
-    st = av_new_stream(s, 0);
+    AVStream *st = av_new_stream(s, 0);
     if (!st)
         return AVERROR(ENOMEM);
     st->codec->codec_type = CODEC_TYPE_AUDIO;
-    st->codec->codec_id = CODEC_ID_SHORTEN;
-    st->need_parsing = AVSTREAM_PARSE_FULL;
-    /* the parameters will be extracted from the compressed bitstream */
-    return 0;
-}
-
-/* flac read */
-static int flac_read_header(AVFormatContext *s,
-                            AVFormatParameters *ap)
-{
-    AVStream *st;
-
-    st = av_new_stream(s, 0);
-    if (!st)
-        return AVERROR(ENOMEM);
-    st->codec->codec_type = CODEC_TYPE_AUDIO;
-    st->codec->codec_id = CODEC_ID_FLAC;
-    st->need_parsing = AVSTREAM_PARSE_FULL;
-    /* the parameters will be extracted from the compressed bitstream */
-    return 0;
-}
-
-/* dts read */
-static int dts_read_header(AVFormatContext *s,
-                           AVFormatParameters *ap)
-{
-    AVStream *st;
-
-    st = av_new_stream(s, 0);
-    if (!st)
-        return AVERROR(ENOMEM);
-
-    st->codec->codec_type = CODEC_TYPE_AUDIO;
-    st->codec->codec_id = CODEC_ID_DTS;
-    st->need_parsing = AVSTREAM_PARSE_FULL;
-    /* the parameters will be extracted from the compressed bitstream */
-    return 0;
-}
-
-/* aac read */
-static int aac_read_header(AVFormatContext *s,
-                           AVFormatParameters *ap)
-{
-    AVStream *st;
-
-    st = av_new_stream(s, 0);
-    if (!st)
-        return AVERROR(ENOMEM);
-
-    st->codec->codec_type = CODEC_TYPE_AUDIO;
-    st->codec->codec_id = CODEC_ID_AAC;
+    st->codec->codec_id = s->iformat->value;
     st->need_parsing = AVSTREAM_PARSE_FULL;
     /* the parameters will be extracted from the compressed bitstream */
     return 0;
@@ -323,6 +255,7 @@ static int video_read_header(AVFormatContext *s,
         av_set_pts_info(st, 64, ap->time_base.num, ap->time_base.den);
     } else if ( st->codec->codec_id == CODEC_ID_MJPEG ||
                 st->codec->codec_id == CODEC_ID_MPEG4 ||
+                st->codec->codec_id == CODEC_ID_DIRAC ||
                 st->codec->codec_id == CODEC_ID_H264) {
         av_set_pts_info(st, 64, 1, 25);
     }
@@ -415,6 +348,47 @@ static int h261_probe(AVProbeData *p)
     return 0;
 }
 
+#define DCA_MARKER_14B_BE 0x1FFFE800
+#define DCA_MARKER_14B_LE 0xFF1F00E8
+#define DCA_MARKER_RAW_BE 0x7FFE8001
+#define DCA_MARKER_RAW_LE 0xFE7F0180
+static int dts_probe(AVProbeData *p)
+{
+    const uint8_t *buf, *bufp;
+    uint32_t state = -1;
+
+    buf = p->buf;
+
+    for(; buf < (p->buf+p->buf_size)-2; buf+=2) {
+        bufp = buf;
+        state = (state << 16) | bytestream_get_be16(&bufp);
+
+        /* Regular bitstream */
+        if (state == DCA_MARKER_RAW_BE || state == DCA_MARKER_RAW_LE)
+            return AVPROBE_SCORE_MAX/2+1;
+
+        /* 14 bits big endian bitstream */
+        if (state == DCA_MARKER_14B_BE)
+            if ((bytestream_get_be16(&bufp) & 0xFFF0) == 0x07F0)
+                return AVPROBE_SCORE_MAX/2+1;
+
+        /* 14 bits little endian bitstream */
+        if (state == DCA_MARKER_14B_LE)
+            if ((bytestream_get_be16(&bufp) & 0xF0FF) == 0xF007)
+                return AVPROBE_SCORE_MAX/2+1;
+    }
+
+    return 0;
+}
+
+static int dirac_probe(AVProbeData *p)
+{
+    if (AV_RL32(p->buf) == MKTAG('B', 'B', 'C', 'D'))
+        return AVPROBE_SCORE_MAX;
+    else
+        return 0;
+}
+
 static int ac3_probe(AVProbeData *p)
 {
     int max_frames, first_frames = 0, frames;
@@ -459,11 +433,12 @@ AVInputFormat shorten_demuxer = {
     "raw shorten",
     0,
     NULL,
-    shorten_read_header,
+    audio_read_header,
     raw_read_partial_packet,
     raw_read_close,
     .flags= AVFMT_GENERIC_INDEX,
     .extensions = "shn",
+    .value = CODEC_ID_SHORTEN,
 };
 
 AVInputFormat flac_demuxer = {
@@ -471,11 +446,12 @@ AVInputFormat flac_demuxer = {
     "raw flac",
     0,
     flac_probe,
-    flac_read_header,
+    audio_read_header,
     raw_read_partial_packet,
     raw_read_close,
     .flags= AVFMT_GENERIC_INDEX,
     .extensions = "flac",
+    .value = CODEC_ID_FLAC,
 };
 
 #ifdef CONFIG_MUXERS
@@ -499,11 +475,12 @@ AVInputFormat ac3_demuxer = {
     "raw ac3",
     0,
     ac3_probe,
-    ac3_read_header,
+    audio_read_header,
     raw_read_partial_packet,
     raw_read_close,
     .flags= AVFMT_GENERIC_INDEX,
     .extensions = "ac3",
+    .value = CODEC_ID_AC3,
 };
 #endif
 
@@ -536,16 +513,44 @@ AVOutputFormat dts_muxer = {
 
 #endif //CONFIG_MUXERS
 
+AVInputFormat dirac_demuxer = {
+    "dirac",
+    "raw dirac",
+    0,
+    dirac_probe,
+    video_read_header,
+    raw_read_partial_packet,
+    raw_read_close,
+    .flags= AVFMT_GENERIC_INDEX,
+    .value = CODEC_ID_DIRAC,
+};
+
+#ifdef CONFIG_MUXERS
+AVOutputFormat dirac_muxer = {
+    "dirac",
+    "raw dirac",
+    NULL,
+    "drc",
+    0,
+    0,
+    CODEC_ID_DIRAC,
+    NULL,
+    raw_write_packet,
+    .flags= AVFMT_NOTIMESTAMPS,
+};
+#endif
+
 AVInputFormat dts_demuxer = {
     "dts",
     "raw dts",
     0,
-    NULL,
-    dts_read_header,
+    dts_probe,
+    audio_read_header,
     raw_read_partial_packet,
     raw_read_close,
     .flags= AVFMT_GENERIC_INDEX,
     .extensions = "dts",
+    .value = CODEC_ID_DTS,
 };
 
 AVInputFormat aac_demuxer = {
@@ -553,11 +558,25 @@ AVInputFormat aac_demuxer = {
     "ADTS AAC",
     0,
     NULL,
-    aac_read_header,
+    audio_read_header,
     raw_read_partial_packet,
     raw_read_close,
     .flags= AVFMT_GENERIC_INDEX,
     .extensions = "aac",
+    .value = CODEC_ID_AAC,
+};
+
+AVInputFormat gsm_demuxer = {
+    "gsm",
+    "GSM",
+    0,
+    NULL,
+    audio_read_header,
+    raw_read_partial_packet,
+    raw_read_close,
+    .flags= AVFMT_GENERIC_INDEX,
+    .extensions = "gsm",
+    .value = CODEC_ID_GSM,
 };
 
 #ifdef CONFIG_ROQ_MUXER

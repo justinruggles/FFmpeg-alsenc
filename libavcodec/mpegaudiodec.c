@@ -56,15 +56,6 @@
 
 #define HEADER_SIZE 4
 
-/**
- * Context for MP3On4 decoder
- */
-typedef struct MP3On4DecodeContext {
-    int frames;   ///< number of mp3 frames per block (number of mp3 decoder instances)
-    int chan_cfg; ///< channel config number
-    MPADecodeContext *mp3decctx[5]; ///< MPADecodeContext for every decoder instance
-} MP3On4DecodeContext;
-
 /* layer 3 "granule" */
 typedef struct GranuleDef {
     uint8_t scfsi;
@@ -2475,11 +2466,23 @@ static int decode_frame_adu(AVCodecContext * avctx,
 #endif /* CONFIG_MP3ADU_DECODER */
 
 #ifdef CONFIG_MP3ON4_DECODER
+
+/**
+ * Context for MP3On4 decoder
+ */
+typedef struct MP3On4DecodeContext {
+    int frames;   ///< number of mp3 frames per block (number of mp3 decoder instances)
+    int syncword; ///< syncword patch
+    const uint8_t *coff; ///< channels offsets in output buffer
+    MPADecodeContext *mp3decctx[5]; ///< MPADecodeContext for every decoder instance
+} MP3On4DecodeContext;
+
+#include "mpeg4audio.h"
+
 /* Next 3 arrays are indexed by channel config number (passed via codecdata) */
-static int mp3Frames[16] = {0,1,1,2,3,3,4,5,2};   /* number of mp3 decoder instances */
-static int mp3Channels[16] = {0,1,2,3,4,5,6,8,4}; /* total output channels */
+static const uint8_t mp3Frames[8] = {0,1,1,2,3,3,4,5};   /* number of mp3 decoder instances */
 /* offsets into output buffer, assume output order is FL FR BL BR C LFE */
-static int chan_offset[9][5] = {
+static const uint8_t chan_offset[8][5] = {
     {0},
     {0},            // C
     {0},            // FLR
@@ -2488,13 +2491,13 @@ static int chan_offset[9][5] = {
     {4,0,2},        // C FLR BLRS
     {4,0,2,5},      // C FLR BLRS LFE
     {4,0,2,6,5},    // C FLR BLRS BLR LFE
-    {0,2}           // FLR BLRS
 };
 
 
 static int decode_init_mp3on4(AVCodecContext * avctx)
 {
     MP3On4DecodeContext *s = avctx->priv_data;
+    MPEG4AudioConfig cfg;
     int i;
 
     if ((avctx->extradata_size < 2) || (avctx->extradata == NULL)) {
@@ -2502,13 +2505,19 @@ static int decode_init_mp3on4(AVCodecContext * avctx)
         return -1;
     }
 
-    s->chan_cfg = (((unsigned char *)avctx->extradata)[1] >> 3) & 0x0f;
-    s->frames = mp3Frames[s->chan_cfg];
-    if(!s->frames) {
+    ff_mpeg4audio_get_config(&cfg, avctx->extradata, avctx->extradata_size);
+    if (!cfg.chan_config || cfg.chan_config > 7) {
         av_log(avctx, AV_LOG_ERROR, "Invalid channel config number.\n");
         return -1;
     }
-    avctx->channels = mp3Channels[s->chan_cfg];
+    s->frames = mp3Frames[cfg.chan_config];
+    s->coff = chan_offset[cfg.chan_config];
+    avctx->channels = ff_mpeg4audio_channels[cfg.chan_config];
+
+    if (cfg.sample_rate < 16000)
+        s->syncword = 0xffe00000;
+    else
+        s->syncword = 0xfff00000;
 
     /* Init the first mp3 decoder in standard way, so that all tables get builded
      * We replace avctx->priv_data with the context of the first decoder so that
@@ -2557,76 +2566,61 @@ static int decode_frame_mp3on4(AVCodecContext * avctx,
 {
     MP3On4DecodeContext *s = avctx->priv_data;
     MPADecodeContext *m;
-    int len, out_size = 0;
+    int fsize, len = buf_size, out_size = 0;
     uint32_t header;
     OUT_INT *out_samples = data;
     OUT_INT decoded_buf[MPA_FRAME_SIZE * MPA_MAX_CHANNELS];
     OUT_INT *outptr, *bp;
-    int fsize;
-    const unsigned char *start2 = buf, *start;
-    int fr, i, j, n;
-    int off = avctx->channels;
-    int *coff = chan_offset[s->chan_cfg];
+    int fr, j, n;
 
-    len = buf_size;
-
+    *data_size = 0;
     // Discard too short frames
-    if (buf_size < HEADER_SIZE) {
-        *data_size = 0;
-        return buf_size;
-    }
+    if (buf_size < HEADER_SIZE)
+        return -1;
 
     // If only one decoder interleave is not needed
     outptr = s->frames == 1 ? out_samples : decoded_buf;
 
+    avctx->bit_rate = 0;
+
     for (fr = 0; fr < s->frames; fr++) {
-        start = start2;
-        fsize = (start[0] << 4) | (start[1] >> 4);
-        start2 += fsize;
-        if (fsize > len)
-            fsize = len;
-        len -= fsize;
-        if (fsize > MPA_MAX_CODED_FRAME_SIZE)
-            fsize = MPA_MAX_CODED_FRAME_SIZE;
+        fsize = AV_RB16(buf) >> 4;
+        fsize = FFMIN3(fsize, len, MPA_MAX_CODED_FRAME_SIZE);
         m = s->mp3decctx[fr];
         assert (m != NULL);
 
-        // Get header
-        header = AV_RB32(start) | 0xfff00000;
+        header = (AV_RB32(buf) & 0x000fffff) | s->syncword; // patch header
 
-        if (ff_mpa_check_header(header) < 0) { // Bad header, discard block
-            *data_size = 0;
-            return buf_size;
-        }
+        if (ff_mpa_check_header(header) < 0) // Bad header, discard block
+            break;
 
         ff_mpegaudio_decode_header(m, header);
-        mp_decode_frame(m, decoded_buf, start, fsize);
+        out_size += mp_decode_frame(m, outptr, buf, fsize);
+        buf += fsize;
+        len -= fsize;
 
-        n = MPA_FRAME_SIZE * m->nb_channels;
-        out_size += n * sizeof(OUT_INT);
         if(s->frames > 1) {
+            n = m->avctx->frame_size*m->nb_channels;
             /* interleave output data */
-            bp = out_samples + coff[fr];
+            bp = out_samples + s->coff[fr];
             if(m->nb_channels == 1) {
                 for(j = 0; j < n; j++) {
                     *bp = decoded_buf[j];
-                    bp += off;
+                    bp += avctx->channels;
                 }
             } else {
                 for(j = 0; j < n; j++) {
                     bp[0] = decoded_buf[j++];
                     bp[1] = decoded_buf[j];
-                    bp += off;
+                    bp += avctx->channels;
                 }
             }
         }
+        avctx->bit_rate += m->bit_rate;
     }
 
     /* update codec info */
     avctx->sample_rate = s->mp3decctx[0]->sample_rate;
-    avctx->bit_rate = 0;
-    for (i = 0; i < s->frames; i++)
-        avctx->bit_rate += s->mp3decctx[i]->bit_rate;
 
     *data_size = out_size;
     return buf_size;
@@ -2646,6 +2640,7 @@ AVCodec mp2_decoder =
     decode_frame,
     CODEC_CAP_PARSE_ONLY,
     .flush= flush,
+    .long_name= "MP2 (MPEG audio layer 2)",
 };
 #endif
 #ifdef CONFIG_MP3_DECODER
@@ -2661,6 +2656,7 @@ AVCodec mp3_decoder =
     decode_frame,
     CODEC_CAP_PARSE_ONLY,
     .flush= flush,
+    .long_name= "MP3 (MPEG audio layer 3)",
 };
 #endif
 #ifdef CONFIG_MP3ADU_DECODER
@@ -2676,6 +2672,7 @@ AVCodec mp3adu_decoder =
     decode_frame_adu,
     CODEC_CAP_PARSE_ONLY,
     .flush= flush,
+    .long_name= "ADU (Application Data Unit) MP3 (MPEG audio layer 3)",
 };
 #endif
 #ifdef CONFIG_MP3ON4_DECODER
@@ -2690,5 +2687,6 @@ AVCodec mp3on4_decoder =
     decode_close_mp3on4,
     decode_frame_mp3on4,
     .flush= flush,
+    .long_name= "MP3onMP4",
 };
 #endif

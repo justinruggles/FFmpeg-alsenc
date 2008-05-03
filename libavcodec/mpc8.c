@@ -353,7 +353,7 @@ static int mpc8_decode_frame(AVCodecContext * avctx,
 }
 
 AVCodec mpc8_decoder = {
-    "mpc sv8",
+    "mpc8",
     CODEC_TYPE_AUDIO,
     CODEC_ID_MUSEPACK8,
     sizeof(MPCContext),
@@ -361,4 +361,5 @@ AVCodec mpc8_decoder = {
     NULL,
     NULL,
     mpc8_decode_frame,
+    .long_name = "Musepack SV8",
 };

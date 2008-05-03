@@ -41,17 +41,28 @@ static av_cold int libgsm_init(AVCodecContext *avctx) {
                avctx->channels);
         return -1;
     }
-    if (avctx->sample_rate != 8000) {
-        av_log(avctx, AV_LOG_ERROR, "Sample rate 8000Hz required for GSM, got %dHz\n",
-               avctx->sample_rate);
-        return -1;
-    }
-    if (avctx->bit_rate != 13000 /* Official */ &&
-        avctx->bit_rate != 13200 /* Very common */ &&
-        avctx->bit_rate != 0 /* Unknown; a.o. mov does not set bitrate when decoding */ ) {
-        av_log(avctx, AV_LOG_ERROR, "Bitrate 13000bps required for GSM, got %dbps\n",
-               avctx->bit_rate);
-        return -1;
+
+    if(avctx->codec->decode){
+        if(!avctx->channels)
+            avctx->channels= 1;
+
+        if(!avctx->sample_rate)
+            avctx->sample_rate= 8000;
+    }else{
+        if (avctx->sample_rate != 8000) {
+            av_log(avctx, AV_LOG_ERROR, "Sample rate 8000Hz required for GSM, got %dHz\n",
+                avctx->sample_rate);
+            if(avctx->strict_std_compliance > FF_COMPLIANCE_INOFFICIAL)
+                return -1;
+        }
+        if (avctx->bit_rate != 13000 /* Official */ &&
+            avctx->bit_rate != 13200 /* Very common */ &&
+            avctx->bit_rate != 0 /* Unknown; a.o. mov does not set bitrate when decoding */ ) {
+            av_log(avctx, AV_LOG_ERROR, "Bitrate 13000bps required for GSM, got %dbps\n",
+                avctx->bit_rate);
+            if(avctx->strict_std_compliance > FF_COMPLIANCE_INOFFICIAL)
+                return -1;
+        }
     }
 
     avctx->priv_data = gsm_create();
@@ -106,6 +117,7 @@ AVCodec libgsm_encoder = {
     libgsm_init,
     libgsm_encode_frame,
     libgsm_close,
+    .long_name = "libgsm GSM",
 };
 
 AVCodec libgsm_ms_encoder = {
@@ -116,6 +128,7 @@ AVCodec libgsm_ms_encoder = {
     libgsm_init,
     libgsm_encode_frame,
     libgsm_close,
+    .long_name = "libgsm GSM Microsoft variant",
 };
 
 static int libgsm_decode_frame(AVCodecContext *avctx,
@@ -145,6 +158,7 @@ AVCodec libgsm_decoder = {
     NULL,
     libgsm_close,
     libgsm_decode_frame,
+    .long_name = "libgsm GSM",
 };
 
 AVCodec libgsm_ms_decoder = {
@@ -156,4 +170,5 @@ AVCodec libgsm_ms_decoder = {
     NULL,
     libgsm_close,
     libgsm_decode_frame,
+    .long_name = "libgsm GSM Microsoft variant",
 };

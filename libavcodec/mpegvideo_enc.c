@@ -2742,7 +2742,7 @@ static int encode_picture(MpegEncContext *s, int picture_number)
 
     s->me.scene_change_score=0;
 
-//    s->lambda= s->current_picture_ptr->quality; //FIXME qscale / ... stuff for ME ratedistoration
+//    s->lambda= s->current_picture_ptr->quality; //FIXME qscale / ... stuff for ME rate distortion
 
     if(s->pict_type==FF_I_TYPE){
         if(s->msmpeg4_version >= 3) s->no_rounding=1;
@@ -3078,7 +3078,7 @@ int dct_quantize_trellis_c(MpegEncContext *s,
     survivor_count= 1;
 
     for(i=start_i; i<=last_non_zero; i++){
-        int level_index, j, zero_distoration;
+        int level_index, j, zero_distortion;
         int dct_coeff= FFABS(block[ scantable[i] ]);
         int best_score=256*256*256*120;
 
@@ -3088,10 +3088,10 @@ int dct_quantize_trellis_c(MpegEncContext *s,
 #endif
            )
             dct_coeff= (dct_coeff*inv_aanscales[ scantable[i] ]) >> 12;
-        zero_distoration= dct_coeff*dct_coeff;
+        zero_distortion= dct_coeff*dct_coeff;
 
         for(level_index=0; level_index < coeff_count[i]; level_index++){
-            int distoration;
+            int distortion;
             int level= coeff[level_index][i];
             const int alevel= FFABS(level);
             int unquant_coeff;
@@ -3112,12 +3112,12 @@ int dct_quantize_trellis_c(MpegEncContext *s,
                 unquant_coeff<<= 3;
             }
 
-            distoration= (unquant_coeff - dct_coeff) * (unquant_coeff - dct_coeff) - zero_distoration;
+            distortion= (unquant_coeff - dct_coeff) * (unquant_coeff - dct_coeff) - zero_distortion;
             level+=64;
             if((level&(~127)) == 0){
                 for(j=survivor_count-1; j>=0; j--){
                     int run= i - survivor[j];
-                    int score= distoration + length[UNI_AC_ENC_INDEX(run, level)]*lambda;
+                    int score= distortion + length[UNI_AC_ENC_INDEX(run, level)]*lambda;
                     score += score_tab[i-run];
 
                     if(score < best_score){
@@ -3130,7 +3130,7 @@ int dct_quantize_trellis_c(MpegEncContext *s,
                 if(s->out_format == FMT_H263){
                     for(j=survivor_count-1; j>=0; j--){
                         int run= i - survivor[j];
-                        int score= distoration + last_length[UNI_AC_ENC_INDEX(run, level)]*lambda;
+                        int score= distortion + last_length[UNI_AC_ENC_INDEX(run, level)]*lambda;
                         score += score_tab[i-run];
                         if(score < last_score){
                             last_score= score;
@@ -3141,10 +3141,10 @@ int dct_quantize_trellis_c(MpegEncContext *s,
                     }
                 }
             }else{
-                distoration += esc_length*lambda;
+                distortion += esc_length*lambda;
                 for(j=survivor_count-1; j>=0; j--){
                     int run= i - survivor[j];
-                    int score= distoration + score_tab[i-run];
+                    int score= distortion + score_tab[i-run];
 
                     if(score < best_score){
                         best_score= score;
@@ -3156,7 +3156,7 @@ int dct_quantize_trellis_c(MpegEncContext *s,
                 if(s->out_format == FMT_H263){
                   for(j=survivor_count-1; j>=0; j--){
                         int run= i - survivor[j];
-                        int score= distoration + score_tab[i-run];
+                        int score= distortion + score_tab[i-run];
                         if(score < last_score){
                             last_score= score;
                             last_run= run;
@@ -3744,6 +3744,7 @@ AVCodec h263_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "H.263",
 };
 
 AVCodec h263p_encoder = {
@@ -3755,6 +3756,7 @@ AVCodec h263p_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "H.263+ / H.263 version 2",
 };
 
 AVCodec flv_encoder = {
@@ -3766,6 +3768,7 @@ AVCodec flv_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "Flash Video",
 };
 
 AVCodec rv10_encoder = {
@@ -3777,6 +3780,7 @@ AVCodec rv10_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "RealVideo 1.0",
 };
 
 AVCodec rv20_encoder = {
@@ -3788,6 +3792,7 @@ AVCodec rv20_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "RealVideo 2.0",
 };
 
 AVCodec mpeg4_encoder = {
@@ -3800,6 +3805,7 @@ AVCodec mpeg4_encoder = {
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
     .capabilities= CODEC_CAP_DELAY,
+    .long_name= "MPEG-4 part 2",
 };
 
 AVCodec msmpeg4v1_encoder = {
@@ -3811,6 +3817,7 @@ AVCodec msmpeg4v1_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "MPEG-4 part 2 Microsoft variant version 1",
 };
 
 AVCodec msmpeg4v2_encoder = {
@@ -3822,6 +3829,7 @@ AVCodec msmpeg4v2_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "MPEG-4 part 2 Microsoft variant version 2",
 };
 
 AVCodec msmpeg4v3_encoder = {
@@ -3833,6 +3841,7 @@ AVCodec msmpeg4v3_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "MPEG-4 part 2 Microsoft variant version 3",
 };
 
 AVCodec wmv1_encoder = {
@@ -3844,4 +3853,5 @@ AVCodec wmv1_encoder = {
     MPV_encode_picture,
     MPV_encode_end,
     .pix_fmts= (enum PixelFormat[]){PIX_FMT_YUV420P, -1},
+    .long_name= "Windows Media Video 7",
 };

@@ -116,7 +116,7 @@ OBJS-$(CONFIG_MP2_DECODER)             += mpegaudiodec.o mpegaudiodecheader.o mp
 OBJS-$(CONFIG_MP2_ENCODER)             += mpegaudioenc.o mpegaudio.o mpegaudiodata.o
 OBJS-$(CONFIG_MP3_DECODER)             += mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o
 OBJS-$(CONFIG_MP3ADU_DECODER)          += mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o
-OBJS-$(CONFIG_MP3ON4_DECODER)          += mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o
+OBJS-$(CONFIG_MP3ON4_DECODER)          += mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o mpeg4audio.o
 OBJS-$(CONFIG_MPC7_DECODER)            += mpc7.o mpc.o mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o
 OBJS-$(CONFIG_MPC8_DECODER)            += mpc8.o mpc.o mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o
 OBJS-$(CONFIG_MDEC_DECODER)            += mpeg12.o mpeg12data.o mpegvideo.o error_resilience.o
@@ -319,6 +319,8 @@ OBJS-$(CONFIG_RTP_MUXER)               += mpegvideo.o
 OBJS-$(CONFIG_LIBA52)                  += liba52.o
 OBJS-$(CONFIG_LIBAMR_NB)               += libamr.o
 OBJS-$(CONFIG_LIBAMR_WB)               += libamr.o
+OBJS-$(CONFIG_LIBDIRAC_DECODER)        += libdiracdec.o
+OBJS-$(CONFIG_LIBDIRAC_ENCODER)        += libdiracenc.o libdirac_libschro.o
 OBJS-$(CONFIG_LIBFAAC)                 += libfaac.o
 OBJS-$(CONFIG_LIBFAAD)                 += libfaad.o
 OBJS-$(CONFIG_LIBGSM)                  += libgsm.o
@@ -333,6 +335,7 @@ OBJS-$(CONFIG_AAC_PARSER)              += aac_parser.o aac_ac3_parser.o mpeg4aud
 OBJS-$(CONFIG_AC3_PARSER)              += ac3_parser.o ac3tab.o aac_ac3_parser.o
 OBJS-$(CONFIG_CAVSVIDEO_PARSER)        += cavs_parser.o
 OBJS-$(CONFIG_DCA_PARSER)              += dca_parser.o
+OBJS-$(CONFIG_DIRAC_PARSER)            += dirac_parser.o
 OBJS-$(CONFIG_DVBSUB_PARSER)           += dvbsub_parser.o
 OBJS-$(CONFIG_DVDSUB_PARSER)           += dvdsub_parser.o
 OBJS-$(CONFIG_H261_PARSER)             += h261_parser.o
@@ -371,7 +374,7 @@ endif
 # processor-specific code
 ifdef HAVE_MMX
 OBJS += i386/fdct_mmx.o \
-        i386/cputest.o \
+        i386/cpuid.o \
         i386/dsputil_mmx.o \
         i386/mpegvideo_mmx.o \
         i386/motion_est_mmx.o \
@@ -468,13 +471,11 @@ ASM_OBJS-$(ARCH_BFIN)                  += bfin/pixels_bfin.o \
                                           bfin/vp3_idct_bfin.o   \
 
 TESTS = $(addsuffix -test$(EXESUF), cabac dct eval fft h264 imgresample rangecoder snow)
-TESTS-$(ARCH_X86) += i386/cputest-test$(EXESUF) motion-test$(EXESUF)
+TESTS-$(ARCH_X86) += i386/cpuid-test$(EXESUF) motion-test$(EXESUF)
 
 CLEANFILES = apiexample$(EXESUF)
 DIRS = alpha armv4l bfin i386 mlib ppc ps2 sh4 sparc
 
 include $(SUBDIR)../subdir.mak
 
-$(SUBDIR)i386/cputest-test$(EXESUF): $(SUBDIR)i386/cputest-test.o
-$(SUBDIR)apiexample$(EXESUF): $(SUBDIR)apiexample.o $(SUBDIR)$(LIBNAME)
 $(SUBDIR)dct-test$(EXESUF): $(SUBDIR)fdctref.o

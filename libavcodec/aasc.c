@@ -1,5 +1,5 @@
 /*
- * Autodesc RLE Decoder
+ * Autodesk RLE Decoder
  * Copyright (C) 2005 the ffmpeg project
  *
  * This file is part of FFmpeg.
@@ -21,7 +21,7 @@
 
 /**
  * @file aasc.c
- * Autodesc RLE Video Decoder by Konstantin Shishkov
+ * Autodesk RLE Video Decoder by Konstantin Shishkov
  */
 
 #include <stdio.h>
@@ -171,4 +171,5 @@ AVCodec aasc_decoder = {
     aasc_decode_end,
     aasc_decode_frame,
     CODEC_CAP_DR1,
+    .long_name = "Autodesk RLE",
 };
