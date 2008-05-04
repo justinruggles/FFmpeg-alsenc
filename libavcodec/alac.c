@@ -199,7 +199,8 @@ static void bastardized_rice_decompress(ALACContext *alac,
 
         /* special case: there may be compressed blocks of 0 */
         if ((history < 128) && (output_count+1 < output_size)) {
-            int block_size, k;
+            int k;
+            unsigned int block_size;
 
             sign_modifier = 1;
 
@@ -208,6 +209,10 @@ static void bastardized_rice_decompress(ALACContext *alac,
             block_size= decode_scalar(&alac->gb, k, rice_kmodifier, 16);
 
             if (block_size > 0) {
+                if(block_size >= output_size - output_count){
+                    av_log(alac->avctx, AV_LOG_ERROR, "invalid zero block size of %d %d %d\n", block_size, output_size, output_count);
+                    block_size= output_size - output_count - 1;
+                }
                 memset(&output_buffer[output_count+1], 0, block_size * 4);
                 output_count += block_size;
             }
@@ -400,7 +405,7 @@ static int alac_decode_frame(AVCodecContext *avctx,
     ALACContext *alac = avctx->priv_data;
 
     int channels;
-    int32_t outputsamples;
+    unsigned int outputsamples;
     int hassize;
     int readsamplesize;
     int wasted_bytes;
@@ -453,8 +458,17 @@ static int alac_decode_frame(AVCodecContext *avctx,
     if (hassize) {
         /* now read the number of samples as a 32bit integer */
         outputsamples = get_bits(&alac->gb, 32);
+        if(outputsamples > alac->setinfo_max_samples_per_frame){
+            av_log(avctx, AV_LOG_ERROR, "outputsamples %d > %d\n", outputsamples, alac->setinfo_max_samples_per_frame);
+            return -1;
+        }
     } else
         outputsamples = alac->setinfo_max_samples_per_frame;
+
+    if(outputsamples > *outputsize / alac->bytespersample){
+        av_log(avctx, AV_LOG_ERROR, "sample buffer too small\n");
+        return -1;
+    }
 
     *outputsize = outputsamples * alac->bytespersample;
     readsamplesize = alac->setinfo_sample_size - (wasted_bytes * 8) + channels - 1;
