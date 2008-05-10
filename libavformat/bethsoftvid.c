@@ -28,7 +28,7 @@
  */
 
 #include "avformat.h"
-#include "bethsoftvideo.h"
+#include "libavcodec/bethsoftvideo.h"
 
 typedef struct BVID_DemuxContext
 {
@@ -202,7 +202,7 @@ static int vid_read_packet(AVFormatContext *s,
             audio_length = get_le16(pb);
             ret_value = av_get_packet(pb, pkt, audio_length);
             pkt->stream_index = 1;
-            return (ret_value != audio_length ? AVERROR(EIO) : ret_value);
+            return ret_value != audio_length ? AVERROR(EIO) : ret_value;
 
         case VIDEO_P_FRAME:
         case VIDEO_YOFF_P_FRAME:

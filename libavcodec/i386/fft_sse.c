@@ -18,7 +18,9 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
-#include "dsputil.h"
+
+#include "libavutil/x86_cpu.h"
+#include "libavcodec/dsputil.h"
 
 static const int p1p1p1m1[4] __attribute__((aligned(16))) =
     { 0, 0, 0, 1 << 31 };
@@ -48,7 +50,8 @@ static void print_v4sf(const char *str, __m128 a)
 void ff_fft_calc_sse(FFTContext *s, FFTComplex *z)
 {
     int ln = s->nbits;
-    long i, j;
+    x86_reg i;
+    long j;
     long nblocks, nloops;
     FFTComplex *p, *cptr;
 
@@ -142,7 +145,8 @@ void ff_fft_calc_sse(FFTContext *s, FFTComplex *z)
 void ff_imdct_calc_sse(MDCTContext *s, FFTSample *output,
                        const FFTSample *input, FFTSample *tmp)
 {
-    long k, n8, n4, n2, n;
+    x86_reg k;
+    long n8, n4, n2, n;
     const uint16_t *revtab = s->fft.revtab;
     const FFTSample *tcos = s->tcos;
     const FFTSample *tsin = s->tsin;

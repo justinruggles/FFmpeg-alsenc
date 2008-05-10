@@ -24,8 +24,8 @@
  * MTV demuxer.
  */
 
+#include "libavutil/bswap.h"
 #include "avformat.h"
-#include "bswap.h"
 
 #define MTV_ASUBCHUNK_DATA_SIZE 500
 #define MTV_HEADER_SIZE 512
@@ -124,7 +124,7 @@ static int mtv_read_header(AVFormatContext *s, AVFormatParameters *ap)
     if(url_fseek(pb, MTV_HEADER_SIZE, SEEK_SET) != MTV_HEADER_SIZE)
         return AVERROR(EIO);
 
-    return(0);
+    return 0;
 
 }
 
@@ -171,7 +171,7 @@ static int mtv_read_packet(AVFormatContext *s, AVPacket *pkt)
         pkt->stream_index = VIDEO_SID;
     }
 
-    return(ret);
+    return ret;
 }
 
 AVInputFormat mtv_demuxer = {

@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include "avformat.h"
-#include "opt.h"
-#include "avstring.h"
+#include "libavcodec/opt.h"
+#include "libavutil/avstring.h"
 #include "riff.h"
 #include <sys/time.h>
 #include <time.h>
@@ -1690,7 +1690,7 @@ static int has_codec_parameters(AVCodecContext *enc)
         val = 1;
         break;
     }
-    return (enc->codec_id != CODEC_ID_NONE && val != 0);
+    return enc->codec_id != CODEC_ID_NONE && val != 0;
 }
 
 static int try_decode_frame(AVStream *st, const uint8_t *data, int size)

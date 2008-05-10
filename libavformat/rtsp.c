@@ -18,12 +18,13 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include "libavutil/avstring.h"
 #include "avformat.h"
 
 #include <sys/time.h>
 #include <unistd.h> /* for select() prototype */
 #include "network.h"
-#include "avstring.h"
 #include "rtsp.h"
 
 #include "rtp_internal.h"
@@ -90,7 +91,7 @@ static int rtsp_probe(AVProbeData *p)
 
 static int redir_isspace(int c)
 {
-    return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
 static void skip_spaces(const char **pp)

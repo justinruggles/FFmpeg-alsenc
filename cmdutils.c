@@ -25,13 +25,15 @@
 #include <math.h>
 
 #include "config.h"
-#include "avformat.h"
-#include "avfilter.h"
-#include "avdevice.h"
+#include "libavformat/avformat.h"
+#include "libavfilter/avfilter.h"
+#include "libavdevice/avdevice.h"
+#include "libavutil/avstring.h"
 #include "cmdutils.h"
-#include "avstring.h"
 #include "version.h"
-#include "network.h"
+#ifdef CONFIG_NETWORK
+#include "libavformat/network.h"
+#endif
 
 #undef exit
 
@@ -181,9 +183,11 @@ void print_error(const char *filename, int err)
     case AVERROR(ENOENT):
         fprintf(stderr, "%s: no such file or directory\n", filename);
         break;
+#ifdef CONFIG_NETWORK
     case AVERROR(FF_NETERROR(EPROTONOSUPPORT)):
         fprintf(stderr, "%s: Unsupported network protocol\n", filename);
         break;
+#endif
     default:
         fprintf(stderr, "%s: Error while opening file\n", filename);
         break;

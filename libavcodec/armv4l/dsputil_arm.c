@@ -19,9 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "dsputil.h"
+#include "libavcodec/dsputil.h"
 #ifdef HAVE_IPP
-#include "ipp.h"
+#include <ipp.h>
 #endif
 
 extern void dsputil_init_iwmmxt(DSPContext* c, AVCodecContext *avctx);

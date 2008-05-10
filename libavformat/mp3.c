@@ -18,10 +18,11 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include "libavutil/avstring.h"
+#include "libavcodec/mpegaudio.h"
+#include "libavcodec/mpegaudiodecheader.h"
 #include "avformat.h"
-#include "mpegaudio.h"
-#include "avstring.h"
-#include "mpegaudiodecheader.h"
 
 #define ID3v2_HEADER_SIZE 10
 #define ID3v1_TAG_SIZE 128
@@ -160,7 +161,7 @@ static const char *id3v1_genre_str[ID3v1_GENRE_MAX + 1] = {
 /* buf must be ID3v2_HEADER_SIZE byte long */
 static int id3v2_match(const uint8_t *buf)
 {
-    return (buf[0] == 'I' &&
+    return  buf[0] == 'I' &&
             buf[1] == 'D' &&
             buf[2] == '3' &&
             buf[3] != 0xff &&
@@ -168,7 +169,7 @@ static int id3v2_match(const uint8_t *buf)
             (buf[6] & 0x80) == 0 &&
             (buf[7] & 0x80) == 0 &&
             (buf[8] & 0x80) == 0 &&
-            (buf[9] & 0x80) == 0);
+            (buf[9] & 0x80) == 0;
 }
 
 static unsigned int id3v2_get_size(ByteIOContext *s, int len)

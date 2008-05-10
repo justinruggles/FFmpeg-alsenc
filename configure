@@ -758,6 +758,7 @@ HAVE_LIST="
     soundcard_h
     poll_h
     sys_mman_h
+    sys_resource_h
     sys_select_h
     sys_soundcard_h
     termios_h
@@ -1474,7 +1475,7 @@ fi
 check_cc <<EOF || die "Symbol mangling check failed."
 int ff_extern;
 EOF
-sym=$($nm -P -g $TMPO)
+sym=$($nm -P -g $TMPO | grep ff_extern)
 extern_prefix=${sym%%ff_extern*}
 
 check_asm inline_asm '""'
@@ -1577,6 +1578,7 @@ check_header conio.h
 check_header dlfcn.h
 check_header malloc.h
 check_header sys/mman.h
+check_header sys/resource.h
 check_header termios.h
 
 if ! enabled_any memalign memalign_hack && enabled need_memalign ; then
@@ -1652,6 +1654,9 @@ enabled mlib       && require  mediaLib mlib_types.h mlib_VectorSub_S16_U8_Mod -
 
 # disable the native AC-3 decoder if liba52 is enabled
 enabled liba52 && disable ac3_decoder
+
+# disable the slower libdirac decoder if libschroedinger is enabled
+enabled libschroedinger && enabled libdirac && disable libdirac_decoder
 
 # libdc1394 check
 if enabled libdc1394; then
@@ -2129,6 +2134,7 @@ fi
 
 pkgconfig_generate(){
 name=$1
+shortname=${name#lib}
 comment=$2
 version=$3
 libs=$4
@@ -2144,18 +2150,10 @@ Description: $comment
 Version: $version
 Requires: $requires
 Conflicts:
-Libs: -L\${libdir} $libs
+Libs: -L\${libdir} -l${shortname}
+Libs.private: $libs
 Cflags: -I\${includedir}
 EOF
-}
-
-pkgconfig_generate_uninstalled(){
-name=$1
-shortname=${name#lib}
-comment=$2
-version=$3
-libs=$4
-requires=$5
 cat <<EOF >$name-uninstalled.pc
 prefix=
 exec_prefix=
@@ -2167,38 +2165,23 @@ Description: $comment
 Version: $version
 Requires: $requires
 Conflicts:
-Libs: \${libdir}/${LIBPREF}${shortname}${LIBSUF} $libs
+Libs: \${libdir}/${LIBPREF}${shortname}${LIBSUF}
+Libs.private: $libs
 Cflags: -I\${includedir}
 EOF
 }
 
-pkgconfig_generate libavutil "FFmpeg utility library" "$LIBAVUTIL_VERSION" -lavutil ""
-pkgconfig_generate_uninstalled libavutil "FFmpeg utility library" "$LIBAVUTIL_VERSION"
-
-pkgconfig_generate libavcodec "FFmpeg codec library" "$LIBAVCODEC_VERSION" "-lavcodec $extralibs" "$pkg_requires libavutil = $LIBAVUTIL_VERSION"
-pkgconfig_generate_uninstalled libavcodec "FFmpeg codec library" "$LIBAVCODEC_VERSION" "$extralibs" "$pkg_requires libavutil = $LIBAVUTIL_VERSION"
-
-pkgconfig_generate libavformat "FFmpeg container format library" "$LIBAVFORMAT_VERSION" "-lavformat $extralibs" "$pkg_requires libavcodec = $LIBAVCODEC_VERSION"
-pkgconfig_generate_uninstalled libavformat "FFmpeg container format library" "$LIBAVFORMAT_VERSION" "$extralibs" "$pkg_requires libavcodec = $LIBAVCODEC_VERSION"
-
-pkgconfig_generate libavdevice "FFmpeg device handling library" "$LIBAVDEVICE_VERSION" "-lavdevice $extralibs" "$pkg_requires libavformat = $LIBAVFORMAT_VERSION"
-pkgconfig_generate_uninstalled libavdevice "FFmpeg device handling library" "$LIBAVDEVICE_VERSION" "$extralibs" "$pkg_requires libavformat = $LIBAVFORMAT_VERSION"
-if enabled postproc; then
-    pkgconfig_generate libpostproc "FFmpeg post processing library" "$LIBPOSTPROC_VERSION" -lpostproc ""
-    pkgconfig_generate_uninstalled libpostproc "FFmpeg post processing library" "$LIBPOSTPROC_VERSION"
-fi
-
+pkgconfig_generate libavutil "FFmpeg utility library" "$LIBAVUTIL_VERSION"
+pkgconfig_generate libavcodec "FFmpeg codec library" "$LIBAVCODEC_VERSION" "$extralibs" "$pkg_requires libavutil = $LIBAVUTIL_VERSION"
+pkgconfig_generate libavformat "FFmpeg container format library" "$LIBAVFORMAT_VERSION" "$extralibs" "$pkg_requires libavcodec = $LIBAVCODEC_VERSION"
+pkgconfig_generate libavdevice "FFmpeg device handling library" "$LIBAVDEVICE_VERSION" "$extralibs" "$pkg_requires libavformat = $LIBAVFORMAT_VERSION"
+enabled avfilter && \
+    pkgconfig_generate libavfilter "FFmpeg video filtering library" "$LIBAVFILTER_VERSION" "$extralibs" "$pkg_requires libavutil = $LIBAVUTIL_VERSION"
+enabled postproc && \
+    pkgconfig_generate libpostproc "FFmpeg post processing library" "$LIBPOSTPROC_VERSION"
 if enabled swscale; then
-    pkgconfig_generate libswscale "FFmpeg image rescaling library" "$LIBSWSCALE_VERSION" -lswscale "libavutil = $LIBAVUTIL_VERSION"
-    pkgconfig_generate_uninstalled libswscale "FFmpeg image rescaling library" "$LIBSWSCALE_VERSION" "" "libavutil = $LIBAVUTIL_VERSION"
+    pkgconfig_generate libswscale "FFmpeg image rescaling library" "$LIBSWSCALE_VERSION" "" "libavutil = $LIBAVUTIL_VERSION"
 else
     pkgconfig_generate libswscale "FFmpeg image rescaling library" "$LIBSWSCALE_VERSION" "" "$pkg_requires libavcodec = $LIBAVCODEC_VERSION"
-    pkgconfig_generate_uninstalled libswscale "FFmpeg image rescaling library" "$LIBSWSCALE_VERSION" "" "$pkg_requires libavcodec = $LIBAVCODEC_VERSION"
     apply libswscale.pc sed s/^Libs:.*$/Libs:/
-    apply libswscale-uninstalled.pc sed s/^Libs:.*$/Libs:/
-fi
-
-if enabled avfilter; then
-  pkgconfig_generate libavfilter "FFmpeg video filtering library" "$LIBAVFILTER_VERSION" "-lavfilter $extralibs" "$pkg_requires libavutil = $LIBAVUTIL_VERSION" ffmpeg
-  pkgconfig_generate_uninstalled libavfilter "FFmpeg video filtering library" "$LIBAVFILTER_VERSION" "$extralibs" "$pkg_requires libavutil = $LIBAVUTIL_VERSION"
 fi

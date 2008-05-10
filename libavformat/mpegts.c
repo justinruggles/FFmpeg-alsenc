@@ -18,8 +18,9 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include "libavutil/crc.h"
 #include "avformat.h"
-#include "crc.h"
 #include "mpegts.h"
 
 //#define DEBUG_SI
@@ -227,7 +228,7 @@ static int discard_pid(MpegTSContext *ts, unsigned int pid)
         }
     }
 
-    return (!used && discarded);
+    return !used && discarded;
 }
 
 /**
