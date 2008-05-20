@@ -22,6 +22,7 @@
 
 #include "libavutil/avstring.h"
 #include "avformat.h"
+#include <strings.h>
 
 typedef struct {
     int img_first;
@@ -67,7 +68,7 @@ static const IdStrMap img_tags[] = {
     { CODEC_ID_SUNRAST   , "im8"},
     { CODEC_ID_SUNRAST   , "im24"},
     { CODEC_ID_SUNRAST   , "sunras"},
-    {0, NULL}
+    { CODEC_ID_NONE      , NULL}
 };
 
 static int sizes[][2] = {
@@ -102,11 +103,8 @@ static enum CodecID av_str2id(const IdStrMap *tags, const char *str)
     str++;
 
     while (tags->id) {
-        int i;
-        for(i=0; toupper(tags->str[i]) == toupper(str[i]); i++){
-            if(tags->str[i]==0 && str[i]==0)
-                return tags->id;
-        }
+        if (!strcasecmp(str, tags->str))
+            return tags->id;
 
         tags++;
     }

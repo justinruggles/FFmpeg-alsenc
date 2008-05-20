@@ -236,6 +236,7 @@ OBJS-$(CONFIG_ZMBV_ENCODER)            += zmbvenc.o
 
 OBJS-$(CONFIG_PCM_ALAW_DECODER)        += pcm.o
 OBJS-$(CONFIG_PCM_ALAW_ENCODER)        += pcm.o
+OBJS-$(CONFIG_PCM_DVD_DECODER)         += pcm.o
 OBJS-$(CONFIG_PCM_MULAW_DECODER)       += pcm.o
 OBJS-$(CONFIG_PCM_MULAW_ENCODER)       += pcm.o
 OBJS-$(CONFIG_PCM_S8_DECODER)          += pcm.o
@@ -414,6 +415,8 @@ OBJS-$(HAVE_IWMMXT)                    += armv4l/dsputil_iwmmxt.o   \
                                           armv4l/mpegvideo_iwmmxt.o \
 
 OBJS-$(HAVE_ARMV5TE)                   += armv4l/mpegvideo_armv5te.o \
+
+OBJS-$(HAVE_ARMVFP)                    += armv4l/float_arm_vfp.o \
 
 ASM_OBJS-$(HAVE_ARMV5TE)               += armv4l/simple_idct_armv5te.o \
 

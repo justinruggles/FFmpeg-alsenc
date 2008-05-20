@@ -12,14 +12,14 @@
 
 try_exec(){
     echo "Trying shell $1"
-    type "$1" >/dev/null 2>&1 && exec "$@"
+    type "$1" > /dev/null 2>&1 && exec "$@"
 }
 
 unset foo
-(: ${foo%%bar}) 2>/dev/null
+(: ${foo%%bar}) 2> /dev/null
 E1="$?"
 
-(: ${foo?}) 2>/dev/null
+(: ${foo?}) 2> /dev/null
 E2="$?"
 
 if test "$E1" != 0 || test "$E2" = 0; then
@@ -132,6 +132,7 @@ show_help(){
   echo "  --disable-network        disable network support [default=no]"
   echo "  --disable-ipv6           disable ipv6 support [default=no]"
   echo "  --disable-zlib           disable zlib [default=no]"
+  echo "  --disable-bzlib          disable bzlib [default=no]"
   echo "  --disable-vhook          disable video hooking support"
   echo "  --disable-debug          disable debugging symbols"
   echo "  --disable-mpegaudio-hp   faster (but less accurate)"
@@ -186,12 +187,12 @@ show_help(){
 }
 
 log(){
-    echo "$@" >>$logfile
+    echo "$@" >> $logfile
 }
 
 log_file(){
     log BEGIN $1
-    pr -n -t $1 >>$logfile
+    pr -n -t $1 >> $logfile
     log END $1
 }
 
@@ -350,7 +351,7 @@ print_config(){
 }
 
 flags_saved(){
-    (: ${SAVE_CFLAGS?}) 2>/dev/null
+    (: ${SAVE_CFLAGS?}) 2> /dev/null
 }
 
 save_flags(){
@@ -406,19 +407,19 @@ add_extralibs(){
 
 check_cmd(){
     log "$@"
-    "$@" >>$logfile 2>&1
+    "$@" >> $logfile 2>&1
 }
 
 check_cc(){
     log check_cc "$@"
-    cat >$TMPC
+    cat > $TMPC
     log_file $TMPC
     check_cmd $cc $CFLAGS "$@" -c -o $TMPO $TMPC
 }
 
 check_cpp(){
     log check_cpp "$@"
-    cat >$TMPC
+    cat > $TMPC
     log_file $TMPC
     check_cmd $cc $CFLAGS "$@" -E -o $TMPO $TMPC
 }
@@ -526,7 +527,7 @@ check_lib2(){
 }
 
 check_exec(){
-    check_ld "$@" && { enabled cross_compile || $TMPE >>$logfile 2>&1; }
+    check_ld "$@" && { enabled cross_compile || $TMPE >> $logfile 2>&1; }
 }
 
 check_exec_crash(){
@@ -538,7 +539,7 @@ check_exec_crash(){
     # can redirect the "Terminated" message from the shell.  SIGBUS
     # is not defined by standard C so it is used conditionally.
 
-    (check_exec "$@") >>$logfile 2>&1 <<EOF
+    (check_exec "$@") >> $logfile 2>&1 <<EOF
 #include <signal.h>
 static void sighandler(int sig){
     raise(SIGTERM);
@@ -630,6 +631,7 @@ CONFIG_LIST="
     avfilter_lavf
     avisynth
     beos_netserver
+    bzlib
     ffmpeg
     ffplay
     ffserver
@@ -917,6 +919,7 @@ cpu="generic"
 target_os=$(tolower $(uname -s))
 
 # libraries
+enable bzlib
 enable zlib
 
 # configurable options
@@ -1057,159 +1060,16 @@ for opt do
     esac
 done
 
+disabled logging && logfile=/dev/null
+
+echo "# $0 $@" > $logfile
+set >> $logfile
+
 cc="${cross_prefix}${cc}"
 ar="${cross_prefix}${ar}"
 nm="${cross_prefix}${nm}"
 ranlib="${cross_prefix}${ranlib}"
 strip="${cross_prefix}${strip}"
-
-# OS specific
-case $target_os in
-    beos|haiku|zeta)
-        prefix="$HOME/config"
-        # helps building libavcodec
-        add_cflags "-DPIC -fomit-frame-pointer"
-        # 3 gcc releases known for BeOS, each with ugly bugs
-        gcc_version="`$cc -v 2>&1 | grep version | cut -d ' ' -f3-`"
-        case "$gcc_version" in
-          2.9-beos-991026*|2.9-beos-000224*) echo "R5/GG gcc"
-            disable mmx
-            ;;
-          *20010315*) echo "BeBits gcc"
-            add_cflags "-fno-expensive-optimizations"
-            ;;
-        esac
-        SHFLAGS=-nostart
-        # enable BeOS things
-        enable audio_beos
-        # no need for libm, but the inet stuff
-        # Check for BONE
-        # XXX: actually should check for NOT net_server
-        if echo $BEINCLUDES | grep -q 'headers/be/bone'; then
-            network_extralibs="-lbind -lsocket"
-        else
-            enable beos_netserver
-            network_extralibs="-lnet"
-        fi ;;
-    sunos)
-        FFSERVERLDFLAGS=""
-        SHFLAGS='-shared -Wl,-h,$$(@F)'
-        network_extralibs="-lsocket -lnsl"
-        ;;
-    netbsd)
-        oss_demuxer_extralibs="-lossaudio"
-        oss_muxer_extralibs="-lossaudio"
-        ;;
-    openbsd)
-        disable need_memalign
-        LIBOBJFLAGS='$(PIC)'
-        SHFLAGS='-shared'
-        SLIBNAME='$(SLIBPREF)$(FULLNAME)$(SLIBSUF).$(LIBVERSION)'
-        SLIBNAME_WITH_VERSION='$(SLIBNAME)'
-        SLIBNAME_WITH_MAJOR='$(SLIBNAME)'
-        oss_demuxer_extralibs="-lossaudio"
-        oss_muxer_extralibs="-lossaudio"
-        ;;
-    freebsd)
-        disable need_memalign
-        ;;
-    bsd/os)
-        osextralibs="-lpoll -lgnugetopt"
-        strip="strip -d"
-        ;;
-    darwin)
-        disable need_memalign
-        SHFLAGS='-dynamiclib -Wl,-single_module -Wl,-install_name,$(SHLIBDIR)/$(SLIBNAME),-current_version,$(LIBVERSION),-compatibility_version,$(LIBMAJOR) -Wl,-read_only_relocs,suppress'
-        VHOOKSHFLAGS='-dynamiclib -Wl,-single_module -flat_namespace -undefined suppress -Wl,-install_name,$(SHLIBDIR)/vhook/$$(@F)'
-        strip="strip -x"
-        FFLDFLAGS="-Wl,-dynamic,-search_paths_first"
-        SLIBSUF=".dylib"
-        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(FULLNAME).$(LIBVERSION)$(SLIBSUF)'
-        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(FULLNAME).$(LIBMAJOR)$(SLIBSUF)'
-        FFSERVERLDFLAGS=-Wl,-bind_at_load
-        ;;
-    mingw32*)
-        target_os=mingw32
-        shlibdir="$bindir"
-        VHOOKSHFLAGS='-shared -L$(BUILD_ROOT)/libavformat -L$(BUILD_ROOT)/libavcodec -L$(BUILD_ROOT)/libavutil'
-        VHOOKLIBS='-lavformat$(BUILDSUF) -lavcodec$(BUILDSUF) -lavutil$(BUILDSUF) $(EXTRALIBS)'
-        if enabled swscale; then
-            VHOOKSHFLAGS="$VHOOKSHFLAGS -L\$(BUILD_ROOT)/libswscale"
-            VHOOKLIBS="$VHOOKLIBS -lswscale\$(BUILDSUF)"
-        fi
-        disable ffserver
-        SLIBPREF=""
-        SLIBSUF=".dll"
-        EXESUF=".exe"
-        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(FULLNAME)-$(LIBVERSION)$(SLIBSUF)'
-        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(FULLNAME)-$(LIBMAJOR)$(SLIBSUF)'
-        SLIB_EXTRA_CMD='-lib /machine:i386 /def:$$(@:$(SLIBSUF)=.def)'
-        SLIB_INSTALL_EXTRA_CMD='-install -m 644 $(SUBDIR)$(SLIBNAME_WITH_MAJOR:$(SLIBSUF)=.lib) "$(SHLIBDIR)/$(SLIBNAME:$(SLIBSUF)=.lib)"'
-        SLIB_UNINSTALL_EXTRA_CMD='rm -f "$(SHLIBDIR)/$(SLIBNAME:$(SLIBSUF)=.lib)"'
-        SHFLAGS='-shared -Wl,--output-def,$$(@:$(SLIBSUF)=.def) -Wl,--enable-runtime-pseudo-reloc -Wl,--enable-auto-image-base'
-        ;;
-    cygwin*)
-        target_os=cygwin
-        shlibdir="$bindir"
-        VHOOKSHFLAGS='-shared -L$(BUILD_ROOT)/libavformat -L$(BUILD_ROOT)/libavcodec -L$(BUILD_ROOT)/libavutil'
-        VHOOKLIBS='-lavformat$(BUILDSUF) -lavcodec$(BUILDSUF) -lavutil$(BUILDSUF) $(EXTRALIBS)'
-        if enabled swscale; then
-            VHOOKSHFLAGS="$VHOOKSHFLAGS -L\$(BUILD_ROOT)/libswscale"
-            VHOOKLIBS="$VHOOKLIBS -lswscale\$(BUILDSUF)"
-        fi
-        EXESUF=".exe"
-        SLIBPREF="cyg"
-        SLIBSUF=".dll"
-        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(FULLNAME)-$(LIBVERSION)$(SLIBSUF)'
-        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(FULLNAME)-$(LIBMAJOR)$(SLIBSUF)'
-        SHFLAGS='-shared -Wl,--enable-auto-image-base'
-        ;;
-    *-dos|freedos|opendos)
-        disable ffplay ffserver vhook
-        disable $INDEV_LIST $OUTDEV_LIST
-        network_extralibs="-lsocket"
-        EXESUF=".exe"
-        ;;
-    linux)
-        LDLATEFLAGS="-Wl,--as-needed $LDLATEFLAGS"
-        enable dv1394
-        ;;
-    irix*)
-        target_os=irix
-        ranlib="echo ignoring ranlib"
-        ;;
-    os/2*)
-        strip="lxlite"
-        ln_s="cp -f"
-        EXESUF=".exe"
-        FFLDFLAGS="-Zomf -Zbin-files -Zargs-wild -Zmap"
-        SHFLAGS='$(SUBDIR)$(NAME).def -Zdll -Zomf'
-        FFSERVERLDFLAGS=""
-        LIBSUF="_s.a"
-        SLIBPREF=""
-        SLIBSUF=".dll"
-        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(NAME)-$(LIBVERSION)$(SLIBSUF)'
-        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(shell echo $(NAME) | cut -c1-6)$(LIBMAJOR)$(SLIBSUF)'
-        SLIB_CREATE_DEF_CMD='echo LIBRARY $(SLIBNAME_WITH_MAJOR) INITINSTANCE TERMINSTANCE > $(SUBDIR)$(NAME).def; \
-          echo PROTMODE >> $(SUBDIR)$(NAME).def; \
-          echo CODE PRELOAD MOVEABLE DISCARDABLE >> $(SUBDIR)$(NAME).def; \
-          echo DATA PRELOAD MOVEABLE MULTIPLE NONSHARED >> $(SUBDIR)$(NAME).def; \
-          echo EXPORTS >> $(SUBDIR)$(NAME).def; \
-          emxexp -o $(OBJS) >> $(SUBDIR)$(NAME).def'
-        SLIB_EXTRA_CMD='emximp -o $(SUBDIR)$(LIBPREF)$(NAME)_dll.a $(SUBDIR)$(NAME).def; \
-          emximp -o $(SUBDIR)$(LIBPREF)$(NAME)_dll.lib $(SUBDIR)$(NAME).def;'
-        SLIB_INSTALL_EXTRA_CMD='install -m 644 $(SUBDIR)$(LIBPREF)$(NAME)_dll.a $(SUBDIR)$(LIBPREF)$(NAME)_dll.lib "$(LIBDIR)"'
-        SLIB_UNINSTALL_EXTRA_CMD='rm -f "$(LIBDIR)"/$(LIBPREF)$(NAME)_dll.a "$(LIBDIR)"/$(LIBPREF)$(NAME)_dll.lib'
-        disable vhook
-        ;;
-    interix)
-        disable vhook
-        ;;
-
-    *)
-        target_os="${target_os}-UNKNOWN"
-        ;;
-esac
 
 # set temporary file name
 if test ! -z "$TMPDIR" ; then
@@ -1226,14 +1086,6 @@ TMPH="${TMPDIR1}/ffmpeg-conf-${RANDOM}-$$-${RANDOM}.h"
 TMPO="${TMPDIR1}/ffmpeg-conf-${RANDOM}-$$-${RANDOM}.o"
 TMPS="${TMPDIR1}/ffmpeg-conf-${RANDOM}-$$-${RANDOM}.S"
 TMPSH="${TMPDIR1}/ffmpeg-conf-${RANDOM}-$$-${RANDOM}.sh"
-
-
-add_extralibs $osextralibs
-
-disabled logging && logfile=/dev/null
-
-echo "# $0 $@" >$logfile
-set >>$logfile
 
 case "$arch" in
     i386|i486|i586|i686|i86pc|BePC)
@@ -1303,6 +1155,162 @@ esac
 enable $arch
 enabled_any x86_32 x86_64 && enable x86
 enabled     sparc64       && enable sparc
+
+# OS specific
+case $target_os in
+    beos|haiku|zeta)
+        prefix="$HOME/config"
+        # helps building libavcodec
+        add_cflags "-DPIC -fomit-frame-pointer"
+        # 3 gcc releases known for BeOS, each with ugly bugs
+        gcc_version="`$cc -v 2>&1 | grep version | cut -d ' ' -f3-`"
+        case "$gcc_version" in
+          2.9-beos-991026*|2.9-beos-000224*) echo "R5/GG gcc"
+            disable mmx
+            ;;
+          *20010315*) echo "BeBits gcc"
+            add_cflags "-fno-expensive-optimizations"
+            ;;
+        esac
+        SHFLAGS=-nostart
+        # enable BeOS things
+        enable audio_beos
+        # no need for libm, but the inet stuff
+        # Check for BONE
+        # XXX: actually should check for NOT net_server
+        if echo $BEINCLUDES | grep -q 'headers/be/bone'; then
+            network_extralibs="-lbind -lsocket"
+        else
+            enable beos_netserver
+            network_extralibs="-lnet"
+        fi ;;
+    sunos)
+        FFSERVERLDFLAGS=""
+        SHFLAGS='-shared -Wl,-h,$$(@F)'
+        network_extralibs="-lsocket -lnsl"
+        ;;
+    netbsd)
+        oss_demuxer_extralibs="-lossaudio"
+        oss_muxer_extralibs="-lossaudio"
+        ;;
+    openbsd)
+        disable need_memalign
+        LIBOBJFLAGS='$(PIC)'
+        SHFLAGS='-shared'
+        SLIBNAME='$(SLIBPREF)$(FULLNAME)$(SLIBSUF).$(LIBVERSION)'
+        SLIBNAME_WITH_VERSION='$(SLIBNAME)'
+        SLIBNAME_WITH_MAJOR='$(SLIBNAME)'
+        oss_demuxer_extralibs="-lossaudio"
+        oss_muxer_extralibs="-lossaudio"
+        ;;
+    freebsd)
+        disable need_memalign
+        ;;
+    bsd/os)
+        osextralibs="-lpoll -lgnugetopt"
+        strip="strip -d"
+        ;;
+    darwin)
+        disable need_memalign
+        SHFLAGS='-dynamiclib -Wl,-single_module -Wl,-install_name,$(SHLIBDIR)/$(SLIBNAME),-current_version,$(LIBVERSION),-compatibility_version,$(LIBMAJOR) -Wl,-read_only_relocs,suppress'
+        VHOOKSHFLAGS='-dynamiclib -Wl,-single_module -flat_namespace -undefined suppress -Wl,-install_name,$(SHLIBDIR)/vhook/$$(@F)'
+        strip="strip -x"
+        FFLDFLAGS="-Wl,-dynamic,-search_paths_first"
+        SLIBSUF=".dylib"
+        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(FULLNAME).$(LIBVERSION)$(SLIBSUF)'
+        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(FULLNAME).$(LIBMAJOR)$(SLIBSUF)'
+        FFSERVERLDFLAGS=-Wl,-bind_at_load
+        ;;
+    mingw32*)
+        target_os=mingw32
+        LIBTARGET=i386
+        if test $arch = x86_64; then
+            disable need_memalign
+            LIBTARGET=x64
+        fi
+        shlibdir="$bindir"
+        VHOOKSHFLAGS='-shared -L$(BUILD_ROOT)/libavformat -L$(BUILD_ROOT)/libavcodec -L$(BUILD_ROOT)/libavutil'
+        VHOOKLIBS='-lavformat$(BUILDSUF) -lavcodec$(BUILDSUF) -lavutil$(BUILDSUF) $(EXTRALIBS)'
+        if enabled swscale; then
+            VHOOKSHFLAGS="$VHOOKSHFLAGS -L\$(BUILD_ROOT)/libswscale"
+            VHOOKLIBS="$VHOOKLIBS -lswscale\$(BUILDSUF)"
+        fi
+        disable ffserver
+        SLIBPREF=""
+        SLIBSUF=".dll"
+        EXESUF=".exe"
+        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(FULLNAME)-$(LIBVERSION)$(SLIBSUF)'
+        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(FULLNAME)-$(LIBMAJOR)$(SLIBSUF)'
+        SLIB_EXTRA_CMD='-lib /machine:$(LIBTARGET) /def:$$(@:$(SLIBSUF)=.def) /out:$(SUBDIR)$(SLIBNAME_WITH_MAJOR:$(SLIBSUF)=.lib)'
+        SLIB_INSTALL_EXTRA_CMD='-install -m 644 $(SUBDIR)$(SLIBNAME_WITH_MAJOR:$(SLIBSUF)=.lib) "$(SHLIBDIR)/$(SLIBNAME:$(SLIBSUF)=.lib)"; \
+            install -m 644 $(SUBDIR)$(SLIBNAME_WITH_MAJOR:$(SLIBSUF)=.lib) "$(SHLIBDIR)/$(SLIBNAME_WITH_MAJOR:$(SLIBSUF)=.lib)"'
+        SLIB_UNINSTALL_EXTRA_CMD='rm -f "$(SHLIBDIR)/$(SLIBNAME:$(SLIBSUF)=.lib)"'
+        SHFLAGS='-shared -Wl,--output-def,$$(@:$(SLIBSUF)=.def) -Wl,--enable-runtime-pseudo-reloc -Wl,--enable-auto-image-base'
+        ;;
+    cygwin*)
+        target_os=cygwin
+        shlibdir="$bindir"
+        VHOOKSHFLAGS='-shared -L$(BUILD_ROOT)/libavformat -L$(BUILD_ROOT)/libavcodec -L$(BUILD_ROOT)/libavutil'
+        VHOOKLIBS='-lavformat$(BUILDSUF) -lavcodec$(BUILDSUF) -lavutil$(BUILDSUF) $(EXTRALIBS)'
+        if enabled swscale; then
+            VHOOKSHFLAGS="$VHOOKSHFLAGS -L\$(BUILD_ROOT)/libswscale"
+            VHOOKLIBS="$VHOOKLIBS -lswscale\$(BUILDSUF)"
+        fi
+        EXESUF=".exe"
+        SLIBPREF="cyg"
+        SLIBSUF=".dll"
+        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(FULLNAME)-$(LIBVERSION)$(SLIBSUF)'
+        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(FULLNAME)-$(LIBMAJOR)$(SLIBSUF)'
+        SHFLAGS='-shared -Wl,--enable-auto-image-base'
+        ;;
+    *-dos|freedos|opendos)
+        disable ffplay ffserver vhook
+        disable $INDEV_LIST $OUTDEV_LIST
+        network_extralibs="-lsocket"
+        EXESUF=".exe"
+        ;;
+    linux)
+        LDLATEFLAGS="-Wl,--as-needed $LDLATEFLAGS"
+        enable dv1394
+        ;;
+    irix*)
+        target_os=irix
+        ranlib="echo ignoring ranlib"
+        ;;
+    os/2*)
+        strip="lxlite"
+        ln_s="cp -f"
+        EXESUF=".exe"
+        FFLDFLAGS="-Zomf -Zbin-files -Zargs-wild -Zmap"
+        SHFLAGS='$(SUBDIR)$(NAME).def -Zdll -Zomf'
+        FFSERVERLDFLAGS=""
+        LIBSUF="_s.a"
+        SLIBPREF=""
+        SLIBSUF=".dll"
+        SLIBNAME_WITH_VERSION='$(SLIBPREF)$(NAME)-$(LIBVERSION)$(SLIBSUF)'
+        SLIBNAME_WITH_MAJOR='$(SLIBPREF)$(shell echo $(NAME) | cut -c1-6)$(LIBMAJOR)$(SLIBSUF)'
+        SLIB_CREATE_DEF_CMD='echo LIBRARY $(SLIBNAME_WITH_MAJOR) INITINSTANCE TERMINSTANCE > $(SUBDIR)$(NAME).def; \
+          echo PROTMODE >> $(SUBDIR)$(NAME).def; \
+          echo CODE PRELOAD MOVEABLE DISCARDABLE >> $(SUBDIR)$(NAME).def; \
+          echo DATA PRELOAD MOVEABLE MULTIPLE NONSHARED >> $(SUBDIR)$(NAME).def; \
+          echo EXPORTS >> $(SUBDIR)$(NAME).def; \
+          emxexp -o $(OBJS) >> $(SUBDIR)$(NAME).def'
+        SLIB_EXTRA_CMD='emximp -o $(SUBDIR)$(LIBPREF)$(NAME)_dll.a $(SUBDIR)$(NAME).def; \
+          emximp -o $(SUBDIR)$(LIBPREF)$(NAME)_dll.lib $(SUBDIR)$(NAME).def;'
+        SLIB_INSTALL_EXTRA_CMD='install -m 644 $(SUBDIR)$(LIBPREF)$(NAME)_dll.a $(SUBDIR)$(LIBPREF)$(NAME)_dll.lib "$(LIBDIR)"'
+        SLIB_UNINSTALL_EXTRA_CMD='rm -f "$(LIBDIR)"/$(LIBPREF)$(NAME)_dll.a "$(LIBDIR)"/$(LIBPREF)$(NAME)_dll.lib'
+        disable vhook
+        ;;
+    interix)
+        disable vhook
+        ;;
+
+    *)
+        target_os="${target_os}-UNKNOWN"
+        ;;
+esac
+
+add_extralibs $osextralibs
 
 # Combine FFLDFLAGS and the LDFLAGS environment variable.
 LDFLAGS="$FFLDFLAGS $LDFLAGS"
@@ -1445,11 +1453,11 @@ if test $cpu != "generic"; then
 fi
 
 # make sure we can execute files in $TMPDIR
-cat >$TMPSH 2>>$logfile <<EOF
+cat > $TMPSH 2>> $logfile <<EOF
 #! /bin/sh
 EOF
-chmod +x $TMPSH >>$logfile 2>&1
-if ! $TMPSH >>$logfile 2>&1; then
+chmod +x $TMPSH >> $logfile 2>&1
+if ! $TMPSH >> $logfile 2>&1; then
     cat <<EOF
 Unable to create and execute files in $TMPDIR1.  Set the TMPDIR environment
 variable to another directory and make sure that $TMPDIR1 is not mounted
@@ -1585,7 +1593,8 @@ if ! enabled_any memalign memalign_hack && enabled need_memalign ; then
     die "Error, no memalign() but SSE enabled, disable it or use --enable-memalign-hack."
 fi
 
-enabled zlib && check_lib zlib.h zlibVersion -lz || disable zlib
+enabled  zlib && check_lib  zlib.h      zlibVersion -lz   || disable  zlib
+enabled bzlib && check_lib bzlib.h BZ2_bzlibVersion -lbz2 || disable bzlib
 
 # ffserver uses poll(),
 # if it's not found we can emulate it using select().
@@ -1645,7 +1654,7 @@ enabled libgsm     && require  libgsm gsm.h gsm_create -lgsm
 enabled libmp3lame && require  LAME lame/lame.h lame_init -lmp3lame -lm
 enabled libnut     && require  libnut libnut.h nut_demuxer_init -lnut
 enabled libschroedinger && add_cflags $(pkg-config --cflags schroedinger-1.0) \
-                        && require libschroedinger schroedinger/schro.h schro_init -lschroedinger-1.0 -lpthread -loil-0.3 -lm -lrt
+                        && require libschroedinger schroedinger/schro.h schro_init $(pkg-config --libs schroedinger-1.0)
 enabled libtheora  && require  libtheora theora/theora.h theora_info_init -ltheora -logg
 enabled libvorbis  && require  libvorbis vorbis/vorbisenc.h vorbis_info_init -lvorbisenc -lvorbis -logg
 enabled libx264    && require  x264 x264.h x264_encoder_open -lx264 -lm
@@ -1699,7 +1708,7 @@ check_foo_config freetype2 freetype ft2build.h FT_Init_FreeType
 disable sdl_too_old
 disable sdl
 SDL_CONFIG="${cross_prefix}sdl-config"
-if "${SDL_CONFIG}" --version >/dev/null 2>&1; then
+if "${SDL_CONFIG}" --version > /dev/null 2>&1; then
     sdl_cflags=`"${SDL_CONFIG}" --cflags`
     temp_cflags $sdl_cflags
     temp_extralibs `"${SDL_CONFIG}" --libs`
@@ -1722,7 +1731,7 @@ EOF
     restore_flags
 fi
 
-texi2html -version >/dev/null 2>&1 && enable texi2html || disable texi2html
+texi2html -version > /dev/null 2>&1 && enable texi2html || disable texi2html
 
 check_type sys/socket.h socklen_t
 
@@ -1814,6 +1823,22 @@ elif enabled optimizations; then
 fi
 check_cflags -fno-math-errno
 check_cflags -fno-signed-zeros
+
+# add some flags for Intel C Compiler
+if $cc --version | grep -q Intel; then
+  # Just warnings, no remarks
+  check_cflags -w1
+  # -wd: Disable following warnings
+  # 144, 167, 556: -Wno-pointer-sign
+  # 10006: ignoring unknown option -fno-signed-zeros
+  # 10156: ignoring option '-W'; no argument required
+  check_cflags -wd144,167,556,10006,10156
+  # 11030: Warning unknown option --as-needed
+  # 10156: ignoring option '-export'; no argument required
+  check_ldflags -wd10156,11030
+  # Allow to compile with optimizations
+  check_ldflags -march=$cpu
+fi
 
 # PIC flags for shared library objects where they are needed
 if enabled shared; then
@@ -1941,6 +1966,7 @@ echo "libvorbis enabled         ${libvorbis-no}"
 echo "x264 enabled              ${libx264-no}"
 echo "XviD enabled              ${libxvid-no}"
 echo "zlib enabled              ${zlib-no}"
+echo "bzlib enabled             ${bzlib-no}"
 echo
 
 for type in decoder encoder parser demuxer muxer protocol filter bsf indev outdev; do
@@ -1952,11 +1978,14 @@ for type in decoder encoder parser demuxer muxer protocol filter bsf indev outde
     echo
 done
 
-enabled nonfree &&
-    echo "License: unredistributable" ||
-    (enabled gpl &&
-        echo "License: GPL" ||
-        echo "License: LGPL")
+license="LGPL"
+if enabled nonfree; then
+    license="unredistributable"
+elif enabled gpl; then
+    license="GPL"
+fi
+
+echo "License: $license"
 
 echo "Creating config.mak and config.h..."
 
@@ -1982,7 +2011,7 @@ enabled stripping &&
     echo "STRIP=echo ignoring strip" >> config.mak
 
 echo "OPTFLAGS=$CFLAGS" >> config.mak
-echo "VHOOKCFLAGS=$VHOOKCFLAGS">>config.mak
+echo "VHOOKCFLAGS=$VHOOKCFLAGS" >> config.mak
 echo "LDFLAGS=$LDFLAGS" >> config.mak
 echo "FFSERVERLDFLAGS=$FFSERVERLDFLAGS" >> config.mak
 echo "SHFLAGS=$SHFLAGS" >> config.mak
@@ -2034,6 +2063,7 @@ get_version LIBAVFILTER libavfilter/avfilter.h
 if enabled shared; then
     echo "BUILD_SHARED=yes" >> config.mak
     echo "PIC=-fPIC -DPIC" >> config.mak
+    echo "LIBTARGET=${LIBTARGET}" >> config.mak
     echo "SLIBNAME=${SLIBNAME}" >> config.mak
     echo "SLIBNAME_WITH_VERSION=${SLIBNAME_WITH_VERSION}" >> config.mak
     echo "SLIBNAME_WITH_MAJOR=${SLIBNAME_WITH_MAJOR}" >> config.mak
@@ -2139,7 +2169,7 @@ comment=$2
 version=$3
 libs=$4
 requires=$5
-cat <<EOF >$name.pc
+cat <<EOF > $name.pc
 prefix=$prefix
 exec_prefix=\${prefix}
 libdir=$libdir
@@ -2154,7 +2184,7 @@ Libs: -L\${libdir} -l${shortname}
 Libs.private: $libs
 Cflags: -I\${includedir}
 EOF
-cat <<EOF >$name-uninstalled.pc
+cat <<EOF > $name-uninstalled.pc
 prefix=
 exec_prefix=
 libdir=\${pcfiledir}/$name

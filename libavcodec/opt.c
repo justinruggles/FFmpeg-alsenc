@@ -159,7 +159,6 @@ const AVOption *av_set_string(void *obj, const char *name, const char *val){
             for(i=0; i<sizeof(buf)-1 && val[i] && val[i]!='+' && val[i]!='-'; i++)
                 buf[i]= val[i];
             buf[i]=0;
-            val+= i;
 
             d = ff_eval2(buf, const_values, const_names, NULL, NULL, NULL, NULL, NULL, &error);
             if(isnan(d)) {
@@ -172,7 +171,7 @@ const AVOption *av_set_string(void *obj, const char *name, const char *val){
                 else if(!strcmp(buf, "none"   )) d= 0;
                 else if(!strcmp(buf, "all"    )) d= ~0;
                 else {
-                    if (!error)
+                    if (error)
                         av_log(NULL, AV_LOG_ERROR, "Unable to parse option value \"%s\": %s\n", val, error);
                     return NULL;
                 }
@@ -183,7 +182,9 @@ const AVOption *av_set_string(void *obj, const char *name, const char *val){
             }else if(cmd=='-')
                 d= -d;
 
-            av_set_number(obj, name, d, 1, 1);
+            if (!av_set_number(obj, name, d, 1, 1))
+                return NULL;
+            val+= i;
             if(!*val)
                 return o;
         }

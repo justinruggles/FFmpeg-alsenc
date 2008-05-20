@@ -149,9 +149,6 @@ static unsigned int get_aiff_header(ByteIOContext *pb, AVCodecContext *codec,
         codec->bits_per_sample = av_get_bits_per_sample(codec->codec_id);
     }
 
-    if (!codec->codec_id)
-        return AVERROR_INVALIDDATA;
-
     /* Block align needs to be computed in all cases, as the definition
      * is specific to applications -> here we use the WAVE format definition */
     if (!codec->block_align)
@@ -344,7 +341,7 @@ static int aiff_read_header(AVFormatContext *s,
         switch (tag) {
         case MKTAG('C', 'O', 'M', 'M'):     /* Common chunk */
             /* Then for the complete header info */
-            st->nb_frames = get_aiff_header (pb, st->codec, size, version);
+            st->nb_frames = get_aiff_header(pb, st->codec, size, version);
             if (st->nb_frames < 0)
                 return st->nb_frames;
             if (offset > 0) // COMM is after SSND
@@ -354,22 +351,22 @@ static int aiff_read_header(AVFormatContext *s,
             version = get_be32(pb);
             break;
         case MKTAG('N', 'A', 'M', 'E'):     /* Sample name chunk */
-            get_meta (pb, s->title, sizeof(s->title), size);
+            get_meta(pb, s->title, sizeof(s->title), size);
             break;
         case MKTAG('A', 'U', 'T', 'H'):     /* Author chunk */
-            get_meta (pb, s->author, sizeof(s->author), size);
+            get_meta(pb, s->author, sizeof(s->author), size);
             break;
         case MKTAG('(', 'c', ')', ' '):     /* Copyright chunk */
-            get_meta (pb, s->copyright, sizeof(s->copyright), size);
+            get_meta(pb, s->copyright, sizeof(s->copyright), size);
             break;
         case MKTAG('A', 'N', 'N', 'O'):     /* Annotation chunk */
-            get_meta (pb, s->comment, sizeof(s->comment), size);
+            get_meta(pb, s->comment, sizeof(s->comment), size);
             break;
         case MKTAG('S', 'S', 'N', 'D'):     /* Sampled sound chunk */
             offset = get_be32(pb);      /* Offset of sound data */
             get_be32(pb);               /* BlockSize... don't care */
             offset += url_ftell(pb);    /* Compute absolute data offset */
-            if (st->codec->codec_id)    /* Assume COMM already parsed */
+            if (st->codec->block_align)    /* Assume COMM already parsed */
                 goto got_sound;
             if (url_is_streamed(pb)) {
                 av_log(s, AV_LOG_ERROR, "file is not seekable\n");
@@ -393,8 +390,10 @@ static int aiff_read_header(AVFormatContext *s,
         }
     }
 
-    /* End of loop and didn't get sound */
-    return AVERROR_INVALIDDATA;
+    if (!st->codec->block_align) {
+        av_log(s, AV_LOG_ERROR, "could not find COMM tag\n");
+        return -1;
+    }
 
 got_sound:
     /* Now positioned, get the sound data start and end */

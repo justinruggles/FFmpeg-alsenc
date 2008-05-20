@@ -246,7 +246,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     int lvl = 9;
 
     for(i=1; i<256; i++)
-        score_tab[i]= -i * log2(i/(double)(ZMBV_BLOCK*ZMBV_BLOCK)) * 256;
+        score_tab[i]= -i * log(i/(double)(ZMBV_BLOCK*ZMBV_BLOCK)) * (256/M_LN2);
 
     c->avctx = avctx;
 
@@ -329,6 +329,6 @@ AVCodec zmbv_encoder = {
     encode_init,
     encode_frame,
     encode_end,
-    .pix_fmts = (enum PixelFormat[]){PIX_FMT_PAL8, -1},
+    .pix_fmts = (enum PixelFormat[]){PIX_FMT_PAL8, PIX_FMT_NONE},
     .long_name = "Zip Motion Blocks Video",
 };
