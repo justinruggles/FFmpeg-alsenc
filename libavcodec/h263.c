@@ -2924,11 +2924,11 @@ void h263_decode_init_vlc(MpegEncContext *s)
         init_rl(&rvlc_rl_inter, static_rl_table_store[3]);
         init_rl(&rvlc_rl_intra, static_rl_table_store[4]);
         init_rl(&rl_intra_aic, static_rl_table_store[2]);
-        init_vlc_rl(&rl_inter, 1);
-        init_vlc_rl(&rl_intra, 1);
-        init_vlc_rl(&rvlc_rl_inter, 1);
-        init_vlc_rl(&rvlc_rl_intra, 1);
-        init_vlc_rl(&rl_intra_aic, 1);
+        INIT_VLC_RL(rl_inter, 554);
+        INIT_VLC_RL(rl_intra, 554);
+        INIT_VLC_RL(rvlc_rl_inter, 1072);
+        INIT_VLC_RL(rvlc_rl_intra, 1072);
+        INIT_VLC_RL(rl_intra_aic, 554);
         init_vlc(&dc_lum, DC_VLC_BITS, 10 /* 13 */,
                  &DCtab_lum[0][1], 2, 1,
                  &DCtab_lum[0][0], 2, 1, 1);
@@ -5728,7 +5728,7 @@ static int decode_vol_header(MpegEncContext *s, GetBitContext *gb){
 
 /**
  * decodes the user data stuff in the header.
- * allso inits divx/xvid/lavc_version/build
+ * Also initializes divx/xvid/lavc_version/build.
  */
 static int decode_user_data(MpegEncContext *s, GetBitContext *gb){
     char buf[256];
@@ -5751,6 +5751,8 @@ static int decode_user_data(MpegEncContext *s, GetBitContext *gb){
         s->divx_version= ver;
         s->divx_build= build;
         s->divx_packed= e==3 && last=='p';
+        if(s->divx_packed)
+            av_log(s->avctx, AV_LOG_WARNING, "Invalid and inefficient vfw-avi packed B frames detected\n");
     }
 
     /* ffmpeg detection */
@@ -5771,7 +5773,7 @@ static int decode_user_data(MpegEncContext *s, GetBitContext *gb){
         s->lavc_build= build;
     }
 
-    /* xvid detection */
+    /* Xvid detection */
     e=sscanf(buf, "XviD%d", &build);
     if(e==1){
         s->xvid_build= build;

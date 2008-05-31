@@ -27,7 +27,6 @@
 #include "libavdevice/avdevice.h"
 #include "libswscale/swscale.h"
 
-#include "version.h"
 #include "cmdutils.h"
 
 #include <SDL.h>
@@ -39,8 +38,8 @@
 
 #undef exit
 
-static const char program_name[] = "FFplay";
-static const int program_birth_year = 2003;
+const char program_name[] = "FFplay";
+const int program_birth_year = 2003;
 
 //#define DEBUG_SYNC
 
@@ -2432,14 +2431,11 @@ static int opt_thread_count(const char *opt, const char *arg)
     return 0;
 }
 
-static void opt_show_help(void)
-{
-    show_help();
-    exit(0);
-}
-
 static const OptionDef options[] = {
-    { "h", 0, {(void*)opt_show_help}, "show help" },
+    { "h", OPT_EXIT, {(void*)show_help}, "show help" },
+    { "version", OPT_EXIT, {(void*)show_version}, "show version" },
+    { "L", OPT_EXIT, {(void*)show_license}, "show license" },
+    { "formats", OPT_EXIT, {(void*)show_formats}, "show available formats, codecs, protocols, ..." },
     { "x", HAS_ARG | OPT_FUNC2, {(void*)opt_width}, "force displayed width", "width" },
     { "y", HAS_ARG | OPT_FUNC2, {(void*)opt_height}, "force displayed height", "height" },
     { "s", HAS_ARG | OPT_VIDEO, {(void*)opt_frame_size}, "set frame size (WxH or abbreviation)", "size" },
@@ -2512,7 +2508,7 @@ int main(int argc, char **argv)
     avdevice_register_all();
     av_register_all();
 
-    show_banner(program_name, program_birth_year);
+    show_banner();
 
     parse_options(argc, argv, options, opt_input_file);
 

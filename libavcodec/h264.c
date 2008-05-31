@@ -3851,7 +3851,7 @@ static void clone_slice(H264Context *dst, H264Context *src)
 
 /**
  * decodes a slice header.
- * this will allso call MPV_common_init() and frame_start() as needed
+ * This will also call MPV_common_init() and frame_start() as needed.
  *
  * @param h h264context
  * @param h0 h264 master context (differs from 'h' when doing sliced based parallel decoding)
@@ -4112,6 +4112,8 @@ static int decode_slice_header(H264Context *h, H264Context *h0){
     if(h->slice_type == FF_P_TYPE || h->slice_type == FF_SP_TYPE || h->slice_type == FF_B_TYPE){
         if(h->slice_type == FF_B_TYPE){
             h->direct_spatial_mv_pred= get_bits1(&s->gb);
+            if(FIELD_PICTURE && h->direct_spatial_mv_pred)
+                av_log(h->s.avctx, AV_LOG_ERROR, "PAFF + spatial direct mode is not implemented\n");
         }
         num_ref_idx_active_override_flag= get_bits1(&s->gb);
 
@@ -4233,7 +4235,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0){
     h->emu_edge_height= (FRAME_MBAFF || FIELD_PICTURE) ? 0 : h->emu_edge_width;
 
     if(s->avctx->debug&FF_DEBUG_PICT_INFO){
-        av_log(h->s.avctx, AV_LOG_DEBUG, "slice:%d %s mb:%d %c pps:%u frame:%d poc:%d/%d ref:%d/%d qp:%d loop:%d:%d:%d weight:%d%s\n",
+        av_log(h->s.avctx, AV_LOG_DEBUG, "slice:%d %s mb:%d %c pps:%u frame:%d poc:%d/%d ref:%d/%d qp:%d loop:%d:%d:%d weight:%d%s %s\n",
                h->slice_num,
                (s->picture_structure==PICT_FRAME ? "F" : s->picture_structure==PICT_TOP_FIELD ? "T" : "B"),
                first_mb_in_slice,
@@ -4244,7 +4246,8 @@ static int decode_slice_header(H264Context *h, H264Context *h0){
                s->qscale,
                h->deblocking_filter, h->slice_alpha_c0_offset/2, h->slice_beta_offset/2,
                h->use_weight,
-               h->use_weight==1 && h->use_weight_chroma ? "c" : ""
+               h->use_weight==1 && h->use_weight_chroma ? "c" : "",
+               h->slice_type == FF_B_TYPE ? (h->direct_spatial_mv_pred ? "SPAT" : "TEMP") : ""
                );
     }
 
@@ -6504,7 +6507,7 @@ static void filter_mb( H264Context *h, int mb_x, int mb_y, uint8_t *img_y, uint8
     int dir;
     /* FIXME: A given frame may occupy more than one position in
      * the reference list. So ref2frm should be populated with
-     * frame numbers, not indices. */
+     * frame numbers, not indexes. */
     static const int ref2frm[34] = {-1,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
                                     16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
 
@@ -7655,6 +7658,15 @@ static int decode_frame(AVCodecContext *avctx,
     s->flags= avctx->flags;
     s->flags2= avctx->flags2;
 
+    if(s->flags&CODEC_FLAG_TRUNCATED){
+        const int next= ff_h264_find_frame_end(h, buf, buf_size);
+        assert((buf_size > 0) || (next == END_NOT_FOUND));
+
+        if( ff_combine_frame(&s->parse_context, next, &buf, &buf_size) < 0 )
+          return buf_size;
+//printf("next:%d buf_size:%d last_index:%d\n", next, buf_size, s->parse_context.last_index);
+    }
+
    /* no supplementary picture */
     if (buf_size == 0) {
         Picture *out;
@@ -7678,14 +7690,6 @@ static int decode_frame(AVCodecContext *avctx,
         }
 
         return 0;
-    }
-
-    if(s->flags&CODEC_FLAG_TRUNCATED){
-        int next= ff_h264_find_frame_end(h, buf, buf_size);
-
-        if( ff_combine_frame(&s->parse_context, next, (const uint8_t **)&buf, &buf_size) < 0 )
-            return buf_size;
-//printf("next:%d buf_size:%d last_index:%d\n", next, buf_size, s->parse_context.last_index);
     }
 
     if(h->is_avc && !h->got_avcC) {

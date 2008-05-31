@@ -236,7 +236,7 @@ int alloc_picture(MpegEncContext *s, Picture *pic, int shared){
     /* It might be nicer if the application would keep track of these
      * but it would require an API change. */
     memmove(s->prev_pict_types+1, s->prev_pict_types, PREV_PICT_TYPES_BUFFER_SIZE-1);
-    s->prev_pict_types[0]= s->pict_type;
+    s->prev_pict_types[0]= s->dropable ? FF_B_TYPE : s->pict_type;
     if(pic->age < PREV_PICT_TYPES_BUFFER_SIZE && s->prev_pict_types[pic->age] == FF_B_TYPE)
         pic->age= INT_MAX; // Skipped MBs in B-frames are quite rare in MPEG-1/2 and it is a bit tricky to skip them anyway.
 
@@ -722,18 +722,9 @@ void init_rl(RLTable *rl, uint8_t static_store[2][2*MAX_RUN + MAX_LEVEL + 3])
     }
 }
 
-void init_vlc_rl(RLTable *rl, int use_static)
+void init_vlc_rl(RLTable *rl)
 {
     int i, q;
-
-    /* Return if static table is already initialized */
-    if(use_static && rl->rl_vlc[0])
-        return;
-
-    init_vlc(&rl->vlc, 9, rl->n + 1,
-             &rl->table_vlc[0][1], 4, 2,
-             &rl->table_vlc[0][0], 4, 2, use_static);
-
 
     for(q=0; q<32; q++){
         int qmul= q*2;
@@ -743,10 +734,6 @@ void init_vlc_rl(RLTable *rl, int use_static)
             qmul=1;
             qadd=0;
         }
-        if(use_static)
-            rl->rl_vlc[q]= av_mallocz_static(rl->vlc.table_size*sizeof(RL_VLC_ELEM));
-        else
-            rl->rl_vlc[q]= av_malloc(rl->vlc.table_size*sizeof(RL_VLC_ELEM));
         for(i=0; i<rl->vlc.table_size; i++){
             int code= rl->vlc.table[i][0];
             int len = rl->vlc.table[i][1];

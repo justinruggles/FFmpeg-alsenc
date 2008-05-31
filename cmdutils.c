@@ -149,6 +149,8 @@ unknown_opt:
             } else {
                 po->u.func_arg(arg);
             }
+            if(po->flags & OPT_EXIT)
+                exit(0);
         } else {
             if (parse_arg_function)
                 parse_arg_function(opt);
@@ -194,7 +196,7 @@ void print_error(const char *filename, int err)
     }
 }
 
-void show_banner(const char *program_name, int program_birth_year)
+void show_banner(void)
 {
     fprintf(stderr, "%s version " FFMPEG_VERSION ", Copyright (c) %d-2008 Fabrice Bellard, et al.\n",
             program_name, program_birth_year);
@@ -214,7 +216,7 @@ void show_banner(const char *program_name, int program_birth_year)
 #endif
 }
 
-void show_version(const char *program_name) {
+void show_version(void) {
      /* TODO: add function interface to avutil and avformat avdevice*/
     printf("%s " FFMPEG_VERSION "\n", program_name);
     printf("libavutil   %d\n"
@@ -264,4 +266,127 @@ void show_license(void)
     "Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n"
     );
 #endif
+}
+
+void show_formats(void)
+{
+    AVInputFormat *ifmt=NULL;
+    AVOutputFormat *ofmt=NULL;
+    URLProtocol *up=NULL;
+    AVCodec *p=NULL, *p2;
+    AVBitStreamFilter *bsf=NULL;
+    const char *last_name;
+
+    printf("File formats:\n");
+    last_name= "000";
+    for(;;){
+        int decode=0;
+        int encode=0;
+        const char *name=NULL;
+        const char *long_name=NULL;
+
+        while((ofmt= av_oformat_next(ofmt))) {
+            if((name == NULL || strcmp(ofmt->name, name)<0) &&
+                strcmp(ofmt->name, last_name)>0){
+                name= ofmt->name;
+                long_name= ofmt->long_name;
+                encode=1;
+            }
+        }
+        while((ifmt= av_iformat_next(ifmt))) {
+            if((name == NULL || strcmp(ifmt->name, name)<0) &&
+                strcmp(ifmt->name, last_name)>0){
+                name= ifmt->name;
+                long_name= ifmt->long_name;
+                encode=0;
+            }
+            if(name && strcmp(ifmt->name, name)==0)
+                decode=1;
+        }
+        if(name==NULL)
+            break;
+        last_name= name;
+
+        printf(
+            " %s%s %-15s %s\n",
+            decode ? "D":" ",
+            encode ? "E":" ",
+            name,
+            long_name ? long_name:" ");
+    }
+    printf("\n");
+
+    printf("Codecs:\n");
+    last_name= "000";
+    for(;;){
+        int decode=0;
+        int encode=0;
+        int cap=0;
+        const char *type_str;
+
+        p2=NULL;
+        while((p= av_codec_next(p))) {
+            if((p2==NULL || strcmp(p->name, p2->name)<0) &&
+                strcmp(p->name, last_name)>0){
+                p2= p;
+                decode= encode= cap=0;
+            }
+            if(p2 && strcmp(p->name, p2->name)==0){
+                if(p->decode) decode=1;
+                if(p->encode) encode=1;
+                cap |= p->capabilities;
+            }
+        }
+        if(p2==NULL)
+            break;
+        last_name= p2->name;
+
+        switch(p2->type) {
+        case CODEC_TYPE_VIDEO:
+            type_str = "V";
+            break;
+        case CODEC_TYPE_AUDIO:
+            type_str = "A";
+            break;
+        case CODEC_TYPE_SUBTITLE:
+            type_str = "S";
+            break;
+        default:
+            type_str = "?";
+            break;
+        }
+        printf(
+            " %s%s%s%s%s%s %-15s %s",
+            decode ? "D": (/*p2->decoder ? "d":*/" "),
+            encode ? "E":" ",
+            type_str,
+            cap & CODEC_CAP_DRAW_HORIZ_BAND ? "S":" ",
+            cap & CODEC_CAP_DR1 ? "D":" ",
+            cap & CODEC_CAP_TRUNCATED ? "T":" ",
+            p2->name,
+            p2->long_name ? p2->long_name : "");
+       /* if(p2->decoder && decode==0)
+            printf(" use %s for decoding", p2->decoder->name);*/
+        printf("\n");
+    }
+    printf("\n");
+
+    printf("Bitstream filters:\n");
+    while((bsf = av_bitstream_filter_next(bsf)))
+        printf(" %s", bsf->name);
+    printf("\n");
+
+    printf("Supported file protocols:\n");
+    while((up = av_protocol_next(up)))
+        printf(" %s:", up->name);
+    printf("\n");
+
+    printf("Frame size, frame rate abbreviations:\n ntsc pal qntsc qpal sntsc spal film ntsc-film sqcif qcif cif 4cif\n");
+    printf("\n");
+    printf(
+"Note, the names of encoders and decoders do not always match, so there are\n"
+"several cases where the above table shows encoder only or decoder only entries\n"
+"even though both encoding and decoding are supported. For example, the h263\n"
+"decoder corresponds to the h263 and h263p encoders, for file formats it is even\n"
+"worse.\n");
 }

@@ -2750,6 +2750,8 @@ int avcodec_parse_frame(AVCodecContext *avctx, uint8_t **pdata,
  * @param[in] samples the input buffer containing the samples
  * The number of samples read from this buffer is frame_size*channels,
  * both of which are defined in \p avctx.
+ * For PCM audio the number of samples read from \p samples is equal to
+ * \p buf_size * input_sample_size / output_sample_size.
  * @return On error a negative value is returned, on success zero or the number
  * of bytes used to encode the data read from the input buffer.
  */
@@ -2915,31 +2917,6 @@ AVBitStreamFilter *av_bitstream_filter_next(AVBitStreamFilter *f);
  * @see av_realloc
  */
 void *av_fast_realloc(void *ptr, unsigned int *size, unsigned int min_size);
-
-/* for static data only */
-
-/**
- * Frees all static arrays and resets their pointers to 0.
- * Call this function to release all statically allocated tables.
- *
- * @deprecated. Code which uses av_free_static is broken/misdesigned
- * and should correctly use static arrays
- *
- */
-attribute_deprecated void av_free_static(void);
-
-/**
- * Allocation of static arrays.
- *
- * @warning Do not use for normal allocation.
- *
- * @param[in] size The amount of memory you need in bytes.
- * @return block of memory of the requested size
- * @deprecated. Code which uses av_mallocz_static is broken/misdesigned
- * and should correctly use static arrays
- */
-attribute_deprecated av_malloc_attrib av_alloc_size(1)
-void *av_mallocz_static(unsigned int size);
 
 /**
  * Copy image 'src' to 'dst'.

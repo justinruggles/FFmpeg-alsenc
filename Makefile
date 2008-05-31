@@ -160,8 +160,7 @@ uninstall-vhook:
 	-rmdir "$(SHLIBDIR)/vhook/"
 
 clean::
-	rm -f gmon.out TAGS $(ALLPROGS) $(ALLPROGS_G) \
-	   output_example$(EXESUF)
+	rm -f $(ALLPROGS) $(ALLPROGS_G) output_example$(EXESUF)
 	rm -f doc/*.html doc/*.pod doc/*.1
 	rm -rf tests/vsynth1 tests/vsynth2 tests/data tests/asynth1.sw tests/*~
 	rm -f $(addprefix tests/,$(addsuffix $(EXESUF),audiogen videogen rotozoom seek_test tiny_psnr))
@@ -307,7 +306,7 @@ $(LAVF_TESTS):
 seektest: codectest libavtest tests/seek_test$(EXESUF)
 	$(SRC_PATH)/tests/seek_test.sh $(SEEK_REFFILE)
 
-test-server: ffserver$(EXESUF) tests/vsynth1/00.pgm tests/asynth1.sw
+servertest: ffserver$(EXESUF) tests/vsynth1/00.pgm tests/asynth1.sw
 	@echo
 	@echo "Unfortunately ffserver is broken and therefore its regression"
 	@echo "test fails randomly. Treat the results accordingly."
@@ -315,7 +314,7 @@ test-server: ffserver$(EXESUF) tests/vsynth1/00.pgm tests/asynth1.sw
 	$(SRC_PATH)/tests/server-regression.sh $(FFSERVER_REFFILE) $(SRC_PATH)/tests/test.conf
 
 ifeq ($(CONFIG_SWSCALE),yes)
-test-server codectest $(CODEC_TESTS) libavtest: swscale_error
+servertest codectest $(CODEC_TESTS) libavtest: swscale_error
 swscale_error:
 	@echo
 	@echo "This regression test is incompatible with --enable-swscale."
@@ -341,8 +340,6 @@ tests/seek_test$(EXESUF): tests/seek_test.c $(FF_DEP_LIBS)
 	$(CC) $(FF_LDFLAGS) $(CFLAGS) -o $@ $< $(FF_EXTRALIBS)
 
 
-.PHONY: lib videohook documentation TAGS
-.PHONY: codectest libavtest seektest test-server fulltest test
-.PHONY: $(CODEC_TESTS) $(LAVF_TESTS) regtest-ref swscale-error
+.PHONY: lib videohook documentation *test regtest-* swscale-error
 
 -include $(VHOOK_DEPS)

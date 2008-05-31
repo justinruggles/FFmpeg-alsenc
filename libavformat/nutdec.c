@@ -393,6 +393,7 @@ static int decode_info_header(NUTContext *nut){
     int64_t value, end;
     char name[256], str_value[1024], type_str[256];
     const char *type;
+    AVChapter *chapter= NULL;
 
     end= get_packetheader(nut, bc, 1, INFO_STARTCODE);
     end += url_ftell(bc);
@@ -402,6 +403,14 @@ static int decode_info_header(NUTContext *nut){
     chapter_start= ff_get_v(bc);
     chapter_len  = ff_get_v(bc);
     count        = ff_get_v(bc);
+
+    if(chapter_id && !stream_id_plus1){
+        int64_t start= chapter_start / nut->time_base_count;
+        chapter= ff_new_chapter(s, chapter_id,
+                                nut->time_base[chapter_start % nut->time_base_count],
+                                start, start + chapter_len, NULL);
+    }
+
     for(i=0; i<count; i++){
         get_str(bc, name, sizeof(name));
         value= get_s(bc);
@@ -441,6 +450,10 @@ static int decode_info_header(NUTContext *nut){
                 av_strlcpy(s->comment  , str_value, sizeof(s->comment));
             else if(!strcmp(name, "Disposition"))
                 set_disposition_bits(s, str_value, stream_id_plus1 - 1);
+        }
+        if(chapter && !strcmp(type, "UTF-8")){
+            if(!strcmp(name, "Title"))
+                chapter->title= av_strdup(str_value);
         }
     }
 
@@ -487,6 +500,7 @@ static int find_and_decode_index(NUTContext *nut){
     int64_t filesize= url_fsize(bc);
     int64_t *syncpoints;
     int8_t *has_keyframe;
+    int ret= -1;
 
     url_fseek(bc, filesize-12, SEEK_SET);
     url_fseek(bc, filesize-get_be64(bc), SEEK_SET);
@@ -503,7 +517,9 @@ static int find_and_decode_index(NUTContext *nut){
     syncpoints= av_malloc(sizeof(int64_t)*syncpoint_count);
     has_keyframe= av_malloc(sizeof(int8_t)*(syncpoint_count+1));
     for(i=0; i<syncpoint_count; i++){
-        GET_V(syncpoints[i], tmp>0)
+        syncpoints[i] = ff_get_v(bc);
+        if(syncpoints[i] <= 0)
+            goto fail;
         if(i)
             syncpoints[i] += syncpoints[i-1];
     }
@@ -520,7 +536,7 @@ static int find_and_decode_index(NUTContext *nut){
                 x>>=1;
                 if(n+x >= syncpoint_count + 1){
                     av_log(s, AV_LOG_ERROR, "index overflow A\n");
-                    return -1;
+                    goto fail;
                 }
                 while(x--)
                     has_keyframe[n++]= flag;
@@ -529,7 +545,7 @@ static int find_and_decode_index(NUTContext *nut){
                 while(x != 1){
                     if(n>=syncpoint_count + 1){
                         av_log(s, AV_LOG_ERROR, "index overflow B\n");
-                        return -1;
+                        goto fail;
                     }
                     has_keyframe[n++]= x&1;
                     x>>=1;
@@ -537,7 +553,7 @@ static int find_and_decode_index(NUTContext *nut){
             }
             if(has_keyframe[0]){
                 av_log(s, AV_LOG_ERROR, "keyframe before first syncpoint in index\n");
-                return -1;
+                goto fail;
             }
             assert(n<=syncpoint_count+1);
             for(; j<n && j<syncpoint_count; j++){
@@ -564,9 +580,13 @@ static int find_and_decode_index(NUTContext *nut){
 
     if(skip_reserved(bc, end) || get_checksum(bc)){
         av_log(s, AV_LOG_ERROR, "index checksum mismatch\n");
-        return -1;
+        goto fail;
     }
-    return 0;
+    ret= 0;
+fail:
+    av_free(syncpoints);
+    av_free(has_keyframe);
+    return ret;
 }
 
 static int nut_read_header(AVFormatContext *s, AVFormatParameters *ap)

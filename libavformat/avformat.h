@@ -22,7 +22,7 @@
 #define FFMPEG_AVFORMAT_H
 
 #define LIBAVFORMAT_VERSION_MAJOR 52
-#define LIBAVFORMAT_VERSION_MINOR 13
+#define LIBAVFORMAT_VERSION_MINOR 14
 #define LIBAVFORMAT_VERSION_MICRO  0
 
 #define LIBAVFORMAT_VERSION_INT AV_VERSION_INT(LIBAVFORMAT_VERSION_MAJOR, \
@@ -44,8 +44,23 @@
 /* packet functions */
 
 typedef struct AVPacket {
-    int64_t pts;                            ///< presentation time stamp in time_base units
-    int64_t dts;                            ///< decompression time stamp in time_base units
+    /**
+     * Presentation time stamp in time_base units.
+     * This is the time at which the decompressed packet will be presented
+     * to the user.
+     * Can be AV_NOPTS_VALUE if it is not stored in the file.
+     * pts MUST be larger or equal to dts as presentation can not happen before
+     * decompression, unless one wants to view hex dumps. Some formats misuse
+     * the terms dts and pts/cts to mean something different, these timestamps
+     * must be converted to true pts/dts before they are stored in AVPacket.
+     */
+    int64_t pts;
+    /**
+     * Decompression time stamp in time_base units.
+     * This is the time at which the packet is decompressed.
+     * Can be AV_NOPTS_VALUE if it is not stored in the file.
+     */
+    int64_t dts;
     uint8_t *data;
     int   size;
     int   stream_index;
@@ -389,6 +404,13 @@ typedef struct AVProgram {
 #define AVFMTCTX_NOHEADER      0x0001 /**< signal that no header is present
                                          (streams are added dynamically) */
 
+typedef struct AVChapter {
+    int id;                 ///< Unique id to identify the chapter
+    AVRational time_base;   ///< Timebase in which the start/end timestamps are specified
+    int64_t start, end;     ///< chapter start/end time in time_base units
+    char *title;            ///< chapter title
+} AVChapter;
+
 #define MAX_STREAMS 20
 
 /**
@@ -514,6 +536,9 @@ typedef struct AVFormatContext {
      * obtained from real-time capture devices.
      */
     unsigned int max_picture_buffer;
+
+    unsigned int nb_chapters;
+    AVChapter **chapters;
 } AVFormatContext;
 
 typedef struct AVPacketList {
@@ -743,6 +768,21 @@ void av_close_input_file(AVFormatContext *s);
  */
 AVStream *av_new_stream(AVFormatContext *s, int id);
 AVProgram *av_new_program(AVFormatContext *s, int id);
+
+/**
+ * Add a new chapter.
+ * This function is NOT part of the public API
+ * and should be ONLY used by demuxers.
+ *
+ * @param s media file handle
+ * @param id unique id for this chapter
+ * @param start chapter start time in time_base units
+ * @param end chapter end time in time_base units
+ * @param title chapter title
+ *
+ * @return AVChapter or NULL if error.
+ */
+AVChapter *ff_new_chapter(AVFormatContext *s, int id, AVRational time_base, int64_t start, int64_t end, const char *title);
 
 /**
  * Set the pts for a given stream.

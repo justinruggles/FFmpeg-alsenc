@@ -605,8 +605,10 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
         avi_load_index(s);
     avi->index_loaded = 1;
     avi->non_interleaved |= guess_ni_flag(s);
-    if(avi->non_interleaved)
+    if(avi->non_interleaved) {
+        av_log(s, AV_LOG_INFO, "Non interleaved AVI\n");
         clean_index(s);
+    }
 
     return 0;
 }
@@ -642,12 +644,15 @@ static int avi_read_packet(AVFormatContext *s, AVPacket *pkt)
             ts= av_rescale(ts, AV_TIME_BASE * (int64_t)st->time_base.num, st->time_base.den);
 
 //            av_log(NULL, AV_LOG_DEBUG, "%"PRId64" %d/%d %"PRId64"\n", ts, st->time_base.num, st->time_base.den, ast->frame_offset);
-            if(ts < best_ts){
+            if(ts < best_ts && st->nb_index_entries){
                 best_ts= ts;
                 best_st= st;
                 best_stream_index= i;
             }
         }
+        if(!best_st)
+            return -1;
+
         best_ast = best_st->priv_data;
         best_ts= av_rescale(best_ts, best_st->time_base.den, AV_TIME_BASE * (int64_t)best_st->time_base.num); //FIXME a little ugly
         if(best_ast->remaining)
@@ -996,7 +1001,7 @@ static int avi_read_seek(AVFormatContext *s, int stream_index, int64_t timestamp
 
     if (ENABLE_DV_DEMUXER && avi->dv_demux) {
         /* One and only one real stream for DV in AVI, and it has video  */
-        /* offsets. Calling with other stream indices should have failed */
+        /* offsets. Calling with other stream indexes should have failed */
         /* the av_index_search_timestamp call above.                     */
         assert(stream_index == 0);
 

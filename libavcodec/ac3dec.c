@@ -324,12 +324,6 @@ static int ac3_parse_header(AC3DecodeContext *s)
     s->center_mix_level             = hdr.center_mix_level;
     s->surround_mix_level           = hdr.surround_mix_level;
 
-    /* set default output to all source channels */
-    s->out_channels = s->channels;
-    s->output_mode = s->channel_mode;
-    if(s->lfe_on)
-        s->output_mode |= AC3_OUTPUT_LFEON;
-
     /* read the rest of the bsi. read twice for dual mono mode. */
     i = !(s->channel_mode);
     do {
@@ -610,7 +604,7 @@ static int get_transform_coeffs(AC3DecodeContext *s)
             end = s->end_freq[ch];
         }
         do
-            s->transform_coeffs[ch][end] = 0;
+            s->fixed_coeffs[ch][end] = 0;
         while(++end < 256);
     }
 
@@ -818,6 +812,11 @@ static int ac3_parse_audio_block(AC3DecodeContext *s, int blk)
             /* coupling in use */
             int cpl_begin_freq, cpl_end_freq;
 
+            if (channel_mode < AC3_CHMODE_STEREO) {
+                av_log(s->avctx, AV_LOG_ERROR, "coupling not allowed in mono or dual-mono\n");
+                return -1;
+            }
+
             /* determine which channels are coupled */
             for (ch = 1; ch <= fbw_channels; ch++)
                 s->channel_in_cpl[ch] = get_bits1(gbc);
@@ -848,6 +847,9 @@ static int ac3_parse_audio_block(AC3DecodeContext *s, int blk)
             for (ch = 1; ch <= fbw_channels; ch++)
                 s->channel_in_cpl[ch] = 0;
         }
+    } else if (!blk) {
+        av_log(s->avctx, AV_LOG_ERROR, "new coupling strategy must be present in block 0\n");
+        return -1;
     }
 
     /* coupling coordinates */
@@ -869,6 +871,9 @@ static int ac3_parse_audio_block(AC3DecodeContext *s, int blk)
                             s->cpl_coords[ch][bnd] = (cpl_coord_mant + 16) << 21;
                         s->cpl_coords[ch][bnd] >>= (cpl_coord_exp + master_cpl_coord);
                     }
+                } else if (!blk) {
+                    av_log(s->avctx, AV_LOG_ERROR, "new coupling coordinates must be present in block 0\n");
+                    return -1;
                 }
             }
         }
@@ -888,6 +893,9 @@ static int ac3_parse_audio_block(AC3DecodeContext *s, int blk)
                 s->num_rematrixing_bands -= 1 + (s->start_freq[CPL_CH] == 37);
             for(bnd=0; bnd<s->num_rematrixing_bands; bnd++)
                 s->rematrixing_flags[bnd] = get_bits1(gbc);
+        } else if (!blk) {
+            av_log(s->avctx, AV_LOG_ERROR, "new rematrixing strategy must be present in block 0\n");
+            return -1;
         }
     }
 
@@ -954,6 +962,9 @@ static int ac3_parse_audio_block(AC3DecodeContext *s, int blk)
         for(ch=!s->cpl_in_use; ch<=s->channels; ch++) {
             bit_alloc_stages[ch] = FFMAX(bit_alloc_stages[ch], 2);
         }
+    } else if (!blk) {
+        av_log(s->avctx, AV_LOG_ERROR, "new bit allocation info must be present in block 0\n");
+        return -1;
     }
 
     /* signal-to-noise ratio offsets and fast gains (signal-to-mask ratios) */
@@ -965,13 +976,21 @@ static int ac3_parse_audio_block(AC3DecodeContext *s, int blk)
             s->fast_gain[ch] = ff_ac3_fast_gain_tab[get_bits(gbc, 3)];
         }
         memset(bit_alloc_stages, 3, AC3_MAX_CHANNELS);
+    } else if (!blk) {
+        av_log(s->avctx, AV_LOG_ERROR, "new snr offsets must be present in block 0\n");
+        return -1;
     }
 
     /* coupling leak information */
-    if (s->cpl_in_use && get_bits1(gbc)) {
-        s->bit_alloc_params.cpl_fast_leak = get_bits(gbc, 3);
-        s->bit_alloc_params.cpl_slow_leak = get_bits(gbc, 3);
-        bit_alloc_stages[CPL_CH] = FFMAX(bit_alloc_stages[CPL_CH], 2);
+    if (s->cpl_in_use) {
+        if (get_bits1(gbc)) {
+            s->bit_alloc_params.cpl_fast_leak = get_bits(gbc, 3);
+            s->bit_alloc_params.cpl_slow_leak = get_bits(gbc, 3);
+            bit_alloc_stages[CPL_CH] = FFMAX(bit_alloc_stages[CPL_CH], 2);
+        } else if (!blk) {
+            av_log(s->avctx, AV_LOG_ERROR, "new coupling leak info must be present in block 0\n");
+            return -1;
+        }
     }
 
     /* delta bit allocation information */
@@ -1125,8 +1144,25 @@ static int ac3_decode_frame(AVCodecContext * avctx, void *data, int *data_size,
     }
 
     /* parse the syncinfo */
+    *data_size = 0;
     err = ac3_parse_header(s);
-    if(err) {
+
+    /* check that reported frame size fits in input buffer */
+    if(s->frame_size > buf_size) {
+        av_log(avctx, AV_LOG_ERROR, "incomplete frame\n");
+        err = AC3_PARSE_ERROR_FRAME_SIZE;
+    }
+
+    /* check for crc mismatch */
+    if(err != AC3_PARSE_ERROR_FRAME_SIZE && avctx->error_resilience >= FF_ER_CAREFUL) {
+        if(av_crc(av_crc_get_table(AV_CRC_16_ANSI), 0, &buf[2], s->frame_size-2)) {
+            av_log(avctx, AV_LOG_ERROR, "frame CRC mismatch\n");
+            err = AC3_PARSE_ERROR_CRC;
+        }
+    }
+
+    /* parse the syncinfo */
+    if(err && err != AC3_PARSE_ERROR_CRC) {
         switch(err) {
             case AC3_PARSE_ERROR_SYNC:
                 av_log(avctx, AV_LOG_ERROR, "frame sync error\n");
@@ -1147,48 +1183,40 @@ static int ac3_decode_frame(AVCodecContext * avctx, void *data, int *data_size,
                 av_log(avctx, AV_LOG_ERROR, "invalid header\n");
                 break;
         }
-        return -1;
     }
 
-    /* check that reported frame size fits in input buffer */
-    if(s->frame_size > buf_size) {
-        av_log(avctx, AV_LOG_ERROR, "incomplete frame\n");
-        return -1;
-    }
+    /* if frame is ok, set audio parameters */
+    if (!err) {
+        avctx->sample_rate = s->sample_rate;
+        avctx->bit_rate = s->bit_rate;
 
-    /* check for crc mismatch */
-    if(avctx->error_resilience >= FF_ER_CAREFUL) {
-        if(av_crc(av_crc_get_table(AV_CRC_16_ANSI), 0, &buf[2], s->frame_size-2)) {
-            av_log(avctx, AV_LOG_ERROR, "frame CRC mismatch\n");
-            return -1;
+        /* channel config */
+        s->out_channels = s->channels;
+        s->output_mode = s->channel_mode;
+        if(s->lfe_on)
+            s->output_mode |= AC3_OUTPUT_LFEON;
+        if (avctx->request_channels > 0 && avctx->request_channels <= 2 &&
+                avctx->request_channels < s->channels) {
+            s->out_channels = avctx->request_channels;
+            s->output_mode  = avctx->request_channels == 1 ? AC3_CHMODE_MONO : AC3_CHMODE_STEREO;
         }
-        /* TODO: error concealment */
-    }
+        avctx->channels = s->out_channels;
 
-    avctx->sample_rate = s->sample_rate;
-    avctx->bit_rate = s->bit_rate;
-
-    /* channel config */
-    s->out_channels = s->channels;
-    if (avctx->request_channels > 0 && avctx->request_channels <= 2 &&
-            avctx->request_channels < s->channels) {
-        s->out_channels = avctx->request_channels;
-        s->output_mode  = avctx->request_channels == 1 ? AC3_CHMODE_MONO : AC3_CHMODE_STEREO;
-    }
-    avctx->channels = s->out_channels;
-
-    /* set downmixing coefficients if needed */
-    if(s->channels != s->out_channels && !((s->output_mode & AC3_OUTPUT_LFEON) &&
-            s->fbw_channels == s->out_channels)) {
-        set_downmix_coeffs(s);
+        /* set downmixing coefficients if needed */
+        if(s->channels != s->out_channels && !((s->output_mode & AC3_OUTPUT_LFEON) &&
+                s->fbw_channels == s->out_channels)) {
+            set_downmix_coeffs(s);
+        }
+    } else if (!s->out_channels) {
+        s->out_channels = avctx->channels;
+        if(s->out_channels < s->channels)
+            s->output_mode  = s->out_channels == 1 ? AC3_CHMODE_MONO : AC3_CHMODE_STEREO;
     }
 
     /* parse the audio blocks */
     for (blk = 0; blk < NB_BLOCKS; blk++) {
-        if (ac3_parse_audio_block(s, blk)) {
+        if (!err && ac3_parse_audio_block(s, blk)) {
             av_log(avctx, AV_LOG_ERROR, "error parsing the audio block\n");
-            *data_size = 0;
-            return s->frame_size;
         }
         for (i = 0; i < 256; i++)
             for (ch = 0; ch < s->out_channels; ch++)

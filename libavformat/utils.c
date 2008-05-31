@@ -703,7 +703,7 @@ static void compute_pkt_fields(AVFormatContext *s, AVStream *st,
 
 //    av_log(NULL, AV_LOG_DEBUG, "IN delayed:%d pts:%"PRId64", dts:%"PRId64" cur_dts:%"PRId64" st:%d pc:%p\n", presentation_delayed, pkt->pts, pkt->dts, st->cur_dts, pkt->stream_index, pc);
     /* interpolate PTS and DTS if they are not present */
-    if(delay <=1){
+    if(delay==0 || (delay==1 && pc)){
         if (presentation_delayed) {
             /* DTS = decompression timestamp */
             /* PTS = presentation timestamp */
@@ -848,6 +848,18 @@ static int av_read_frame_internal(AVFormatContext *s, AVPacket *pkt)
                 }
                 /* no more packets: really terminate parsing */
                 return ret;
+            }
+
+            if(s->cur_pkt.pts != AV_NOPTS_VALUE &&
+               s->cur_pkt.dts != AV_NOPTS_VALUE &&
+               s->cur_pkt.pts < s->cur_pkt.dts){
+                av_log(s, AV_LOG_WARNING, "Invalid timestamps stream=%d, pts=%"PRId64", dts=%"PRId64", size=%d\n",
+                    s->cur_pkt.stream_index,
+                    s->cur_pkt.pts,
+                    s->cur_pkt.dts,
+                    s->cur_pkt.size);
+//                av_free_packet(&s->cur_pkt);
+//                return -1;
             }
 
             st = s->streams[s->cur_pkt.stream_index];
@@ -1342,7 +1354,8 @@ static int av_seek_frame_generic(AVFormatContext *s,
         int i;
         AVPacket pkt;
 
-        if(st->index_entries && st->nb_index_entries){
+        if(st->nb_index_entries){
+            assert(st->index_entries);
             ie= &st->index_entries[st->nb_index_entries-1];
             url_fseek(s->pb, ie->pos, SEEK_SET);
             av_update_cur_dts(s, st, ie->timestamp);
@@ -1793,6 +1806,26 @@ enum CodecID av_codec_get_id(const AVCodecTag *tags[4], unsigned int tag)
     return CODEC_ID_NONE;
 }
 
+static void compute_chapters_end(AVFormatContext *s)
+{
+    unsigned int i;
+
+    for (i=0; i+1<s->nb_chapters; i++)
+        if (s->chapters[i]->end == AV_NOPTS_VALUE) {
+            assert(s->chapters[i]->start <= s->chapters[i+1]->start);
+            assert(!av_cmp_q(s->chapters[i]->time_base, s->chapters[i+1]->time_base));
+            s->chapters[i]->end = s->chapters[i+1]->start;
+        }
+
+    if (s->nb_chapters && s->chapters[i]->end == AV_NOPTS_VALUE) {
+        assert(s->start_time != AV_NOPTS_VALUE);
+        assert(s->duration > 0);
+        s->chapters[i]->end = av_rescale_q(s->start_time + s->duration,
+                                           AV_TIME_BASE_Q,
+                                           s->chapters[i]->time_base);
+    }
+}
+
 /* absolute maximum size we read until we abort */
 #define MAX_READ_SIZE        5000000
 
@@ -2063,6 +2096,8 @@ int av_find_stream_info(AVFormatContext *ic)
         url_fseek(ic->pb, ic->data_offset, SEEK_SET);
     }
 
+    compute_chapters_end(ic);
+
 #if 0
     /* correct DTS for B-frame streams with no timestamps */
     for(i=0;i<ic->nb_streams;i++) {
@@ -2148,6 +2183,11 @@ void av_close_input_stream(AVFormatContext *s)
     av_freep(&s->programs);
     flush_packet_queue(s);
     av_freep(&s->priv_data);
+    while(s->nb_chapters--) {
+        av_free(s->chapters[s->nb_chapters]->title);
+        av_free(s->chapters[s->nb_chapters]);
+    }
+    av_freep(&s->chapters);
     av_free(s);
 }
 
@@ -2229,6 +2269,30 @@ void av_set_program_name(AVProgram *program, char *provider_name, char *name)
     }
 }
 
+AVChapter *ff_new_chapter(AVFormatContext *s, int id, AVRational time_base, int64_t start, int64_t end, const char *title)
+{
+    AVChapter *chapter = NULL;
+    int i;
+
+    for(i=0; i<s->nb_chapters; i++)
+        if(s->chapters[i]->id == id)
+            chapter = s->chapters[i];
+
+    if(!chapter){
+        chapter= av_mallocz(sizeof(AVChapter));
+        if(!chapter)
+            return NULL;
+        dynarray_add(&s->chapters, &s->nb_chapters, chapter);
+    }
+    av_free(chapter->title);
+    chapter->title = av_strdup(title);
+    chapter->id    = id;
+    chapter->time_base= time_base;
+    chapter->start = start;
+    chapter->end   = end;
+
+    return chapter;
+}
 
 /************************************************************/
 /* output media file */

@@ -1,5 +1,5 @@
 /*
- * FFM (ffserver live feed) muxer and demuxer
+ * FFM (ffserver live feed) demuxer
  * Copyright (c) 2001 Fabrice Bellard.
  *
  * This file is part of FFmpeg.
@@ -18,289 +18,39 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
 #include "avformat.h"
+#include "ffm.h"
+#ifdef CONFIG_FFSERVER
 #include <unistd.h>
 
-/* The FFM file is made of blocks of fixed size */
-#define FFM_HEADER_SIZE 14
-#define PACKET_ID       0x666d
+offset_t ffm_read_write_index(int fd)
+{
+    uint8_t buf[8];
 
-/* each packet contains frames (which can span several packets */
-#define FRAME_HEADER_SIZE    8
-#define FLAG_KEY_FRAME       0x01
+    lseek(fd, 8, SEEK_SET);
+    read(fd, buf, 8);
+    return AV_RB64(buf);
+}
 
-typedef struct FFMStream {
-    int64_t pts;
-} FFMStream;
+void ffm_write_write_index(int fd, offset_t pos)
+{
+    uint8_t buf[8];
+    int i;
 
-enum {
-    READ_HEADER,
-    READ_DATA,
-};
+    for(i=0;i<8;i++)
+        buf[i] = (pos >> (56 - i * 8)) & 0xff;
+    lseek(fd, 8, SEEK_SET);
+    write(fd, buf, 8);
+}
 
-typedef struct FFMContext {
-    /* only reading mode */
-    offset_t write_index, file_size;
-    int read_state;
-    uint8_t header[FRAME_HEADER_SIZE];
-
-    /* read and write */
-    int first_packet; /* true if first packet, needed to set the discontinuity tag */
-    int first_frame_in_packet; /* true if first frame in packet, needed to know if PTS information is valid */
-    int packet_size;
-    int frame_offset;
-    int64_t pts;
-    uint8_t *packet_ptr, *packet_end;
-    uint8_t packet[FFM_PACKET_SIZE];
-} FFMContext;
-
-static int64_t get_pts(AVFormatContext *s, offset_t pos);
-
-/* disable pts hack for testing */
-int ffm_nopts = 0;
-
-#ifdef CONFIG_MUXERS
-static void flush_packet(AVFormatContext *s)
+void ffm_set_write_index(AVFormatContext *s, offset_t pos, offset_t file_size)
 {
     FFMContext *ffm = s->priv_data;
-    int fill_size, h;
-    ByteIOContext *pb = s->pb;
-
-    fill_size = ffm->packet_end - ffm->packet_ptr;
-    memset(ffm->packet_ptr, 0, fill_size);
-
-    if (url_ftell(pb) % ffm->packet_size)
-        av_abort();
-
-    /* put header */
-    put_be16(pb, PACKET_ID);
-    put_be16(pb, fill_size);
-    put_be64(pb, ffm->pts);
-    h = ffm->frame_offset;
-    if (ffm->first_packet)
-        h |= 0x8000;
-    put_be16(pb, h);
-    put_buffer(pb, ffm->packet, ffm->packet_end - ffm->packet);
-    put_flush_packet(pb);
-
-    /* prepare next packet */
-    ffm->frame_offset = 0; /* no key frame */
-    ffm->pts = 0; /* no pts */
-    ffm->packet_ptr = ffm->packet;
-    ffm->first_packet = 0;
+    ffm->write_index = pos;
+    ffm->file_size = file_size;
 }
-
-/* 'first' is true if first data of a frame */
-static void ffm_write_data(AVFormatContext *s,
-                           const uint8_t *buf, int size,
-                           int64_t pts, int first)
-{
-    FFMContext *ffm = s->priv_data;
-    int len;
-
-    if (first && ffm->frame_offset == 0)
-        ffm->frame_offset = ffm->packet_ptr - ffm->packet + FFM_HEADER_SIZE;
-    if (first && ffm->pts == 0)
-        ffm->pts = pts;
-
-    /* write as many packets as needed */
-    while (size > 0) {
-        len = ffm->packet_end - ffm->packet_ptr;
-        if (len > size)
-            len = size;
-        memcpy(ffm->packet_ptr, buf, len);
-
-        ffm->packet_ptr += len;
-        buf += len;
-        size -= len;
-        if (ffm->packet_ptr >= ffm->packet_end) {
-            /* special case : no pts in packet : we leave the current one */
-            if (ffm->pts == 0)
-                ffm->pts = pts;
-
-            flush_packet(s);
-        }
-    }
-}
-
-static int ffm_write_header(AVFormatContext *s)
-{
-    FFMContext *ffm = s->priv_data;
-    AVStream *st;
-    FFMStream *fst;
-    ByteIOContext *pb = s->pb;
-    AVCodecContext *codec;
-    int bit_rate, i;
-
-    ffm->packet_size = FFM_PACKET_SIZE;
-
-    /* header */
-    put_le32(pb, MKTAG('F', 'F', 'M', '1'));
-    put_be32(pb, ffm->packet_size);
-    /* XXX: store write position in other file ? */
-    put_be64(pb, ffm->packet_size); /* current write position */
-
-    put_be32(pb, s->nb_streams);
-    bit_rate = 0;
-    for(i=0;i<s->nb_streams;i++) {
-        st = s->streams[i];
-        bit_rate += st->codec->bit_rate;
-    }
-    put_be32(pb, bit_rate);
-
-    /* list of streams */
-    for(i=0;i<s->nb_streams;i++) {
-        st = s->streams[i];
-        fst = av_mallocz(sizeof(FFMStream));
-        if (!fst)
-            goto fail;
-        av_set_pts_info(st, 64, 1, 1000000);
-        st->priv_data = fst;
-
-        codec = st->codec;
-        /* generic info */
-        put_be32(pb, codec->codec_id);
-        put_byte(pb, codec->codec_type);
-        put_be32(pb, codec->bit_rate);
-        put_be32(pb, st->quality);
-        put_be32(pb, codec->flags);
-        put_be32(pb, codec->flags2);
-        put_be32(pb, codec->debug);
-        /* specific info */
-        switch(codec->codec_type) {
-        case CODEC_TYPE_VIDEO:
-            put_be32(pb, codec->time_base.num);
-            put_be32(pb, codec->time_base.den);
-            put_be16(pb, codec->width);
-            put_be16(pb, codec->height);
-            put_be16(pb, codec->gop_size);
-            put_be32(pb, codec->pix_fmt);
-            put_byte(pb, codec->qmin);
-            put_byte(pb, codec->qmax);
-            put_byte(pb, codec->max_qdiff);
-            put_be16(pb, (int) (codec->qcompress * 10000.0));
-            put_be16(pb, (int) (codec->qblur * 10000.0));
-            put_be32(pb, codec->bit_rate_tolerance);
-            put_strz(pb, codec->rc_eq);
-            put_be32(pb, codec->rc_max_rate);
-            put_be32(pb, codec->rc_min_rate);
-            put_be32(pb, codec->rc_buffer_size);
-            put_be64(pb, av_dbl2int(codec->i_quant_factor));
-            put_be64(pb, av_dbl2int(codec->b_quant_factor));
-            put_be64(pb, av_dbl2int(codec->i_quant_offset));
-            put_be64(pb, av_dbl2int(codec->b_quant_offset));
-            put_be32(pb, codec->dct_algo);
-            put_be32(pb, codec->strict_std_compliance);
-            put_be32(pb, codec->max_b_frames);
-            put_be32(pb, codec->luma_elim_threshold);
-            put_be32(pb, codec->chroma_elim_threshold);
-            put_be32(pb, codec->mpeg_quant);
-            put_be32(pb, codec->intra_dc_precision);
-            put_be32(pb, codec->me_method);
-            put_be32(pb, codec->mb_decision);
-            put_be32(pb, codec->nsse_weight);
-            put_be32(pb, codec->frame_skip_cmp);
-            put_be64(pb, av_dbl2int(codec->rc_buffer_aggressivity));
-            put_be32(pb, codec->codec_tag);
-            break;
-        case CODEC_TYPE_AUDIO:
-            put_be32(pb, codec->sample_rate);
-            put_le16(pb, codec->channels);
-            put_le16(pb, codec->frame_size);
-            break;
-        default:
-            return -1;
-        }
-        /* hack to have real time */
-        if (ffm_nopts)
-            fst->pts = 0;
-        else
-            fst->pts = av_gettime();
-    }
-
-    /* flush until end of block reached */
-    while ((url_ftell(pb) % ffm->packet_size) != 0)
-        put_byte(pb, 0);
-
-    put_flush_packet(pb);
-
-    /* init packet mux */
-    ffm->packet_ptr = ffm->packet;
-    ffm->packet_end = ffm->packet + ffm->packet_size - FFM_HEADER_SIZE;
-    assert(ffm->packet_end >= ffm->packet);
-    ffm->frame_offset = 0;
-    ffm->pts = 0;
-    ffm->first_packet = 1;
-
-    return 0;
- fail:
-    for(i=0;i<s->nb_streams;i++) {
-        st = s->streams[i];
-        av_freep(&st->priv_data);
-    }
-    return -1;
-}
-
-static int ffm_write_packet(AVFormatContext *s, AVPacket *pkt)
-{
-    AVStream *st = s->streams[pkt->stream_index];
-    FFMStream *fst = st->priv_data;
-    int64_t pts;
-    uint8_t header[FRAME_HEADER_SIZE];
-    int duration;
-    int size= pkt->size;
-
-    //XXX/FIXME use duration from pkt
-    if (st->codec->codec_type == CODEC_TYPE_AUDIO) {
-        duration = ((float)st->codec->frame_size / st->codec->sample_rate * 1000000.0);
-    } else {
-        duration = (1000000.0 * st->codec->time_base.num / (float)st->codec->time_base.den);
-    }
-
-    pts = fst->pts;
-    /* packet size & key_frame */
-    header[0] = pkt->stream_index;
-    header[1] = 0;
-    if (pkt->flags & PKT_FLAG_KEY)
-        header[1] |= FLAG_KEY_FRAME;
-    header[2] = (size >> 16) & 0xff;
-    header[3] = (size >> 8) & 0xff;
-    header[4] = size & 0xff;
-    header[5] = (duration >> 16) & 0xff;
-    header[6] = (duration >> 8) & 0xff;
-    header[7] = duration & 0xff;
-    ffm_write_data(s, header, FRAME_HEADER_SIZE, pts, 1);
-    ffm_write_data(s, pkt->data, size, pts, 0);
-
-    fst->pts += duration;
-    return 0;
-}
-
-static int ffm_write_trailer(AVFormatContext *s)
-{
-    ByteIOContext *pb = s->pb;
-    FFMContext *ffm = s->priv_data;
-
-    /* flush packets */
-    if (ffm->packet_ptr > ffm->packet)
-        flush_packet(s);
-
-    put_flush_packet(pb);
-
-    if (!url_is_streamed(pb)) {
-        int64_t size;
-        /* update the write offset */
-        size = url_ftell(pb);
-        url_fseek(pb, 8, SEEK_SET);
-        put_be64(pb, size);
-        put_flush_packet(pb);
-    }
-
-    return 0;
-}
-#endif //CONFIG_MUXERS
-
-/* ffm demux */
+#endif // CONFIG_FFSERVER
 
 static int ffm_is_avail_data(AVFormatContext *s, int size)
 {
@@ -309,11 +59,8 @@ static int ffm_is_avail_data(AVFormatContext *s, int size)
     int len;
 
     len = ffm->packet_end - ffm->packet_ptr;
-    if (!ffm_nopts) {
-        /* XXX: I don't understand this test, so I disabled it for testing */
-        if (size <= len)
-            return 1;
-    }
+    if (size <= len)
+        return 1;
     pos = url_ftell(s->pb);
     if (pos == ffm->write_index) {
         /* exactly at the end of stream */
@@ -342,6 +89,8 @@ static int ffm_read_data(AVFormatContext *s,
     while (size > 0) {
     redo:
         len = ffm->packet_end - ffm->packet_ptr;
+        if (len < 0)
+            return -1;
         if (len > size)
             len = size;
         if (len == 0) {
@@ -355,7 +104,7 @@ static int ffm_read_data(AVFormatContext *s,
             frame_offset = get_be16(pb);
             get_buffer(pb, ffm->packet, ffm->packet_size - FFM_HEADER_SIZE);
             ffm->packet_end = ffm->packet + (ffm->packet_size - FFM_HEADER_SIZE - fill_size);
-            if (ffm->packet_end < ffm->packet)
+            if (ffm->packet_end < ffm->packet || frame_offset < 0)
                 return -1;
             /* if first packet or resynchronization packet, we must
                handle it specifically */
@@ -370,7 +119,7 @@ static int ffm_read_data(AVFormatContext *s,
                     return 0;
                 }
                 ffm->first_packet = 0;
-                if ((frame_offset & 0x7ffff) < FFM_HEADER_SIZE)
+                if ((frame_offset & 0x7fff) < FFM_HEADER_SIZE)
                     return -1;
                 ffm->packet_ptr = ffm->packet + (frame_offset & 0x7fff) - FFM_HEADER_SIZE;
                 if (!first)
@@ -389,6 +138,38 @@ static int ffm_read_data(AVFormatContext *s,
     return size1 - size;
 }
 
+//#define DEBUG_SEEK
+
+/* pos is between 0 and file_size - FFM_PACKET_SIZE. It is translated
+   by the write position inside this function */
+static void ffm_seek1(AVFormatContext *s, offset_t pos1)
+{
+    FFMContext *ffm = s->priv_data;
+    ByteIOContext *pb = s->pb;
+    offset_t pos;
+
+    pos = pos1 + ffm->write_index;
+    if (pos >= ffm->file_size)
+        pos -= (ffm->file_size - FFM_PACKET_SIZE);
+#ifdef DEBUG_SEEK
+    av_log(s, AV_LOG_DEBUG, "seek to %"PRIx64" -> %"PRIx64"\n", pos1, pos);
+#endif
+    url_fseek(pb, pos, SEEK_SET);
+}
+
+static int64_t get_pts(AVFormatContext *s, offset_t pos)
+{
+    ByteIOContext *pb = s->pb;
+    int64_t pts;
+
+    ffm_seek1(s, pos);
+    url_fskip(pb, 4);
+    pts = get_be64(pb);
+#ifdef DEBUG_SEEK
+    av_log(s, AV_LOG_DEBUG, "pts=%0.6f\n", pts / 1000000.0);
+#endif
+    return pts;
+}
 
 static void adjust_write_index(AVFormatContext *s)
 {
@@ -583,20 +364,13 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
         if (!ffm_is_avail_data(s, FRAME_HEADER_SIZE)) {
             return AVERROR(EAGAIN);
         }
-#if 0
-        printf("pos=%08"PRIx64" spos=%"PRIx64", write_index=%"PRIx64" size=%"PRIx64"\n",
+        dprintf(s, "pos=%08"PRIx64" spos=%"PRIx64", write_index=%"PRIx64" size=%"PRIx64"\n",
                url_ftell(s->pb), s->pb.pos, ffm->write_index, ffm->file_size);
-#endif
         if (ffm_read_data(s, ffm->header, FRAME_HEADER_SIZE, 1) !=
             FRAME_HEADER_SIZE)
             return AVERROR(EAGAIN);
 #if 0
-        {
-            int i;
-            for(i=0;i<FRAME_HEADER_SIZE;i++)
-                printf("%02x ", ffm->header[i]);
-            printf("\n");
-        }
+        av_hexdump_log(s, AV_LOG_DEBUG, ffm->header, FRAME_HEADER_SIZE);
 #endif
         ffm->read_state = READ_DATA;
         /* fall thru */
@@ -610,6 +384,12 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
 
         av_new_packet(pkt, size);
         pkt->stream_index = ffm->header[0];
+        if ((unsigned)pkt->stream_index >= s->nb_streams) {
+            av_log(s, AV_LOG_ERROR, "invalid stream index %d\n", pkt->stream_index);
+            av_free_packet(pkt);
+            ffm->read_state = READ_HEADER;
+            return AVERROR(EAGAIN);
+        }
         pkt->pos = url_ftell(s->pb);
         if (ffm->header[1] & FLAG_KEY_FRAME)
             pkt->flags |= PKT_FLAG_KEY;
@@ -631,39 +411,6 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
     return 0;
 }
 
-//#define DEBUG_SEEK
-
-/* pos is between 0 and file_size - FFM_PACKET_SIZE. It is translated
-   by the write position inside this function */
-static void ffm_seek1(AVFormatContext *s, offset_t pos1)
-{
-    FFMContext *ffm = s->priv_data;
-    ByteIOContext *pb = s->pb;
-    offset_t pos;
-
-    pos = pos1 + ffm->write_index;
-    if (pos >= ffm->file_size)
-        pos -= (ffm->file_size - FFM_PACKET_SIZE);
-#ifdef DEBUG_SEEK
-    printf("seek to %"PRIx64" -> %"PRIx64"\n", pos1, pos);
-#endif
-    url_fseek(pb, pos, SEEK_SET);
-}
-
-static int64_t get_pts(AVFormatContext *s, offset_t pos)
-{
-    ByteIOContext *pb = s->pb;
-    int64_t pts;
-
-    ffm_seek1(s, pos);
-    url_fskip(pb, 4);
-    pts = get_be64(pb);
-#ifdef DEBUG_SEEK
-    printf("pts=%0.6f\n", pts / 1000000.0);
-#endif
-    return pts;
-}
-
 /* seek to a given time in the file. The file read pointer is
    positioned at or before pts. XXX: the following code is quite
    approximative */
@@ -675,7 +422,7 @@ static int ffm_seek(AVFormatContext *s, int stream_index, int64_t wanted_pts, in
     double pos1;
 
 #ifdef DEBUG_SEEK
-    printf("wanted_pts=%0.6f\n", wanted_pts / 1000000.0);
+    av_log(s, AV_LOG_DEBUG, "wanted_pts=%0.6f\n", wanted_pts / 1000000.0);
 #endif
     /* find the position using linear interpolation (better than
        dichotomy in typical cases) */
@@ -710,35 +457,6 @@ static int ffm_seek(AVFormatContext *s, int stream_index, int64_t wanted_pts, in
     return 0;
 }
 
-#ifdef CONFIG_FFSERVER
-offset_t ffm_read_write_index(int fd)
-{
-    uint8_t buf[8];
-
-    lseek(fd, 8, SEEK_SET);
-    read(fd, buf, 8);
-    return AV_RB64(buf);
-}
-
-void ffm_write_write_index(int fd, offset_t pos)
-{
-    uint8_t buf[8];
-    int i;
-
-    for(i=0;i<8;i++)
-        buf[i] = (pos >> (56 - i * 8)) & 0xff;
-    lseek(fd, 8, SEEK_SET);
-    write(fd, buf, 8);
-}
-
-void ffm_set_write_index(AVFormatContext *s, offset_t pos, offset_t file_size)
-{
-    FFMContext *ffm = s->priv_data;
-    ffm->write_index = pos;
-    ffm->file_size = file_size;
-}
-#endif // CONFIG_FFSERVER
-
 static int ffm_read_close(AVFormatContext *s)
 {
     AVStream *st;
@@ -760,7 +478,6 @@ static int ffm_probe(AVProbeData *p)
     return 0;
 }
 
-#ifdef CONFIG_FFM_DEMUXER
 AVInputFormat ffm_demuxer = {
     "ffm",
     "ffm format",
@@ -771,19 +488,3 @@ AVInputFormat ffm_demuxer = {
     ffm_read_close,
     ffm_seek,
 };
-#endif
-#ifdef CONFIG_FFM_MUXER
-AVOutputFormat ffm_muxer = {
-    "ffm",
-    "ffm format",
-    "",
-    "ffm",
-    sizeof(FFMContext),
-    /* not really used */
-    CODEC_ID_MP2,
-    CODEC_ID_MPEG1VIDEO,
-    ffm_write_header,
-    ffm_write_packet,
-    ffm_write_trailer,
-};
-#endif //CONFIG_FFM_MUXER

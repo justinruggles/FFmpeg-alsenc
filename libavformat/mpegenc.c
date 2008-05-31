@@ -913,8 +913,8 @@ static int flush_packet(AVFormatContext *ctx, int stream_index,
         }
 
         /* output data */
-        if(av_fifo_generic_read(&stream->fifo, payload_size - stuffing_size, &put_buffer, ctx->pb) < 0)
-            return -1;
+        assert(payload_size - stuffing_size <= av_fifo_size(&stream->fifo));
+        av_fifo_generic_read(&stream->fifo, payload_size - stuffing_size, &put_buffer, ctx->pb);
         stream->bytes_to_iframe -= payload_size - stuffing_size;
     }else{
         payload_size=
@@ -1170,7 +1170,7 @@ static int mpeg_mux_write_packet(AVFormatContext *ctx, AVPacket *pkt)
         stream->predecode_packet= pkt_desc;
     stream->next_packet= &pkt_desc->next;
 
-    av_fifo_realloc(&stream->fifo, av_fifo_size(&stream->fifo) + size + 1);
+    av_fifo_realloc(&stream->fifo, av_fifo_size(&stream->fifo) + size);
 
     if (s->is_dvd){
         if (is_iframe && (s->packet_number == 0 || (pts - stream->vobu_start_pts >= 36000))) { // min VOBU length 0.4 seconds (mpucoder)
@@ -1180,7 +1180,7 @@ static int mpeg_mux_write_packet(AVFormatContext *ctx, AVPacket *pkt)
         }
     }
 
-    av_fifo_write(&stream->fifo, buf, size);
+    av_fifo_generic_write(&stream->fifo, buf, size, NULL);
 
     for(;;){
         int ret= output_packet(ctx, 0);

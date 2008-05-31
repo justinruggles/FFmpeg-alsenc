@@ -22,8 +22,9 @@
 #include "common.h"
 #include "fifo.h"
 
-int av_fifo_init(AVFifoBuffer *f, int size)
+int av_fifo_init(AVFifoBuffer *f, unsigned int size)
 {
+    size= FFMAX(size, size+1);
     f->wptr = f->rptr =
     f->buffer = av_malloc(size);
     f->end = f->buffer + size;
@@ -45,9 +46,6 @@ int av_fifo_size(AVFifoBuffer *f)
     return size;
 }
 
-/**
- * Get data from the fifo (returns -1 if not enough data).
- */
 int av_fifo_read(AVFifoBuffer *f, uint8_t *buf, int buf_size)
 {
     return av_fifo_generic_read(f, buf_size, NULL, buf);
@@ -59,7 +57,7 @@ int av_fifo_read(AVFifoBuffer *f, uint8_t *buf, int buf_size)
 void av_fifo_realloc(AVFifoBuffer *f, unsigned int new_size) {
     unsigned int old_size= f->end - f->buffer;
 
-    if(old_size < new_size){
+    if(old_size <= new_size){
         int len= av_fifo_size(f);
         AVFifoBuffer f2;
 
@@ -97,13 +95,8 @@ int av_fifo_generic_write(AVFifoBuffer *f, void *src, int size, int (*func)(void
 }
 
 
-/** get data from the fifo (return -1 if not enough data) */
 int av_fifo_generic_read(AVFifoBuffer *f, int buf_size, void (*func)(void*, void*, int), void* dest)
 {
-    int size = av_fifo_size(f);
-
-    if (size < buf_size)
-        return -1;
     do {
         int len = FFMIN(f->end - f->rptr, buf_size);
         if(func) func(dest, f->rptr, len);

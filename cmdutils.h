@@ -25,6 +25,16 @@
 #include <inttypes.h>
 
 /**
+ * program name, defined by the program for show_version().
+ */
+extern const char program_name[];
+
+/**
+ * program birth year, defined by the program for show_banner()
+ */
+extern const int program_birth_year;
+
+/**
  * Parses a string and returns its corresponding value as a double.
  * Exits from the application if the string cannot be correctly
  * parsed or the corresponding value is invalid.
@@ -70,6 +80,7 @@ typedef struct {
 #define OPT_SUBTITLE 0x0200
 #define OPT_FUNC2  0x0400
 #define OPT_INT64  0x0800
+#define OPT_EXIT   0x1000
      union {
         void (*func_arg)(const char *); //FIXME passing error code as int return would be nicer then exit() in the func
         int *int_arg;
@@ -101,23 +112,26 @@ void print_error(const char *filename, int err);
  * Prints the program banner to stderr. The banner contents depend on the
  * current version of the repository and of the libav* libraries used by
  * the program.
- * @param program_name name of the program
- * @param program_birth_year year of birth of the program
  */
-void show_banner(const char *program_name, int program_birth_year);
+void show_banner(void);
 
 /**
  * Prints the version of the program to stdout. The version message
  * depends on the current versions of the repository and of the libav*
  * libraries.
- * @param program_name name of the program
  */
-void show_version(const char *program_name);
+void show_version(void);
 
 /**
  * Prints the license of the program to stdout. The license depends on
  * the license of the libraries compiled into the program.
  */
 void show_license(void);
+
+/**
+ * Prints a listing containing all the formats supported by the
+ * program.
+ */
+void show_formats(void);
 
 #endif /* FFMPEG_CMDUTILS_H */

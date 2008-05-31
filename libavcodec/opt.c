@@ -146,6 +146,7 @@ const AVOption *av_set_string(void *obj, const char *name, const char *val){
         return o;
     }
     if(o->type != FF_OPT_TYPE_STRING){
+        int notfirst=0;
         for(;;){
             int i;
             char buf[256];
@@ -179,14 +180,17 @@ const AVOption *av_set_string(void *obj, const char *name, const char *val){
             if(o->type == FF_OPT_TYPE_FLAGS){
                 if     (cmd=='+') d= av_get_int(obj, name, NULL) | (int64_t)d;
                 else if(cmd=='-') d= av_get_int(obj, name, NULL) &~(int64_t)d;
-            }else if(cmd=='-')
-                d= -d;
+            }else{
+                if     (cmd=='+') d= notfirst*av_get_double(obj, name, NULL) + d;
+                else if(cmd=='-') d= notfirst*av_get_double(obj, name, NULL) - d;
+            }
 
             if (!av_set_number(obj, name, d, 1, 1))
                 return NULL;
             val+= i;
             if(!*val)
                 return o;
+            notfirst=1;
         }
         return NULL;
     }
