@@ -427,6 +427,7 @@ static int read_ffserver_streams(AVFormatContext *s, const char *filename)
 {
     int i, err;
     AVFormatContext *ic;
+    int nopts = 0;
 
     err = av_open_input_file(&ic, filename, NULL, FFM_PACKET_SIZE, NULL);
     if (err < 0)
@@ -442,7 +443,12 @@ static int read_ffserver_streams(AVFormatContext *s, const char *filename)
         st->codec = avcodec_alloc_context();
         memcpy(st->codec, ic->streams[i]->codec, sizeof(AVCodecContext));
         s->streams[i] = st;
+        if(st->codec->flags & CODEC_FLAG_BITEXACT)
+            nopts = 1;
     }
+
+    if (!nopts)
+        s->timestamp = av_gettime();
 
     av_close_input_file(ic);
     return 0;
@@ -2177,8 +2183,6 @@ static void opt_format(const char *arg)
     }
 }
 
-extern int ffm_nopts;
-
 static int opt_default(const char *opt, const char *arg){
     int type;
     const AVOption *o= NULL;
@@ -2209,12 +2213,6 @@ static int opt_default(const char *opt, const char *arg){
     //FIXME we should always use avctx_opts, ... for storing options so there wont be any need to keep track of whats set over this
     opt_names= av_realloc(opt_names, sizeof(void*)*(opt_name_count+1));
     opt_names[opt_name_count++]= o->name;
-
-#ifdef CONFIG_FFM_MUXER
-    /* disable generate of real time pts in ffm (need to be supressed anyway) */
-    if(avctx_opts[0]->flags & CODEC_FLAG_BITEXACT)
-        ffm_nopts = 1;
-#endif
 
     if(avctx_opts[0]->debug)
         av_log_set_level(AV_LOG_DEBUG);
@@ -3445,8 +3443,11 @@ static void show_help(void)
     show_help_options(options, "\nAdvanced options:\n",
                       OPT_EXPERT | OPT_AUDIO | OPT_VIDEO | OPT_GRAB,
                       OPT_EXPERT);
+    printf("\n");
     av_opt_show(avctx_opts[0], NULL);
+    printf("\n");
     av_opt_show(avformat_opts, NULL);
+    printf("\n");
     av_opt_show(sws_opts, NULL);
 }
 
@@ -3633,6 +3634,47 @@ static int opt_bsf(const char *opt, const char *arg)
     return 0;
 }
 
+static int opt_preset(const char *opt, const char *arg)
+{
+    FILE *f=NULL;
+    char tmp[1000], tmp2[1000];
+    int i;
+    const char *base[3]= { getenv("HOME"),
+                           "/usr/local/share",
+                           "/usr/share",
+                         };
+
+    for(i=!base[0]; i<3 && !f; i++){
+        snprintf(tmp, sizeof(tmp), "%s/%sffmpeg/%s.ffpreset", base[i], i ? "" : ".", arg);
+        f= fopen(tmp, "r");
+        if(!f){
+            char *codec_name= *opt == 'v' ? video_codec_name :
+                              *opt == 'a' ? audio_codec_name :
+                                            subtitle_codec_name;
+              snprintf(tmp, sizeof(tmp), "%s/%sffmpeg/%s-%s.ffpreset", base[i],  i ? "" : ".", codec_name, arg);
+            f= fopen(tmp, "r");
+        }
+    }
+
+    if(!f){
+        fprintf(stderr, "Preset file not found\n");
+        av_exit(1);
+    }
+
+    while(!feof(f)){
+        int e= fscanf(f, "%999[^=]=%999[^\n]\n", tmp, tmp2);
+        if(e!=2){
+            fprintf(stderr, "Preset file invalid\n");
+            av_exit(1);
+        }
+        opt_default(tmp, tmp2);
+    }
+
+    fclose(f);
+
+    return 0;
+}
+
 static const OptionDef options[] = {
     /* main options */
     { "L", OPT_EXIT, {(void*)show_license}, "show license" },
@@ -3754,6 +3796,10 @@ static const OptionDef options[] = {
     { "absf", OPT_FUNC2 | HAS_ARG | OPT_AUDIO | OPT_EXPERT, {(void*)opt_bsf}, "", "bitstream_filter" },
     { "vbsf", OPT_FUNC2 | HAS_ARG | OPT_VIDEO | OPT_EXPERT, {(void*)opt_bsf}, "", "bitstream_filter" },
     { "sbsf", OPT_FUNC2 | HAS_ARG | OPT_SUBTITLE | OPT_EXPERT, {(void*)opt_bsf}, "", "bitstream_filter" },
+
+    { "apre", OPT_FUNC2 | HAS_ARG | OPT_AUDIO | OPT_EXPERT, {(void*)opt_preset}, "", "preset" },
+    { "vpre", OPT_FUNC2 | HAS_ARG | OPT_VIDEO | OPT_EXPERT, {(void*)opt_preset}, "", "preset" },
+    { "spre", OPT_FUNC2 | HAS_ARG | OPT_SUBTITLE | OPT_EXPERT, {(void*)opt_preset}, "", "preset" },
 
     { "default", OPT_FUNC2 | HAS_ARG | OPT_AUDIO | OPT_VIDEO | OPT_EXPERT, {(void*)opt_default}, "generic catch all option", "" },
     { NULL, },

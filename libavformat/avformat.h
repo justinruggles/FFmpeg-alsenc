@@ -22,7 +22,7 @@
 #define FFMPEG_AVFORMAT_H
 
 #define LIBAVFORMAT_VERSION_MAJOR 52
-#define LIBAVFORMAT_VERSION_MINOR 14
+#define LIBAVFORMAT_VERSION_MINOR 16
 #define LIBAVFORMAT_VERSION_MICRO  0
 
 #define LIBAVFORMAT_VERSION_INT AV_VERSION_INT(LIBAVFORMAT_VERSION_MAJOR, \
@@ -185,6 +185,11 @@ typedef struct AVFormatParameters {
 
 typedef struct AVOutputFormat {
     const char *name;
+    /**
+     * Descriptive name for the format, meant to be more human-readable
+     * than \p name. You \e should use the NULL_IF_CONFIG_SMALL() macro
+     * to define it.
+     */
     const char *long_name;
     const char *mime_type;
     const char *extensions; /**< comma separated filename extensions */
@@ -216,6 +221,11 @@ typedef struct AVOutputFormat {
 
 typedef struct AVInputFormat {
     const char *name;
+    /**
+     * Descriptive name for the format, meant to be more human-readable
+     * than \p name. You \e should use the NULL_IF_CONFIG_SMALL() macro
+     * to define it.
+     */
     const char *long_name;
     /** size of private data so that it can be allocated in the wrapper */
     int priv_data_size;
@@ -539,6 +549,12 @@ typedef struct AVFormatContext {
 
     unsigned int nb_chapters;
     AVChapter **chapters;
+
+    /**
+     * Flags to enable debuging.
+     */
+    int debug;
+#define FF_FDEBUG_TS        0x0001
 } AVFormatContext;
 
 typedef struct AVPacketList {

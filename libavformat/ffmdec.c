@@ -79,7 +79,7 @@ static int ffm_is_avail_data(AVFormatContext *s, int size)
 
 /* first is true if we read the frame header */
 static int ffm_read_data(AVFormatContext *s,
-                         uint8_t *buf, int size, int first)
+                         uint8_t *buf, int size, int header)
 {
     FFMContext *ffm = s->priv_data;
     ByteIOContext *pb = s->pb;
@@ -100,7 +100,6 @@ static int ffm_read_data(AVFormatContext *s,
             get_be16(pb); /* PACKET_ID */
             fill_size = get_be16(pb);
             ffm->pts = get_be64(pb);
-            ffm->first_frame_in_packet = 1;
             frame_offset = get_be16(pb);
             get_buffer(pb, ffm->packet, ffm->packet_size - FFM_HEADER_SIZE);
             ffm->packet_end = ffm->packet + (ffm->packet_size - FFM_HEADER_SIZE - fill_size);
@@ -122,7 +121,7 @@ static int ffm_read_data(AVFormatContext *s,
                 if ((frame_offset & 0x7fff) < FFM_HEADER_SIZE)
                     return -1;
                 ffm->packet_ptr = ffm->packet + (frame_offset & 0x7fff) - FFM_HEADER_SIZE;
-                if (!first)
+                if (!header)
                     break;
             } else {
                 ffm->packet_ptr = ffm->packet;
@@ -133,7 +132,7 @@ static int ffm_read_data(AVFormatContext *s,
         buf += len;
         ffm->packet_ptr += len;
         size -= len;
-        first = 0;
+        header = 0;
     }
     return size1 - size;
 }
@@ -232,7 +231,6 @@ static int ffm_read_header(AVFormatContext *s, AVFormatParameters *ap)
 {
     FFMContext *ffm = s->priv_data;
     AVStream *st;
-    FFMStream *fst;
     ByteIOContext *pb = s->pb;
     AVCodecContext *codec;
     int i, nb_streams;
@@ -263,14 +261,9 @@ static int ffm_read_header(AVFormatContext *s, AVFormatParameters *ap)
         st = av_new_stream(s, 0);
         if (!st)
             goto fail;
-        fst = av_mallocz(sizeof(FFMStream));
-        if (!fst)
-            goto fail;
         s->streams[i] = st;
 
         av_set_pts_info(st, 64, 1, 1000000);
-
-        st->priv_data = fst;
 
         codec = st->codec;
         /* generic info */
@@ -326,7 +319,13 @@ static int ffm_read_header(AVFormatContext *s, AVFormatParameters *ap)
         default:
             goto fail;
         }
-
+        if (codec->flags & CODEC_FLAG_GLOBAL_HEADER) {
+            codec->extradata_size = get_be32(pb);
+            codec->extradata = av_malloc(codec->extradata_size);
+            if (!codec->extradata)
+                return AVERROR(ENOMEM);
+            get_buffer(pb, codec->extradata, codec->extradata_size);
+        }
     }
 
     /* get until end of block reached */
@@ -361,14 +360,17 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
 
     switch(ffm->read_state) {
     case READ_HEADER:
-        if (!ffm_is_avail_data(s, FRAME_HEADER_SIZE)) {
+        if (!ffm_is_avail_data(s, FRAME_HEADER_SIZE+4)) {
             return AVERROR(EAGAIN);
         }
         dprintf(s, "pos=%08"PRIx64" spos=%"PRIx64", write_index=%"PRIx64" size=%"PRIx64"\n",
-               url_ftell(s->pb), s->pb.pos, ffm->write_index, ffm->file_size);
+               url_ftell(s->pb), s->pb->pos, ffm->write_index, ffm->file_size);
         if (ffm_read_data(s, ffm->header, FRAME_HEADER_SIZE, 1) !=
             FRAME_HEADER_SIZE)
             return AVERROR(EAGAIN);
+        if (ffm->header[1] & FLAG_DTS)
+            if (ffm_read_data(s, ffm->header+16, 4, 1) != 4)
+                return AVERROR(EAGAIN);
 #if 0
         av_hexdump_log(s, AV_LOG_DEBUG, ffm->header, FRAME_HEADER_SIZE);
 #endif
@@ -400,11 +402,11 @@ static int ffm_read_packet(AVFormatContext *s, AVPacket *pkt)
             av_free_packet(pkt);
             return AVERROR(EAGAIN);
         }
-        if (ffm->first_frame_in_packet)
-        {
-            pkt->pts = ffm->pts;
-            ffm->first_frame_in_packet = 0;
-        }
+        pkt->pts = AV_RB64(ffm->header+8);
+        if (ffm->header[1] & FLAG_DTS)
+            pkt->dts = pkt->pts - AV_RB32(ffm->header+16);
+        else
+            pkt->dts = pkt->pts;
         pkt->duration = duration;
         break;
     }
@@ -454,6 +456,13 @@ static int ffm_seek(AVFormatContext *s, int stream_index, int64_t wanted_pts, in
         pos -= FFM_PACKET_SIZE;
  found:
     ffm_seek1(s, pos);
+
+    /* reset read state */
+    ffm->read_state = READ_HEADER;
+    ffm->packet_ptr = ffm->packet;
+    ffm->packet_end = ffm->packet;
+    ffm->first_packet = 1;
+
     return 0;
 }
 
@@ -480,7 +489,7 @@ static int ffm_probe(AVProbeData *p)
 
 AVInputFormat ffm_demuxer = {
     "ffm",
-    "ffm format",
+    NULL_IF_CONFIG_SMALL("ffm format"),
     sizeof(FFMContext),
     ffm_probe,
     ffm_read_header,

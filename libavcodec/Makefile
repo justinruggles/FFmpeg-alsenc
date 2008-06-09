@@ -1,7 +1,3 @@
-#
-# libavcodec Makefile
-# (c) 2000-2005 Fabrice Bellard
-#
 include $(SUBDIR)../config.mak
 
 NAME = avcodec
@@ -30,7 +26,7 @@ HEADERS = avcodec.h opt.h
 OBJS-$(CONFIG_ENCODERS)                += faandct.o jfdctfst.o jfdctint.o
 
 OBJS-$(CONFIG_AASC_DECODER)            += aasc.o
-OBJS-$(CONFIG_AC3_DECODER)             += ac3dec.o ac3tab.o ac3.o mdct.o fft.o
+OBJS-$(CONFIG_AC3_DECODER)             += ac3dec.o ac3tab.o ac3dec_data.o ac3.o mdct.o fft.o
 OBJS-$(CONFIG_AC3_ENCODER)             += ac3enc.o ac3tab.o ac3.o
 OBJS-$(CONFIG_ALAC_DECODER)            += alac.o
 OBJS-$(CONFIG_AMV_DECODER)             += sp5xdec.o mjpegdec.o mjpeg.o
@@ -136,7 +132,7 @@ OBJS-$(CONFIG_MSMPEG4V3_ENCODER)       += msmpeg4.o msmpeg4data.o mpegvideo_enc.
 OBJS-$(CONFIG_MSRLE_DECODER)           += msrle.o
 OBJS-$(CONFIG_MSVIDEO1_DECODER)        += msvideo1.o
 OBJS-$(CONFIG_MSZH_DECODER)            += lcldec.o
-OBJS-$(CONFIG_NELLYMOSER_DECODER)      += nellymoserdec.o mdct.o fft.o
+OBJS-$(CONFIG_NELLYMOSER_DECODER)      += nellymoserdec.o nellymoser.o mdct.o fft.o
 OBJS-$(CONFIG_NUV_DECODER)             += nuv.o rtjpeg.o
 OBJS-$(CONFIG_PAM_ENCODER)             += pnmenc.o pnm.o
 OBJS-$(CONFIG_PBM_ENCODER)             += pnmenc.o pnm.o

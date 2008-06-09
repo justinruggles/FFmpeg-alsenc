@@ -85,6 +85,11 @@ typedef struct {
     uint8_t channel_mode;
     uint8_t lfe_on;
     uint8_t frame_type;
+    int substreamid;                        ///< substream identification
+    int center_mix_level;                   ///< Center mix level index
+    int surround_mix_level;                 ///< Surround mix level index
+    uint16_t channel_map;
+    int num_blocks;                         ///< number of audio blocks
     /** @} */
 
     /** @defgroup derived Derived values
@@ -95,9 +100,6 @@ typedef struct {
     uint32_t bit_rate;
     uint8_t channels;
     uint16_t frame_size;
-    int center_mix_level;                   ///< Center mix level index
-    int surround_mix_level;                 ///< Surround mix level index
-    uint16_t channel_map;
     /** @} */
 } AC3HeaderInfo;
 
@@ -166,10 +168,12 @@ void ff_ac3_bit_alloc_calc_mask(AC3BitAllocParameters *s, int16_t *band_psd,
  * @param[in]  end        ending bin location
  * @param[in]  snr_offset SNR adjustment
  * @param[in]  floor      noise floor
+ * @param[in]  bap_tab    look-up table for bit allocation pointers
  * @param[out] bap        bit allocation pointers
  */
 void ff_ac3_bit_alloc_calc_bap(int16_t *mask, int16_t *psd, int start, int end,
-                               int snr_offset, int floor, uint8_t *bap);
+                               int snr_offset, int floor,
+                               const uint8_t *bap_tab, uint8_t *bap);
 
 void ac3_parametric_bit_allocation(AC3BitAllocParameters *s, uint8_t *bap,
                                    int8_t *exp, int start, int end,

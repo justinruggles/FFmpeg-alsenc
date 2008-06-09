@@ -1,6 +1,6 @@
 /*
- * frame CRC encoder (for codec/format testing)
- * Copyright (c) 2002 Fabrice Bellard.
+ * AC3 and E-AC3 decoder tables
+ * Copyright (c) 2007 Bartlomiej Wolowiec <bartek.wolowiec@gmail.com>
  *
  * This file is part of FFmpeg.
  *
@@ -19,29 +19,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "libavutil/adler32.h"
-#include "avformat.h"
+#ifndef FFMPEG_AC3DEC_DATA_H
+#define FFMPEG_AC3DEC_DATA_H
 
-static int framecrc_write_packet(struct AVFormatContext *s, AVPacket *pkt)
-{
-    uint32_t crc = av_adler32_update(0, pkt->data, pkt->size);
-    char buf[256];
+#include "libavutil/common.h"
 
-    snprintf(buf, sizeof(buf), "%d, %"PRId64", %d, 0x%08x\n", pkt->stream_index, pkt->dts, pkt->size, crc);
-    put_buffer(s->pb, buf, strlen(buf));
-    put_flush_packet(s->pb);
-    return 0;
-}
+extern const uint8_t ff_eac3_hebap_tab[64];
+extern const uint8_t ff_eac3_bits_vs_hebap[20];
+extern const int16_t ff_eac3_gaq_remap_1[12];
+extern const int16_t ff_eac3_gaq_remap_2_4_a[9][2];
+extern const int16_t ff_eac3_gaq_remap_2_4_b[9][2];
 
-AVOutputFormat framecrc_muxer = {
-    "framecrc",
-    NULL_IF_CONFIG_SMALL("framecrc testing format"),
-    NULL,
-    "",
-    0,
-    CODEC_ID_PCM_S16LE,
-    CODEC_ID_RAWVIDEO,
-    NULL,
-    framecrc_write_packet,
-    NULL,
-};
+extern const int16_t (*ff_eac3_vq_hebap[8])[6];
+extern const uint8_t ff_eac3_frm_expstr[32][6];
+extern const uint8_t ff_eac3_default_cpl_band_struct[18];
+
+extern const uint8_t ff_ac3_rematrix_band_tab[5];
+
+#endif /* FFMPEG_AC3DEC_DATA_H */
