@@ -536,8 +536,8 @@ static int alac_decode_frame(AVCodecContext *avctx,
     } else {
         /* not compressed, easy case */
         int i, chan;
-        for (chan = 0; chan < channels; chan++)
-            for (i = 0; i < outputsamples; i++) {
+        for (i = 0; i < outputsamples; i++)
+            for (chan = 0; chan < channels; chan++) {
                 int32_t audiobits;
 
                 audiobits = get_bits_long(&alac->gb, alac->setinfo_sample_size);
@@ -620,5 +620,5 @@ AVCodec alac_decoder = {
     NULL,
     alac_decode_close,
     alac_decode_frame,
-    .long_name = "ALAC (Apple Lossless Audio Codec)",
+    .long_name = NULL_IF_CONFIG_SMALL("ALAC (Apple Lossless Audio Codec)"),
 };

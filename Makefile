@@ -67,14 +67,6 @@ ffserver_g$(EXESUF): FF_LDFLAGS += $(FFSERVERLDFLAGS)
 %_g$(EXESUF): %.o cmdutils.o $(FF_DEP_LIBS)
 	$(CC) $(FF_LDFLAGS) -o $@ $< cmdutils.o $(FF_EXTRALIBS)
 
-SVN_ENTRIES = $(SRC_PATH_BARE)/.svn/entries
-ifeq ($(wildcard $(SVN_ENTRIES)),$(SVN_ENTRIES))
-version.h: $(SVN_ENTRIES)
-endif
-
-version.h:
-	$(SRC_PATH)/version.sh $(SRC_PATH)
-
 output_example$(EXESUF): output_example.o $(FF_DEP_LIBS)
 	$(CC) $(CFLAGS) $(FF_LDFLAGS) -o $@ $< $(FF_EXTRALIBS)
 
@@ -164,7 +156,7 @@ clean::
 	rm -f vhook/*.o vhook/*~ vhook/*.so vhook/*.dylib vhook/*.dll
 
 distclean::
-	rm -f version.h config.* *.pc vhook/*.d
+	rm -f version.h config.* vhook/*.d
 
 # regression tests
 

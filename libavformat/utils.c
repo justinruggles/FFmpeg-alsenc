@@ -405,7 +405,16 @@ int av_open_input_stream(AVFormatContext **ic_ptr,
     return 0;
  fail:
     if (ic) {
+        int i;
         av_freep(&ic->priv_data);
+        for(i=0;i<ic->nb_streams;i++) {
+            AVStream *st = ic->streams[i];
+            if (st) {
+                av_free(st->priv_data);
+                av_free(st->codec->extradata);
+            }
+            av_free(st);
+        }
     }
     av_free(ic);
     *ic_ptr = NULL;
@@ -2194,6 +2203,7 @@ void av_close_input_stream(AVFormatContext *s)
         av_free(st->codec->extradata);
         av_free(st->codec);
         av_free(st->filename);
+        av_free(st->priv_data);
         av_free(st);
     }
     for(i=s->nb_programs-1; i>=0; i--) {
@@ -2551,7 +2561,7 @@ int av_interleave_packet_per_dts(AVFormatContext *s, AVPacket *out, AVPacket *pk
         pktl= pktl->next;
     }
 
-    if(s->nb_streams == stream_count || (flush && stream_count)){
+    if(stream_count && (s->nb_streams == stream_count || flush)){
         pktl= s->packet_buffer;
         *out= pktl->pkt;
 

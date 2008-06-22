@@ -77,7 +77,7 @@ enum HTTPState {
     RTSPSTATE_SEND_PACKET,
 };
 
-const char *http_state[] = {
+static const char *http_state[] = {
     "HTTP_WAIT_REQUEST",
     "HTTP_SEND_HEADER",
 
@@ -215,7 +215,7 @@ typedef struct FFStream {
     time_t pid_start;  /* Of ffmpeg process */
     char **child_argv;
     struct FFStream *next;
-    int bandwidth; /* bandwidth, in kbits/s */
+    unsigned bandwidth; /* bandwidth, in kbits/s */
     /* RTSP options */
     char *rtsp_option;
     /* multicast specific */
@@ -257,7 +257,7 @@ static void close_connection(HTTPContext *c);
 static int handle_connection(HTTPContext *c);
 static int http_parse_request(HTTPContext *c);
 static int http_send_data(HTTPContext *c);
-static void compute_stats(HTTPContext *c);
+static void compute_status(HTTPContext *c);
 static int open_input_stream(HTTPContext *c, const char *info);
 static int http_start_receive_data(HTTPContext *c);
 static int http_receive_data(HTTPContext *c);
@@ -292,29 +292,17 @@ static int ffserver_daemon;
 static int no_launch;
 static int need_to_start_children;
 
-static int nb_max_connections;
+static int nb_max_connections = 5;
 static int nb_connections;
 
-static int max_bandwidth;
-static int current_bandwidth;
+static uint64_t max_bandwidth = 1000;
+static uint64_t current_bandwidth;
 
 static int64_t cur_time;           // Making this global saves on passing it around everywhere
 
 static AVRandomState random_state;
 
 static FILE *logfile = NULL;
-
-static void __attribute__ ((format (printf, 1, 2))) http_log(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-
-    if (logfile) {
-        vfprintf(logfile, fmt, ap);
-        fflush(logfile);
-    }
-    va_end(ap);
-}
 
 static char *ctime1(char *buf2)
 {
@@ -330,16 +318,48 @@ static char *ctime1(char *buf2)
     return buf2;
 }
 
+static void http_vlog(const char *fmt, va_list vargs)
+{
+    static int print_prefix = 1;
+    if (logfile) {
+        if (print_prefix) {
+            char buf[32];
+            ctime1(buf);
+            fprintf(logfile, "%s ", buf);
+        }
+        print_prefix = strstr(fmt, "\n") != NULL;
+        vfprintf(logfile, fmt, vargs);
+        fflush(logfile);
+    }
+}
+
+void __attribute__ ((format (printf, 1, 2))) http_log(const char *fmt, ...)
+{
+    va_list vargs;
+    va_start(vargs, fmt);
+    http_vlog(fmt, vargs);
+    va_end(vargs);
+}
+
+static void http_av_log(void *ptr, int level, const char *fmt, va_list vargs)
+{
+    static int print_prefix = 1;
+    AVClass *avc = ptr ? *(AVClass**)ptr : NULL;
+    if (level > av_log_level)
+        return;
+    if (print_prefix && avc)
+        http_log("[%s @ %p]", avc->item_name(ptr), avc);
+    print_prefix = strstr(fmt, "\n") != NULL;
+    http_vlog(fmt, vargs);
+}
+
 static void log_connection(HTTPContext *c)
 {
-    char buf2[32];
-
     if (c->suppress_log)
         return;
 
-    http_log("%s - - [%s] \"%s %s %s\" %d %"PRId64"\n",
-             inet_ntoa(c->from_addr.sin_addr),
-             ctime1(buf2), c->method, c->url,
+    http_log("%s - - [%s] \"%s %s\" %d %"PRId64"\n",
+             inet_ntoa(c->from_addr.sin_addr), c->method, c->url,
              c->protocol, (c->http_error ? c->http_error : 200), c->data_count);
 }
 
@@ -378,7 +398,7 @@ static void start_children(FFStream *feed)
             feed->pid = fork();
 
             if (feed->pid < 0) {
-                fprintf(stderr, "Unable to create children\n");
+                http_log("Unable to create children\n");
                 exit(1);
             }
             if (!feed->pid) {
@@ -392,12 +412,12 @@ static void start_children(FFStream *feed)
 
                 if (!ffserver_debug) {
                     i = open("/dev/null", O_RDWR);
-                    if (i)
+                    if (i != -1) {
                         dup2(i, 0);
-                    dup2(i, 1);
-                    dup2(i, 2);
-                    if (i)
+                        dup2(i, 1);
+                        dup2(i, 2);
                         close(i);
+                    }
                 }
 
                 av_strlcpy(pathname, my_program_name, sizeof(pathname));
@@ -486,8 +506,8 @@ static void start_multicast(void)
                 continue;
 
             if (open_input_stream(rtp_c, "") < 0) {
-                fprintf(stderr, "Could not open input stream for stream '%s'\n",
-                        stream->filename);
+                http_log("Could not open input stream for stream '%s'\n",
+                         stream->filename);
                 continue;
             }
 
@@ -497,8 +517,8 @@ static void start_multicast(void)
                 dest_addr.sin_port = htons(stream->multicast_port +
                                            2 * stream_index);
                 if (rtp_new_av_stream(rtp_c, stream_index, &dest_addr, NULL) < 0) {
-                    fprintf(stderr, "Could not open output stream '%s/streamid=%d'\n",
-                            stream->filename, stream_index);
+                    http_log("Could not open output stream '%s/streamid=%d'\n",
+                             stream->filename, stream_index);
                     exit(1);
                 }
             }
@@ -512,17 +532,27 @@ static void start_multicast(void)
 /* main loop of the http server */
 static int http_server(void)
 {
-    int server_fd, ret, rtsp_server_fd, delay, delay1;
+    int server_fd = 0, rtsp_server_fd = 0;
+    int ret, delay, delay1;
     struct pollfd poll_table[HTTP_MAX_CONNECTIONS + 2], *poll_entry;
     HTTPContext *c, *c_next;
 
-    server_fd = socket_open_listen(&my_http_addr);
-    if (server_fd < 0)
-        return -1;
+    if (my_http_addr.sin_port) {
+        server_fd = socket_open_listen(&my_http_addr);
+        if (server_fd < 0)
+            return -1;
+    }
 
-    rtsp_server_fd = socket_open_listen(&my_rtsp_addr);
-    if (rtsp_server_fd < 0)
+    if (my_rtsp_addr.sin_port) {
+        rtsp_server_fd = socket_open_listen(&my_rtsp_addr);
+        if (rtsp_server_fd < 0)
+            return -1;
+    }
+
+    if (!rtsp_server_fd && !server_fd) {
+        http_log("HTTP and RTSP disabled.\n");
         return -1;
+    }
 
     http_log("ffserver started.\n");
 
@@ -535,13 +565,16 @@ static int http_server(void)
 
     for(;;) {
         poll_entry = poll_table;
-        poll_entry->fd = server_fd;
-        poll_entry->events = POLLIN;
-        poll_entry++;
-
-        poll_entry->fd = rtsp_server_fd;
-        poll_entry->events = POLLIN;
-        poll_entry++;
+        if (server_fd) {
+            poll_entry->fd = server_fd;
+            poll_entry->events = POLLIN;
+            poll_entry++;
+        }
+        if (rtsp_server_fd) {
+            poll_entry->fd = rtsp_server_fd;
+            poll_entry->events = POLLIN;
+            poll_entry++;
+        }
 
         /* wait for events on each HTTP handle */
         c = first_http_ctx;
@@ -620,13 +653,17 @@ static int http_server(void)
         }
 
         poll_entry = poll_table;
-        /* new HTTP connection request ? */
-        if (poll_entry->revents & POLLIN)
-            new_connection(server_fd, 0);
-        poll_entry++;
-        /* new RTSP connection request ? */
-        if (poll_entry->revents & POLLIN)
-            new_connection(rtsp_server_fd, 1);
+        if (server_fd) {
+            /* new HTTP connection request ? */
+            if (poll_entry->revents & POLLIN)
+                new_connection(server_fd, 0);
+            poll_entry++;
+        }
+        if (rtsp_server_fd) {
+            /* new RTSP connection request ? */
+            if (poll_entry->revents & POLLIN)
+                new_connection(rtsp_server_fd, 1);
+        }
     }
 }
 
@@ -654,8 +691,10 @@ static void new_connection(int server_fd, int is_rtsp)
     len = sizeof(from_addr);
     fd = accept(server_fd, (struct sockaddr *)&from_addr,
                 &len);
-    if (fd < 0)
+    if (fd < 0) {
+        http_log("error during accept %s\n", strerror(errno));
         return;
+    }
     ff_socket_nonblock(fd, 1);
 
     /* XXX: should output a warning page when coming
@@ -752,6 +791,7 @@ static void close_connection(HTTPContext *c)
             /* prepare header */
             if (url_open_dyn_buf(&ctx->pb) >= 0) {
                 av_write_trailer(ctx);
+                av_freep(&c->pb_buffer);
                 url_close_dyn_buf(ctx->pb, &c->pb_buffer);
             }
         }
@@ -1315,7 +1355,7 @@ static int http_parse_request(HTTPContext *c)
         q += snprintf(q, q - (char *) c->buffer + c->buffer_size, "\r\n");
         q += snprintf(q, q - (char *) c->buffer + c->buffer_size, "<html><head><title>Too busy</title></head><body>\r\n");
         q += snprintf(q, q - (char *) c->buffer + c->buffer_size, "<p>The server is too busy to serve your request at this time.</p>\r\n");
-        q += snprintf(q, q - (char *) c->buffer + c->buffer_size, "<p>The bandwidth being served (including your stream) is %dkbit/sec, and this exceeds the limit of %dkbit/sec.</p>\r\n",
+        q += snprintf(q, q - (char *) c->buffer + c->buffer_size, "<p>The bandwidth being served (including your stream) is %lldkbit/sec, and this exceeds the limit of %lldkbit/sec.</p>\r\n",
             current_bandwidth, max_bandwidth);
         q += snprintf(q, q - (char *) c->buffer + c->buffer_size, "</body></html>\r\n");
 
@@ -1522,7 +1562,7 @@ static int http_parse_request(HTTPContext *c)
 #endif
 
     if (c->stream->stream_type == STREAM_TYPE_STATUS)
-        goto send_stats;
+        goto send_status;
 
     /* open input stream */
     if (open_input_stream(c, info) < 0) {
@@ -1571,8 +1611,8 @@ static int http_parse_request(HTTPContext *c)
     c->buffer_end = q;
     c->state = HTTPSTATE_SEND_HEADER;
     return 0;
- send_stats:
-    compute_stats(c);
+ send_status:
+    compute_status(c);
     c->http_error = 200; /* horrible : we use this value to avoid
                             going to the send data state */
     c->state = HTTPSTATE_SEND_HEADER;
@@ -1589,7 +1629,7 @@ static void fmt_bytecount(ByteIOContext *pb, int64_t count)
     url_fprintf(pb, "%"PRId64"%c", count, *s);
 }
 
-static void compute_stats(HTTPContext *c)
+static void compute_status(HTTPContext *c)
 {
     HTTPContext *c1;
     FFStream *stream;
@@ -1611,7 +1651,7 @@ static void compute_stats(HTTPContext *c)
     url_fprintf(pb, "\r\n");
 
     url_fprintf(pb, "<HEAD><TITLE>%s Status</TITLE>\n", program_name);
-    if (c->stream->feed_filename)
+    if (c->stream->feed_filename[0])
         url_fprintf(pb, "<link rel=\"shortcut icon\" href=\"%s\">\n", c->stream->feed_filename);
     url_fprintf(pb, "</HEAD>\n<BODY>");
     url_fprintf(pb, "<H1>%s Status</H1>\n", program_name);
@@ -1811,7 +1851,7 @@ static void compute_stats(HTTPContext *c)
     url_fprintf(pb, "Number of connections: %d / %d<BR>\n",
                  nb_connections, nb_max_connections);
 
-    url_fprintf(pb, "Bandwidth in use: %dk / %dk<BR>\n",
+    url_fprintf(pb, "Bandwidth in use: %lldk / %lldk<BR>\n",
                  current_bandwidth, max_bandwidth);
 
     url_fprintf(pb, "<TABLE>\n");
@@ -1950,7 +1990,7 @@ static int open_input_stream(HTTPContext *c, const char *info)
 
 #if 1
     if (c->fmt_in->iformat->read_seek)
-        c->fmt_in->iformat->read_seek(c->fmt_in, 0, stream_pos, 0);
+        av_seek_frame(c->fmt_in, -1, stream_pos, 0);
 #endif
     /* set the start time (needed for maxtime and RTP packet timing) */
     c->start_time = cur_time;
@@ -2000,14 +2040,10 @@ static int http_prepare_data(HTTPContext *c)
         av_strlcpy(c->fmt_ctx.title, c->stream->title,
                    sizeof(c->fmt_ctx.title));
 
-        /* open output stream by using specified codecs */
-        c->fmt_ctx.oformat = c->stream->fmt;
-        c->fmt_ctx.nb_streams = c->stream->nb_streams;
-        for(i=0;i<c->fmt_ctx.nb_streams;i++) {
+        for(i=0;i<c->stream->nb_streams;i++) {
             AVStream *st;
             AVStream *src;
             st = av_mallocz(sizeof(AVStream));
-            st->codec= avcodec_alloc_context();
             c->fmt_ctx.streams[i] = st;
             /* if file or feed, then just take streams from FFStream struct */
             if (!c->stream->feed ||
@@ -2021,6 +2057,10 @@ static int http_prepare_data(HTTPContext *c)
             st->codec->frame_number = 0; /* XXX: should be done in
                                            AVStream, not in codec */
         }
+        /* set output format parameters */
+        c->fmt_ctx.oformat = c->stream->fmt;
+        c->fmt_ctx.nb_streams = c->stream->nb_streams;
+
         c->got_key_frame = 0;
 
         /* prepare header and save header data in a stream */
@@ -2029,6 +2069,14 @@ static int http_prepare_data(HTTPContext *c)
             return -1;
         }
         c->fmt_ctx.pb->is_streamed = 1;
+
+        /*
+         * HACK to avoid mpeg ps muxer to spit many underflow errors
+         * Default value from FFmpeg
+         * Try to set it use configuration option
+         */
+        c->fmt_ctx.preload   = (int)(0.5*AV_TIME_BASE);
+        c->fmt_ctx.max_delay = (int)(0.7*AV_TIME_BASE);
 
         av_set_parameters(&c->fmt_ctx, NULL);
         if (av_write_header(&c->fmt_ctx) < 0) {
@@ -2171,6 +2219,9 @@ static int http_prepare_data(HTTPContext *c)
                         pkt.pts = av_rescale_q(pkt.pts,
                                                c->fmt_in->streams[source_index]->time_base,
                                                ctx->streams[pkt.stream_index]->time_base);
+                    pkt.duration = av_rescale_q(pkt.duration,
+                                                c->fmt_in->streams[source_index]->time_base,
+                                                ctx->streams[pkt.stream_index]->time_base);
                     if (av_write_frame(ctx, &pkt) < 0) {
                         http_log("Error writing frame to output\n");
                         c->state = HTTPSTATE_SEND_DATA_TRAILER;
@@ -2431,41 +2482,37 @@ static int http_receive_data(HTTPContext *c)
             }
         } else {
             /* We have a header in our hands that contains useful data */
-            AVFormatContext s;
+            AVFormatContext *s = NULL;
+            ByteIOContext *pb;
             AVInputFormat *fmt_in;
             int i;
-
-            memset(&s, 0, sizeof(s));
-
-            url_open_buf(&s.pb, c->buffer, c->buffer_end - c->buffer, URL_RDONLY);
-            s.pb->is_streamed = 1;
 
             /* use feed output format name to find corresponding input format */
             fmt_in = av_find_input_format(feed->fmt->name);
             if (!fmt_in)
                 goto fail;
 
-            if (fmt_in->priv_data_size > 0) {
-                s.priv_data = av_mallocz(fmt_in->priv_data_size);
-                if (!s.priv_data)
-                    goto fail;
-            } else
-                s.priv_data = NULL;
+            url_open_buf(&pb, c->buffer, c->buffer_end - c->buffer, URL_RDONLY);
+            pb->is_streamed = 1;
 
-            if (fmt_in->read_header(&s, 0) < 0) {
-                av_freep(&s.priv_data);
+            if (av_open_input_stream(&s, pb, c->stream->feed_filename, fmt_in, NULL) < 0) {
+                av_free(pb);
                 goto fail;
             }
 
             /* Now we have the actual streams */
-            if (s.nb_streams != feed->nb_streams) {
-                av_freep(&s.priv_data);
+            if (s->nb_streams != feed->nb_streams) {
+                av_close_input_stream(s);
+                av_free(pb);
                 goto fail;
             }
-            for (i = 0; i < s.nb_streams; i++)
+
+            for (i = 0; i < s->nb_streams; i++)
                 memcpy(feed->streams[i]->codec,
-                       s.streams[i]->codec, sizeof(AVCodecContext));
-            av_freep(&s.priv_data);
+                       s->streams[i]->codec, sizeof(AVCodecContext));
+
+            av_close_input_stream(s);
+            av_free(pb);
         }
         c->buffer_ptr = c->buffer;
     }
@@ -3463,8 +3510,8 @@ static void build_feed_streams(void)
 
             /* only write the header of the ffm file */
             if (url_fopen(&s->pb, feed->feed_filename, URL_WRONLY) < 0) {
-                fprintf(stderr, "Could not open output feed file '%s'\n",
-                        feed->feed_filename);
+                http_log("Could not open output feed file '%s'\n",
+                         feed->feed_filename);
                 exit(1);
             }
             s->oformat = feed->fmt;
@@ -3476,7 +3523,7 @@ static void build_feed_streams(void)
             }
             av_set_parameters(s, NULL);
             if (av_write_header(s) < 0) {
-                fprintf(stderr, "Container doesn't supports the required parameters\n");
+                http_log("Container doesn't supports the required parameters\n");
                 exit(1);
             }
             /* XXX: need better api */
@@ -3486,7 +3533,7 @@ static void build_feed_streams(void)
         /* get feed size and write index */
         fd = open(feed->feed_filename, O_RDONLY);
         if (fd < 0) {
-            fprintf(stderr, "Could not open output feed file '%s'\n",
+            http_log("Could not open output feed file '%s'\n",
                     feed->feed_filename);
             exit(1);
         }
@@ -3504,7 +3551,8 @@ static void build_feed_streams(void)
 /* compute the bandwidth used by each stream */
 static void compute_bandwidth(void)
 {
-    int bandwidth, i;
+    unsigned bandwidth;
+    int i;
     FFStream *stream;
 
     for(stream = first_stream; stream != NULL; stream = stream->next) {
@@ -3776,16 +3824,18 @@ static int parse_ffconfig(const char *filename)
                 nb_max_connections = val;
             }
         } else if (!strcasecmp(cmd, "MaxBandwidth")) {
+            int64_t llval;
             get_arg(arg, sizeof(arg), &p);
-            val = atoi(arg);
-            if (val < 10 || val > 100000) {
+            llval = atoll(arg);
+            if (llval < 10 || llval > 10000000) {
                 fprintf(stderr, "%s:%d: Invalid MaxBandwidth: %s\n",
                         filename, line_num, arg);
                 errors++;
             } else
-                max_bandwidth = val;
+                max_bandwidth = llval;
         } else if (!strcasecmp(cmd, "CustomLog")) {
-            get_arg(logfilename, sizeof(logfilename), &p);
+            if (!ffserver_debug)
+                get_arg(logfilename, sizeof(logfilename), &p);
         } else if (!strcasecmp(cmd, "<Feed")) {
             /*********************************************/
             /* Feed related options */
@@ -4386,6 +4436,7 @@ static void opt_debug()
 {
     ffserver_debug = 1;
     ffserver_daemon = 0;
+    logfilename[0] = '-';
 }
 
 static void opt_show_help(void)
@@ -4426,21 +4477,6 @@ int main(int argc, char **argv)
     unsetenv("http_proxy");             /* Kill the http_proxy */
 
     av_init_random(av_gettime() + (getpid() << 16), &random_state);
-
-    /* address on which the server will handle HTTP connections */
-    my_http_addr.sin_family = AF_INET;
-    my_http_addr.sin_port = htons (8080);
-    my_http_addr.sin_addr.s_addr = htonl (INADDR_ANY);
-
-    /* address on which the server will handle RTSP connections */
-    my_rtsp_addr.sin_family = AF_INET;
-    my_rtsp_addr.sin_port = htons (5454);
-    my_rtsp_addr.sin_addr.s_addr = htonl (INADDR_ANY);
-
-    nb_max_connections = 5;
-    max_bandwidth = 1000;
-    first_stream = NULL;
-    logfilename[0] = '\0';
 
     memset(&sigact, 0, sizeof(sigact));
     sigact.sa_handler = handle_child_exit;
@@ -4490,13 +4526,14 @@ int main(int argc, char **argv)
     /* open log file if needed */
     if (logfilename[0] != '\0') {
         if (!strcmp(logfilename, "-"))
-            logfile = stdout;
+            logfile = stderr;
         else
             logfile = fopen(logfilename, "a");
+        av_log_set_callback(http_av_log);
     }
 
     if (http_server() < 0) {
-        fprintf(stderr, "Could not start server\n");
+        http_log("Could not start server\n");
         exit(1);
     }
 

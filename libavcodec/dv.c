@@ -271,11 +271,6 @@ static inline int get_bits_left(GetBitContext *s)
     return s->size_in_bits - get_bits_count(s);
 }
 
-static inline int get_bits_size(GetBitContext *s)
-{
-    return s->size_in_bits;
-}
-
 static inline int put_bits_left(PutBitContext* s)
 {
     return (s->buf_end - s->buf) * 8 - put_bits_count(s);
@@ -284,7 +279,7 @@ static inline int put_bits_left(PutBitContext* s)
 /* decode ac coefs */
 static void dv_decode_ac(GetBitContext *gb, BlockInfo *mb, DCTELEM *block)
 {
-    int last_index = get_bits_size(gb);
+    int last_index = gb->size_in_bits;
     const uint8_t *scan_table = mb->scan_table;
     const uint8_t *shift_table = mb->shift_table;
     const int *iweight_table = mb->iweight_table;
@@ -1241,7 +1236,7 @@ AVCodec dvvideo_encoder = {
     dvvideo_init,
     dvvideo_encode_frame,
     .pix_fmts = (enum PixelFormat[]) {PIX_FMT_YUV411P, PIX_FMT_YUV422P, PIX_FMT_YUV420P, PIX_FMT_NONE},
-    .long_name = "DV (Digital Video)",
+    .long_name = NULL_IF_CONFIG_SMALL("DV (Digital Video)"),
 };
 #endif // CONFIG_DVVIDEO_ENCODER
 
@@ -1257,6 +1252,6 @@ AVCodec dvvideo_decoder = {
     dvvideo_decode_frame,
     CODEC_CAP_DR1,
     NULL,
-    .long_name = "DV (Digital Video)",
+    .long_name = NULL_IF_CONFIG_SMALL("DV (Digital Video)"),
 };
 #endif

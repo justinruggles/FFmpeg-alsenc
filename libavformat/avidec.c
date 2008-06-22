@@ -415,6 +415,9 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
                 //FIXME
                 codec_type = CODEC_TYPE_DATA; //CODEC_TYPE_SUB ?  FIXME
                 break;
+            case MKTAG('d', 'a', 't', 's'):
+                codec_type = CODEC_TYPE_DATA;
+                break;
             default:
                 av_log(s, AV_LOG_ERROR, "unknown stream type %X\n", tag1);
                 goto fail;
@@ -594,10 +597,6 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
     /* check stream number */
     if (stream_index != s->nb_streams - 1) {
     fail:
-        for(i=0;i<s->nb_streams;i++) {
-            av_freep(&s->streams[i]->codec->extradata);
-            av_freep(&s->streams[i]);
-        }
         return -1;
     }
 
@@ -1061,8 +1060,6 @@ static int avi_read_close(AVFormatContext *s)
 
     for(i=0;i<s->nb_streams;i++) {
         AVStream *st = s->streams[i];
-        AVIStream *ast = st->priv_data;
-        av_free(ast);
         av_free(st->codec->palctrl);
     }
 
