@@ -1341,6 +1341,7 @@ static int http_parse_request(HTTPContext *c)
     /* If already streaming this feed, do not let start another feeder. */
     if (stream->feed_opened) {
         snprintf(msg, sizeof(msg), "This feed is already being received.");
+        http_log("feed %s already being received\n", stream->feed_filename);
         goto send_error;
     }
 
@@ -1692,8 +1693,7 @@ static void compute_status(HTTPContext *c)
                         stream->conns_served);
             fmt_bytecount(pb, stream->bytes_served);
             switch(stream->stream_type) {
-            case STREAM_TYPE_LIVE:
-                {
+            case STREAM_TYPE_LIVE: {
                     int audio_bit_rate = 0;
                     int video_bit_rate = 0;
                     const char *audio_codec_name = "";
@@ -1931,13 +1931,11 @@ static int open_input_stream(HTTPContext *c, const char *info)
         strcpy(input_filename, c->stream->feed->feed_filename);
         buf_size = FFM_PACKET_SIZE;
         /* compute position (absolute time) */
-        if (find_info_tag(buf, sizeof(buf), "date", info))
-        {
+        if (find_info_tag(buf, sizeof(buf), "date", info)) {
             stream_pos = parse_date(buf, 0);
             if (stream_pos == INT64_MIN)
                 return -1;
-        }
-        else if (find_info_tag(buf, sizeof(buf), "buffer", info)) {
+        } else if (find_info_tag(buf, sizeof(buf), "buffer", info)) {
             int prebuffer = strtol(buf, 0, 10);
             stream_pos = av_gettime() - prebuffer * (int64_t)1000000;
         } else
@@ -1946,13 +1944,11 @@ static int open_input_stream(HTTPContext *c, const char *info)
         strcpy(input_filename, c->stream->feed_filename);
         buf_size = 0;
         /* compute position (relative time) */
-        if (find_info_tag(buf, sizeof(buf), "date", info))
-        {
+        if (find_info_tag(buf, sizeof(buf), "date", info)) {
             stream_pos = parse_date(buf, 1);
             if (stream_pos == INT64_MIN)
                 return -1;
-        }
-        else
+        } else
             stream_pos = 0;
     }
     if (input_filename[0] == '\0')
@@ -2159,19 +2155,18 @@ static int http_prepare_data(HTTPContext *c)
                     }
                 } else {
                     AVCodecContext *codec;
-
+                    AVStream *ist, *ost;
                 send_it:
+                    ist = c->fmt_in->streams[source_index];
                     /* specific handling for RTP: we use several
                        output stream (one for each RTP
                        connection). XXX: need more abstract handling */
                     if (c->is_packetized) {
-                        AVStream *st;
                         /* compute send time and duration */
-                        st = c->fmt_in->streams[pkt.stream_index];
-                        c->cur_pts = av_rescale_q(pkt.dts, st->time_base, AV_TIME_BASE_Q);
-                        if (st->start_time != AV_NOPTS_VALUE)
-                            c->cur_pts -= av_rescale_q(st->start_time, st->time_base, AV_TIME_BASE_Q);
-                        c->cur_frame_duration = av_rescale_q(pkt.duration, st->time_base, AV_TIME_BASE_Q);
+                        c->cur_pts = av_rescale_q(pkt.dts, ist->time_base, AV_TIME_BASE_Q);
+                        if (ist->start_time != AV_NOPTS_VALUE)
+                            c->cur_pts -= av_rescale_q(ist->start_time, ist->time_base, AV_TIME_BASE_Q);
+                        c->cur_frame_duration = av_rescale_q(pkt.duration, ist->time_base, AV_TIME_BASE_Q);
 #if 0
                         printf("index=%d pts=%0.3f duration=%0.6f\n",
                                pkt.stream_index,
@@ -2210,18 +2205,14 @@ static int http_prepare_data(HTTPContext *c)
                         /* XXX: potential leak */
                         return -1;
                     }
-                    c->fmt_ctx.pb->is_streamed = 1;
+                    ost = ctx->streams[pkt.stream_index];
+
+                    ctx->pb->is_streamed = 1;
                     if (pkt.dts != AV_NOPTS_VALUE)
-                        pkt.dts = av_rescale_q(pkt.dts,
-                                               c->fmt_in->streams[source_index]->time_base,
-                                               ctx->streams[pkt.stream_index]->time_base);
+                        pkt.dts = av_rescale_q(pkt.dts, ist->time_base, ost->time_base);
                     if (pkt.pts != AV_NOPTS_VALUE)
-                        pkt.pts = av_rescale_q(pkt.pts,
-                                               c->fmt_in->streams[source_index]->time_base,
-                                               ctx->streams[pkt.stream_index]->time_base);
-                    pkt.duration = av_rescale_q(pkt.duration,
-                                                c->fmt_in->streams[source_index]->time_base,
-                                                ctx->streams[pkt.stream_index]->time_base);
+                        pkt.pts = av_rescale_q(pkt.pts, ist->time_base, ost->time_base);
+                    pkt.duration = av_rescale_q(pkt.duration, ist->time_base, ost->time_base);
                     if (av_write_frame(ctx, &pkt) < 0) {
                         http_log("Error writing frame to output\n");
                         c->state = HTTPSTATE_SEND_DATA_TRAILER;
@@ -2507,9 +2498,18 @@ static int http_receive_data(HTTPContext *c)
                 goto fail;
             }
 
-            for (i = 0; i < s->nb_streams; i++)
-                memcpy(feed->streams[i]->codec,
-                       s->streams[i]->codec, sizeof(AVCodecContext));
+            for (i = 0; i < s->nb_streams; i++) {
+                AVStream *fst = feed->streams[i];
+                AVStream *st = s->streams[i];
+                memcpy(fst->codec, st->codec, sizeof(AVCodecContext));
+                if (fst->codec->extradata_size) {
+                    fst->codec->extradata = av_malloc(fst->codec->extradata_size);
+                    if (!fst->codec->extradata)
+                        goto fail;
+                    memcpy(fst->codec->extradata, st->codec->extradata,
+                           fst->codec->extradata_size);
+                }
+            }
 
             av_close_input_stream(s);
             av_free(pb);
@@ -3135,7 +3135,6 @@ static int rtp_new_av_stream(HTTPContext *c,
     char *ipaddr;
     URLContext *h = NULL;
     uint8_t *dummy_buf;
-    char buf2[32];
     int max_packet_size;
 
     /* now we can open the relevant output stream */
@@ -3196,9 +3195,8 @@ static int rtp_new_av_stream(HTTPContext *c,
         goto fail;
     }
 
-    http_log("%s:%d - - [%s] \"PLAY %s/streamid=%d %s\"\n",
+    http_log("%s:%d - - \"PLAY %s/streamid=%d %s\"\n",
              ipaddr, ntohs(dest_addr->sin_port),
-             ctime1(buf2),
              c->stream->filename, stream_index, c->protocol);
 
     /* normally, no packets should be output here, but the packet size may be checked */
@@ -3989,25 +3987,25 @@ static int parse_ffconfig(const char *filename)
         } else if (!strcasecmp(cmd, "Format")) {
             get_arg(arg, sizeof(arg), &p);
             if (stream) {
-            if (!strcmp(arg, "status")) {
-                stream->stream_type = STREAM_TYPE_STATUS;
-                stream->fmt = NULL;
-            } else {
-                stream->stream_type = STREAM_TYPE_LIVE;
-                /* jpeg cannot be used here, so use single frame jpeg */
-                if (!strcmp(arg, "jpeg"))
-                    strcpy(arg, "mjpeg");
-                stream->fmt = guess_stream_format(arg, NULL, NULL);
-                if (!stream->fmt) {
-                    fprintf(stderr, "%s:%d: Unknown Format: %s\n",
-                            filename, line_num, arg);
-                    errors++;
+                if (!strcmp(arg, "status")) {
+                    stream->stream_type = STREAM_TYPE_STATUS;
+                    stream->fmt = NULL;
+                } else {
+                    stream->stream_type = STREAM_TYPE_LIVE;
+                    /* jpeg cannot be used here, so use single frame jpeg */
+                    if (!strcmp(arg, "jpeg"))
+                        strcpy(arg, "mjpeg");
+                    stream->fmt = guess_stream_format(arg, NULL, NULL);
+                    if (!stream->fmt) {
+                        fprintf(stderr, "%s:%d: Unknown Format: %s\n",
+                                filename, line_num, arg);
+                        errors++;
+                    }
                 }
-            }
-            if (stream->fmt) {
-                audio_id = stream->fmt->audio_codec;
-                video_id = stream->fmt->video_codec;
-            }
+                if (stream->fmt) {
+                    audio_id = stream->fmt->audio_codec;
+                    video_id = stream->fmt->video_codec;
+                }
             }
         } else if (!strcasecmp(cmd, "InputFormat")) {
             get_arg(arg, sizeof(arg), &p);
@@ -4508,7 +4506,6 @@ int main(int argc, char **argv)
         } else {
             /* child */
             setsid();
-            chdir("/");
             close(0);
             open("/dev/null", O_RDWR);
             if (strcmp(logfilename, "-") != 0) {
@@ -4531,6 +4528,9 @@ int main(int argc, char **argv)
             logfile = fopen(logfilename, "a");
         av_log_set_callback(http_av_log);
     }
+
+    if (ffserver_daemon)
+        chdir("/");
 
     if (http_server() < 0) {
         http_log("Could not start server\n");
