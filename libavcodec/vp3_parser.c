@@ -1,6 +1,5 @@
 /*
- * MPEG Audio common tables
- * copyright (c) 2002 Fabrice Bellard
+ * Copyright (C) 2008 Michael Niedermayer
  *
  * This file is part of FFmpeg.
  *
@@ -19,25 +18,27 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-/**
- * @file mpegaudiodata.h
- * mpeg audio layer common tables.
- */
+#include "parser.h"
 
-#ifndef FFMPEG_MPEGAUDIODATA_H
-#define FFMPEG_MPEGAUDIODATA_H
+static int parse(AVCodecParserContext *s,
+                           AVCodecContext *avctx,
+                           const uint8_t **poutbuf, int *poutbuf_size,
+                           const uint8_t *buf, int buf_size)
+{
+    if(avctx->codec_id == CODEC_ID_THEORA)
+        s->pict_type= (buf[0]&0x40) ? FF_P_TYPE : FF_I_TYPE;
+    else
+        s->pict_type= (buf[0]&0x80) ? FF_P_TYPE : FF_I_TYPE;
 
-#include "libavutil/common.h"
+    *poutbuf = buf;
+    *poutbuf_size = buf_size;
+    return buf_size;
+}
 
-#define MODE_EXT_MS_STEREO 2
-#define MODE_EXT_I_STEREO  1
-
-extern const uint16_t ff_mpa_bitrate_tab[2][3][15];
-extern const uint16_t ff_mpa_freq_tab[3];
-extern const int32_t ff_mpa_enwindow[257];
-extern const int ff_mpa_sblimit_table[5];
-extern const int ff_mpa_quant_steps[17];
-extern const int ff_mpa_quant_bits[17];
-extern const unsigned char * const ff_mpa_alloc_tables[5];
-
-#endif /* FFMPEG_MPEGAUDIODATA_H */
+AVCodecParser vp3_parser = {
+    { CODEC_ID_THEORA, CODEC_ID_VP3,
+      CODEC_ID_VP6,    CODEC_ID_VP6F, CODEC_ID_VP6A },
+    0,
+    NULL,
+    parse,
+};

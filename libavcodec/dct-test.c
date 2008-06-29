@@ -32,16 +32,12 @@
 #include <unistd.h>
 #include <math.h>
 
-#include "dsputil.h"
+#include "libavutil/common.h"
 
 #include "simple_idct.h"
 #include "faandct.h"
 #include "faanidct.h"
 #include "i386/idct_xvid.h"
-
-#ifndef MAX
-#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
-#endif
 
 #undef printf
 #undef random
@@ -81,6 +77,8 @@ struct algo {
 #else
 #define FAAN_SCALE NO_PERM
 #endif
+
+static int cpu_flags;
 
 struct algo algos[] = {
   {"REF-DBL",         0, fdct,               fdct, NO_PERM},
@@ -175,6 +173,14 @@ static DCTELEM block[64] __attribute__ ((aligned (16)));
 static DCTELEM block1[64] __attribute__ ((aligned (8)));
 static DCTELEM block_org[64] __attribute__ ((aligned (8)));
 
+static inline void mmx_emms(void)
+{
+#ifdef HAVE_MMX
+    if (cpu_flags & MM_MMX)
+        asm volatile ("emms\n\t");
+#endif
+}
+
 void dct_error(const char *name, int is_idct,
                void (*fdct_func)(DCTELEM *block),
                void (*fdct_ref)(DCTELEM *block), int form, int test)
@@ -252,7 +258,7 @@ void dct_error(const char *name, int is_idct,
 #endif
 
         fdct_func(block);
-        emms_c(); /* for ff_mmx_idct */
+        mmx_emms();
 
         if (form == SCALE_PERM) {
             for(i=0; i<64; i++) {
@@ -288,7 +294,7 @@ void dct_error(const char *name, int is_idct,
         }
 #endif
     }
-    for(i=0; i<64; i++) sysErrMax= MAX(sysErrMax, FFABS(sysErr[i]));
+    for(i=0; i<64; i++) sysErrMax= FFMAX(sysErrMax, FFABS(sysErr[i]));
 
 #if 1 // dump systematic errors
     for(i=0; i<64; i++){
@@ -349,7 +355,7 @@ void dct_error(const char *name, int is_idct,
         it1 += NB_ITS_SPEED;
         ti1 = gettime() - ti;
     } while (ti1 < 1000000);
-    emms_c();
+    mmx_emms();
 
     printf("%s %s: %0.1f kdct/s\n",
            is_idct ? "IDCT" : "DCT",
@@ -509,7 +515,7 @@ void idct248_error(const char *name,
         it1 += NB_ITS_SPEED;
         ti1 = gettime() - ti;
     } while (ti1 < 1000000);
-    emms_c();
+    mmx_emms();
 
     printf("%s %s: %0.1f kdct/s\n",
            1 ? "IDCT248" : "DCT248",
@@ -531,10 +537,10 @@ int main(int argc, char **argv)
     int test_idct = 0, test_248_dct = 0;
     int c,i;
     int test=1;
+    cpu_flags = mm_support();
 
     init_fdct();
     idct_mmx_init();
-    mm_flags = mm_support();
 
     for(i=0;i<256;i++) cropTbl[i + MAX_NEG_CROP] = i;
     for(i=0;i<MAX_NEG_CROP;i++) {
@@ -568,7 +574,7 @@ int main(int argc, char **argv)
         idct248_error("SIMPLE-C", ff_simple_idct248_put);
     } else {
       for (i=0;algos[i].name;i++)
-        if (algos[i].is_idct == test_idct && !(~mm_flags & algos[i].mm_support)) {
+        if (algos[i].is_idct == test_idct && !(~cpu_flags & algos[i].mm_support)) {
           dct_error (algos[i].name, algos[i].is_idct, algos[i].func, algos[i].ref, algos[i].format, test);
         }
     }

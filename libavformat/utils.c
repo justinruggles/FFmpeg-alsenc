@@ -538,6 +538,9 @@ static int get_audio_frame_size(AVCodecContext *enc, int size)
 {
     int frame_size;
 
+    if(enc->codec_id == CODEC_ID_VORBIS)
+        return -1;
+
     if (enc->frame_size <= 1) {
         int bits_per_sample = av_get_bits_per_sample(enc->codec_id);
 
@@ -892,11 +895,12 @@ static int av_read_frame_internal(AVFormatContext *s, AVPacket *pkt)
 
             st = s->streams[s->cur_pkt.stream_index];
             if(s->debug & FF_FDEBUG_TS)
-                av_log(s, AV_LOG_DEBUG, "av_read_packet stream=%d, pts=%"PRId64", dts=%"PRId64", size=%d\n",
+                av_log(s, AV_LOG_DEBUG, "av_read_packet stream=%d, pts=%"PRId64", dts=%"PRId64", size=%d,  flags=%d\n",
                     s->cur_pkt.stream_index,
                     s->cur_pkt.pts,
                     s->cur_pkt.dts,
-                    s->cur_pkt.size);
+                    s->cur_pkt.size,
+                    s->cur_pkt.flags);
 
             s->cur_st = st;
             s->cur_ptr = s->cur_pkt.data;
@@ -917,11 +921,12 @@ static int av_read_frame_internal(AVFormatContext *s, AVPacket *pkt)
         }
     }
     if(s->debug & FF_FDEBUG_TS)
-        av_log(s, AV_LOG_DEBUG, "av_read_frame_internal stream=%d, pts=%"PRId64", dts=%"PRId64", size=%d\n",
+        av_log(s, AV_LOG_DEBUG, "av_read_frame_internal stream=%d, pts=%"PRId64", dts=%"PRId64", size=%d, flags=%d\n",
             pkt->stream_index,
             pkt->pts,
             pkt->dts,
-            pkt->size);
+            pkt->size,
+            pkt->flags);
 
     return 0;
 }
@@ -1726,6 +1731,10 @@ static int has_codec_parameters(AVCodecContext *enc)
     switch(enc->codec_type) {
     case CODEC_TYPE_AUDIO:
         val = enc->sample_rate && enc->channels;
+        if(!enc->frame_size &&
+           (enc->codec_id == CODEC_ID_VORBIS ||
+            enc->codec_id == CODEC_ID_AAC))
+            return 0;
         break;
     case CODEC_TYPE_VIDEO:
         val = enc->width && enc->pix_fmt != PIX_FMT_NONE;
@@ -2442,6 +2451,9 @@ static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
         }
     }
 
+    if(pkt->pts == AV_NOPTS_VALUE && pkt->dts != AV_NOPTS_VALUE && delay==0)
+        pkt->pts= pkt->dts;
+
     //XXX/FIXME this is a temporary hack until all encoders output pts
     if((pkt->pts == 0 || pkt->pts == AV_NOPTS_VALUE) && pkt->dts == AV_NOPTS_VALUE && !delay){
         pkt->dts=
@@ -2461,11 +2473,11 @@ static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
     }
 
     if(st->cur_dts && st->cur_dts != AV_NOPTS_VALUE && st->cur_dts >= pkt->dts){
-        av_log(NULL, AV_LOG_ERROR, "error, non monotone timestamps %"PRId64" >= %"PRId64"\n", st->cur_dts, pkt->dts);
+        av_log(st->codec, AV_LOG_ERROR, "error, non monotone timestamps %"PRId64" >= %"PRId64"\n", st->cur_dts, pkt->dts);
         return -1;
     }
     if(pkt->dts != AV_NOPTS_VALUE && pkt->pts != AV_NOPTS_VALUE && pkt->pts < pkt->dts){
-        av_log(NULL, AV_LOG_ERROR, "error, pts < dts\n");
+        av_log(st->codec, AV_LOG_ERROR, "error, pts < dts\n");
         return -1;
     }
 

@@ -186,7 +186,6 @@ int main(int argc, char **argv)
     MDCTContext m1, *m = &m1;
     int fft_nbits, fft_size;
 
-    mm_flags = 0;
     fft_nbits = 9;
     for(;;) {
         c = getopt(argc, argv, "hsimn:");
