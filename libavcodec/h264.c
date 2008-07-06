@@ -2726,9 +2726,10 @@ static void hl_decode_mb(H264Context *h){
     MpegEncContext * const s = &h->s;
     const int mb_xy= h->mb_xy;
     const int mb_type= s->current_picture.mb_type[mb_xy];
-    int is_complex = FRAME_MBAFF || MB_FIELD || IS_INTRA_PCM(mb_type) || s->codec_id != CODEC_ID_H264 || (ENABLE_GRAY && (s->flags&CODEC_FLAG_GRAY)) || s->encoding;
+    int is_complex = FRAME_MBAFF || MB_FIELD || IS_INTRA_PCM(mb_type) || s->codec_id != CODEC_ID_H264 ||
+                    (ENABLE_GRAY && (s->flags&CODEC_FLAG_GRAY)) || (ENABLE_H264_ENCODER && s->encoding) || ENABLE_SMALL;
 
-    if(!s->decode)
+    if(ENABLE_H264_ENCODER && !s->decode)
         return;
 
     if (is_complex)
@@ -5337,23 +5338,27 @@ static int decode_cabac_mb_mvd( H264Context *h, int list, int n, int l ) {
     return get_cabac_bypass_sign( &h->cabac, -mvd );
 }
 
-static inline int get_cabac_cbf_ctx( H264Context *h, int cat, int idx ) {
+static av_always_inline int get_cabac_cbf_ctx( H264Context *h, int cat, int idx, int is_dc ) {
     int nza, nzb;
     int ctx = 0;
 
-    if( cat == 0 ) {
-        nza = h->left_cbp&0x100;
-        nzb = h-> top_cbp&0x100;
-    } else if( cat == 1 || cat == 2 ) {
-        nza = h->non_zero_count_cache[scan8[idx] - 1];
-        nzb = h->non_zero_count_cache[scan8[idx] - 8];
-    } else if( cat == 3 ) {
-        nza = (h->left_cbp>>(6+idx))&0x01;
-        nzb = (h-> top_cbp>>(6+idx))&0x01;
+    if( is_dc ) {
+        if( cat == 0 ) {
+            nza = h->left_cbp&0x100;
+            nzb = h-> top_cbp&0x100;
+        } else {
+            nza = (h->left_cbp>>(6+idx))&0x01;
+            nzb = (h-> top_cbp>>(6+idx))&0x01;
+        }
     } else {
-        assert(cat == 4);
-        nza = h->non_zero_count_cache[scan8[16+idx] - 1];
-        nzb = h->non_zero_count_cache[scan8[16+idx] - 8];
+        if( cat == 4 ) {
+            nza = h->non_zero_count_cache[scan8[16+idx] - 1];
+            nzb = h->non_zero_count_cache[scan8[16+idx] - 8];
+        } else {
+            assert(cat == 1 || cat == 2);
+            nza = h->non_zero_count_cache[scan8[idx] - 1];
+            nzb = h->non_zero_count_cache[scan8[idx] - 8];
+        }
     }
 
     if( nza > 0 )
@@ -5372,7 +5377,7 @@ DECLARE_ASM_CONST(1, uint8_t, last_coeff_flag_offset_8x8[63]) = {
     5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8
 };
 
-static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff) {
+static av_always_inline void decode_cabac_residual_internal( H264Context *h, DCTELEM *block, int cat, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff, int is_dc ) {
     static const int significant_coeff_flag_offset[2][6] = {
       { 105+0, 105+15, 105+29, 105+44, 105+47, 402 },
       { 277+0, 277+15, 277+29, 277+44, 277+47, 436 }
@@ -5440,12 +5445,15 @@ static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int 
      */
 
     /* read coded block flag */
-    if( cat != 5 ) {
-        if( get_cabac( CC, &h->cabac_state[85 + get_cabac_cbf_ctx( h, cat, n ) ] ) == 0 ) {
-            if( cat == 1 || cat == 2 )
-                h->non_zero_count_cache[scan8[n]] = 0;
-            else if( cat == 4 )
-                h->non_zero_count_cache[scan8[16+n]] = 0;
+    if( is_dc || cat != 5 ) {
+        if( get_cabac( CC, &h->cabac_state[85 + get_cabac_cbf_ctx( h, cat, n, is_dc ) ] ) == 0 ) {
+            if( !is_dc ) {
+                if( cat == 4 )
+                    h->non_zero_count_cache[scan8[16+n]] = 0;
+                else
+                    h->non_zero_count_cache[scan8[n]] = 0;
+            }
+
 #ifdef CABAC_ON_STACK
             h->cabac.range     = cc.range     ;
             h->cabac.low       = cc.low       ;
@@ -5462,7 +5470,7 @@ static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int 
     abs_level_m1_ctx_base = h->cabac_state
         + coeff_abs_level_m1_offset[cat];
 
-    if( cat == 5 ) {
+    if( !is_dc && cat == 5 ) {
 #define DECODE_SIGNIFICANCE( coefs, sig_off, last_off ) \
         for(last= 0; last < coefs; last++) { \
             uint8_t *sig_ctx = significant_coeff_ctx_base + sig_off; \
@@ -5491,27 +5499,30 @@ static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int 
     }
     assert(coeff_count > 0);
 
-    if( cat == 0 )
-        h->cbp_table[h->mb_xy] |= 0x100;
-    else if( cat == 1 || cat == 2 )
-        h->non_zero_count_cache[scan8[n]] = coeff_count;
-    else if( cat == 3 )
-        h->cbp_table[h->mb_xy] |= 0x40 << n;
-    else if( cat == 4 )
-        h->non_zero_count_cache[scan8[16+n]] = coeff_count;
-    else {
-        assert( cat == 5 );
-        fill_rectangle(&h->non_zero_count_cache[scan8[n]], 2, 2, 8, coeff_count, 1);
+    if( is_dc ) {
+        if( cat == 0 )
+            h->cbp_table[h->mb_xy] |= 0x100;
+        else
+            h->cbp_table[h->mb_xy] |= 0x40 << n;
+    } else {
+        if( cat == 5 )
+            fill_rectangle(&h->non_zero_count_cache[scan8[n]], 2, 2, 8, coeff_count, 1);
+        else if( cat == 4 )
+            h->non_zero_count_cache[scan8[16+n]] = coeff_count;
+        else {
+            assert( cat == 1 || cat == 2 );
+            h->non_zero_count_cache[scan8[n]] = coeff_count;
+        }
     }
 
-    for( coeff_count--; coeff_count >= 0; coeff_count-- ) {
+    while( coeff_count-- ) {
         uint8_t *ctx = coeff_abs_level1_ctx[node_ctx] + abs_level_m1_ctx_base;
 
         int j= scantable[index[coeff_count]];
 
         if( get_cabac( CC, ctx ) == 0 ) {
             node_ctx = coeff_abs_level_transition[0][node_ctx];
-            if( !qmul ) {
+            if( is_dc ) {
                 block[j] = get_cabac_bypass_sign( CC, -1);
             }else{
                 block[j] = (get_cabac_bypass_sign( CC, -qmul[j]) + 32) >> 6;
@@ -5538,12 +5549,10 @@ static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int 
                 coeff_abs+= 14;
             }
 
-            if( !qmul ) {
-                if( get_cabac_bypass( CC ) ) block[j] = -coeff_abs;
-                else                                block[j] =  coeff_abs;
+            if( is_dc ) {
+                block[j] = get_cabac_bypass_sign( CC, -coeff_abs );
             }else{
-                if( get_cabac_bypass( CC ) ) block[j] = (-coeff_abs * qmul[j] + 32) >> 6;
-                else                                block[j] = ( coeff_abs * qmul[j] + 32) >> 6;
+                block[j] = (get_cabac_bypass_sign( CC, -coeff_abs ) * qmul[j] + 32) >> 6;
             }
         }
     }
@@ -5553,6 +5562,25 @@ static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int 
             h->cabac.bytestream= cc.bytestream;
 #endif
 
+}
+
+#ifndef CONFIG_SMALL
+static void decode_cabac_residual_dc( H264Context *h, DCTELEM *block, int cat, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff ) {
+    decode_cabac_residual_internal(h, block, cat, n, scantable, qmul, max_coeff, 1);
+}
+
+static void decode_cabac_residual_nondc( H264Context *h, DCTELEM *block, int cat, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff ) {
+    decode_cabac_residual_internal(h, block, cat, n, scantable, qmul, max_coeff, 0);
+}
+#endif
+
+static void decode_cabac_residual( H264Context *h, DCTELEM *block, int cat, int n, const uint8_t *scantable, const uint32_t *qmul, int max_coeff ) {
+#ifdef CONFIG_SMALL
+    decode_cabac_residual_internal(h, block, cat, n, scantable, qmul, max_coeff, cat == 0 || cat == 3);
+#else
+    if( cat == 0 || cat == 3 ) decode_cabac_residual_dc(h, block, cat, n, scantable, qmul, max_coeff);
+    else decode_cabac_residual_nondc(h, block, cat, n, scantable, qmul, max_coeff);
+#endif
 }
 
 static inline void compute_mb_neighbors(H264Context *h)

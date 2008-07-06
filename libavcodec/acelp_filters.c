@@ -116,13 +116,18 @@ int ff_acelp_lp_synthesis_filter(
         const int16_t* in,
         int buffer_length,
         int filter_length,
-        int stop_on_overflow)
+        int stop_on_overflow,
+        int rounder)
 {
     int i,n;
 
+    // These two lines are two avoid a -1 subtraction in the main loop
+    filter_length++;
+    filter_coeffs--;
+
     for(n=0; n<buffer_length; n++)
     {
-        int sum = 0x800;
+        int sum = rounder;
         for(i=1; i<filter_length; i++)
             sum -= filter_coeffs[i] * out[n-i];
 
