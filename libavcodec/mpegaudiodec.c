@@ -766,6 +766,8 @@ static inline int round_sample(int *sum)
 /* signed 16x16 -> 32 multiply */
 #define MULS(ra, rb) MUL16(ra, rb)
 
+#define MLSS(rt, ra, rb) MLS16(rt, ra, rb)
+
 #else
 
 static inline int round_sample(int64_t *sum)
@@ -781,47 +783,49 @@ static inline int round_sample(int64_t *sum)
 }
 
 #   define MULS(ra, rb) MUL64(ra, rb)
+#   define MACS(rt, ra, rb) MAC64(rt, ra, rb)
+#   define MLSS(rt, ra, rb) MLS64(rt, ra, rb)
 #endif
 
-#define SUM8(sum, op, w, p) \
-{                                               \
-    sum op MULS((w)[0 * 64], p[0 * 64]);\
-    sum op MULS((w)[1 * 64], p[1 * 64]);\
-    sum op MULS((w)[2 * 64], p[2 * 64]);\
-    sum op MULS((w)[3 * 64], p[3 * 64]);\
-    sum op MULS((w)[4 * 64], p[4 * 64]);\
-    sum op MULS((w)[5 * 64], p[5 * 64]);\
-    sum op MULS((w)[6 * 64], p[6 * 64]);\
-    sum op MULS((w)[7 * 64], p[7 * 64]);\
+#define SUM8(op, sum, w, p)               \
+{                                         \
+    op(sum, (w)[0 * 64], p[0 * 64]);      \
+    op(sum, (w)[1 * 64], p[1 * 64]);      \
+    op(sum, (w)[2 * 64], p[2 * 64]);      \
+    op(sum, (w)[3 * 64], p[3 * 64]);      \
+    op(sum, (w)[4 * 64], p[4 * 64]);      \
+    op(sum, (w)[5 * 64], p[5 * 64]);      \
+    op(sum, (w)[6 * 64], p[6 * 64]);      \
+    op(sum, (w)[7 * 64], p[7 * 64]);      \
 }
 
 #define SUM8P2(sum1, op1, sum2, op2, w1, w2, p) \
 {                                               \
     int tmp;\
     tmp = p[0 * 64];\
-    sum1 op1 MULS((w1)[0 * 64], tmp);\
-    sum2 op2 MULS((w2)[0 * 64], tmp);\
+    op1(sum1, (w1)[0 * 64], tmp);\
+    op2(sum2, (w2)[0 * 64], tmp);\
     tmp = p[1 * 64];\
-    sum1 op1 MULS((w1)[1 * 64], tmp);\
-    sum2 op2 MULS((w2)[1 * 64], tmp);\
+    op1(sum1, (w1)[1 * 64], tmp);\
+    op2(sum2, (w2)[1 * 64], tmp);\
     tmp = p[2 * 64];\
-    sum1 op1 MULS((w1)[2 * 64], tmp);\
-    sum2 op2 MULS((w2)[2 * 64], tmp);\
+    op1(sum1, (w1)[2 * 64], tmp);\
+    op2(sum2, (w2)[2 * 64], tmp);\
     tmp = p[3 * 64];\
-    sum1 op1 MULS((w1)[3 * 64], tmp);\
-    sum2 op2 MULS((w2)[3 * 64], tmp);\
+    op1(sum1, (w1)[3 * 64], tmp);\
+    op2(sum2, (w2)[3 * 64], tmp);\
     tmp = p[4 * 64];\
-    sum1 op1 MULS((w1)[4 * 64], tmp);\
-    sum2 op2 MULS((w2)[4 * 64], tmp);\
+    op1(sum1, (w1)[4 * 64], tmp);\
+    op2(sum2, (w2)[4 * 64], tmp);\
     tmp = p[5 * 64];\
-    sum1 op1 MULS((w1)[5 * 64], tmp);\
-    sum2 op2 MULS((w2)[5 * 64], tmp);\
+    op1(sum1, (w1)[5 * 64], tmp);\
+    op2(sum2, (w2)[5 * 64], tmp);\
     tmp = p[6 * 64];\
-    sum1 op1 MULS((w1)[6 * 64], tmp);\
-    sum2 op2 MULS((w2)[6 * 64], tmp);\
+    op1(sum1, (w1)[6 * 64], tmp);\
+    op2(sum2, (w2)[6 * 64], tmp);\
     tmp = p[7 * 64];\
-    sum1 op1 MULS((w1)[7 * 64], tmp);\
-    sum2 op2 MULS((w2)[7 * 64], tmp);\
+    op1(sum1, (w1)[7 * 64], tmp);\
+    op2(sum2, (w2)[7 * 64], tmp);\
 }
 
 void ff_mpa_synth_init(MPA_INT *window)
@@ -885,9 +889,9 @@ void ff_mpa_synth_filter(MPA_INT *synth_buf_ptr, int *synth_buf_offset,
 
     sum = *dither_state;
     p = synth_buf + 16;
-    SUM8(sum, +=, w, p);
+    SUM8(MACS, sum, w, p);
     p = synth_buf + 48;
-    SUM8(sum, -=, w + 32, p);
+    SUM8(MLSS, sum, w + 32, p);
     *samples = round_sample(&sum);
     samples += incr;
     w++;
@@ -897,9 +901,9 @@ void ff_mpa_synth_filter(MPA_INT *synth_buf_ptr, int *synth_buf_offset,
     for(j=1;j<16;j++) {
         sum2 = 0;
         p = synth_buf + 16 + j;
-        SUM8P2(sum, +=, sum2, -=, w, w2, p);
+        SUM8P2(sum, MACS, sum2, MLSS, w, w2, p);
         p = synth_buf + 48 - j;
-        SUM8P2(sum, -=, sum2, -=, w + 32, w2 + 32, p);
+        SUM8P2(sum, MLSS, sum2, MLSS, w + 32, w2 + 32, p);
 
         *samples = round_sample(&sum);
         samples += incr;
@@ -911,7 +915,7 @@ void ff_mpa_synth_filter(MPA_INT *synth_buf_ptr, int *synth_buf_offset,
     }
 
     p = synth_buf + 32;
-    SUM8(sum, -=, w + 32, p);
+    SUM8(MLSS, sum, w + 32, p);
     *samples = round_sample(&sum);
     *dither_state= sum;
 
@@ -1573,7 +1577,7 @@ static int huffman_decode(MPADecodeContext *s, GranuleDef *g,
                    part. We must go back into the data */
                 s_index -= 4;
                 skip_bits_long(&s->gb, last_pos - pos);
-                av_log(NULL, AV_LOG_INFO, "overread, skip %d enddists: %d %d\n", last_pos - pos, end_pos-pos, end_pos2-pos);
+                av_log(s->avctx, AV_LOG_INFO, "overread, skip %d enddists: %d %d\n", last_pos - pos, end_pos-pos, end_pos2-pos);
                 if(s->error_resilience >= FF_ER_COMPLIANT)
                     s_index=0;
                 break;
@@ -1609,10 +1613,10 @@ static int huffman_decode(MPADecodeContext *s, GranuleDef *g,
     bits_left = end_pos2 - get_bits_count(&s->gb);
 //av_log(NULL, AV_LOG_ERROR, "left:%d buf:%p\n", bits_left, s->in_gb.buffer);
     if (bits_left < 0/* || bits_left > 500*/) {
-        av_log(NULL, AV_LOG_ERROR, "bits_left=%d\n", bits_left);
+        av_log(s->avctx, AV_LOG_ERROR, "bits_left=%d\n", bits_left);
         s_index=0;
     }else if(bits_left > 0 && s->error_resilience >= FF_ER_AGGRESSIVE){
-        av_log(NULL, AV_LOG_ERROR, "bits_left=%d\n", bits_left);
+        av_log(s->avctx, AV_LOG_ERROR, "bits_left=%d\n", bits_left);
         s_index=0;
     }
     memset(&g->sb_hybrid[s_index], 0, sizeof(*g->sb_hybrid)*(576 - s_index));
@@ -2053,7 +2057,7 @@ static int mp_decode_layer3(MPADecodeContext *s)
             if (blocksplit_flag) {
                 g->block_type = get_bits(&s->gb, 2);
                 if (g->block_type == 0){
-                    av_log(NULL, AV_LOG_ERROR, "invalid block type\n");
+                    av_log(s->avctx, AV_LOG_ERROR, "invalid block type\n");
                     return -1;
                 }
                 g->switch_point = get_bits1(&s->gb);
@@ -2105,7 +2109,7 @@ static int mp_decode_layer3(MPADecodeContext *s)
         for(ch=0;ch<s->nb_channels;ch++) {
             g = &granules[ch][gr];
             if(get_bits_count(&s->gb)<0){
-                av_log(NULL, AV_LOG_ERROR, "mdb:%d, lastbuf:%d skipping granule %d\n",
+                av_log(s->avctx, AV_LOG_ERROR, "mdb:%d, lastbuf:%d skipping granule %d\n",
                                             main_data_begin, s->last_buf_size, gr);
                 skip_bits_long(&s->gb, g->part2_3_length);
                 memset(g->sb_hybrid, 0, sizeof(g->sb_hybrid));
@@ -2312,7 +2316,7 @@ static int mp_decode_frame(MPADecodeContext *s,
                 memmove(s->last_buf, s->gb.buffer + (get_bits_count(&s->gb)>>3), i);
                 s->last_buf_size=i;
             }else
-                av_log(NULL, AV_LOG_ERROR, "invalid old backstep %d\n", i);
+                av_log(s->avctx, AV_LOG_ERROR, "invalid old backstep %d\n", i);
             s->gb= s->in_gb;
             s->in_gb.buffer= NULL;
         }
@@ -2322,7 +2326,7 @@ static int mp_decode_frame(MPADecodeContext *s,
         i= (s->gb.size_in_bits - get_bits_count(&s->gb))>>3;
 
         if(i<0 || i > BACKSTEP_SIZE || nb_frames<0){
-            av_log(NULL, AV_LOG_ERROR, "invalid new backstep %d\n", i);
+            av_log(s->avctx, AV_LOG_WARNING, "invalid new backstep %d\n", i);
             i= FFMIN(BACKSTEP_SIZE, buf_size - HEADER_SIZE);
         }
         assert(i <= buf_size - HEADER_SIZE && i>= 0);

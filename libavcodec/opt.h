@@ -85,8 +85,50 @@ typedef struct AVOption {
 } AVOption;
 
 
+/**
+ * Looks for an option in \p obj. Looks only for the options which
+ * have the flags set as specified in \p mask and \p flags (that is,
+ * for which it is the case that opt->flags & mask == flags).
+ *
+ * @param[in] obj a pointer to a struct whose first element is a
+ * pointer to an #AVClass
+ * @param[in] name the name of the option to look for
+ * @param[in] unit the unit of the option to look for, or any if NULL
+ * @return a pointer to the option found, or NULL if no option
+ * has been found
+ */
 const AVOption *av_find_opt(void *obj, const char *name, const char *unit, int mask, int flags);
-const AVOption *av_set_string(void *obj, const char *name, const char *val);
+
+/**
+ * @see av_set_string2()
+ */
+attribute_deprecated const AVOption *av_set_string(void *obj, const char *name, const char *val);
+
+/**
+ * Sets the field of obj with the given name to value.
+ *
+ * @param[in] obj A struct whose first element is a pointer to an
+ * AVClass.
+ * @param[in] name the name of the field to set
+ * @param[in] val The value to set. If the field is not of a string
+ * type, then the given string is parsed.
+ * SI postfixes and some named scalars are supported.
+ * If the field is of a numeric type, it has to be a numeric or named
+ * scalar. Behavior with more than one scalar and +- infix operators
+ * is undefined.
+ * If the field is of a flags type, it has to be a sequence of numeric
+ * scalars or named flags separated by '+' or '-'. Prefixing a flag
+ * with '+' causes it to be set without affecting the other flags;
+ * similarly, '-' unsets a flag.
+ * @return a pointer to the AVOption corresponding to the field set or
+ * NULL if no matching AVOption exists, or if the value \p val is not
+ * valid
+ * @param alloc when 1 then the old value will be av_freed() and the
+ *                     new av_strduped()
+ *              when 0 then no av_free() nor av_strdup() will be used
+ */
+const AVOption *av_set_string2(void *obj, const char *name, const char *val, int alloc);
+
 const AVOption *av_set_double(void *obj, const char *name, double n);
 const AVOption *av_set_q(void *obj, const char *name, AVRational n);
 const AVOption *av_set_int(void *obj, const char *name, int64_t n);

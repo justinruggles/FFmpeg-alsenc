@@ -49,7 +49,6 @@
 //#define A32_BITSTREAM_READER
 #   endif
 #endif
-#define LIBMPEG2_BITSTREAM_READER_HACK //add BERO
 
 extern const uint8_t ff_reverse[256];
 
@@ -177,38 +176,6 @@ typedef struct RL_VLC_ELEM {
 #define UNALIGNED_STORES_ARE_BAD
 #endif
 
-/* used to avoid misaligned exceptions on some archs (alpha, ...) */
-#if defined(ARCH_X86)
-#    define unaligned16(a) (*(const uint16_t*)(a))
-#    define unaligned32(a) (*(const uint32_t*)(a))
-#    define unaligned64(a) (*(const uint64_t*)(a))
-#else
-#    ifdef __GNUC__
-#    define unaligned(x)                                \
-static inline uint##x##_t unaligned##x(const void *v) { \
-    struct Unaligned {                                  \
-        uint##x##_t i;                                  \
-    } __attribute__((packed));                          \
-                                                        \
-    return ((const struct Unaligned *) v)->i;           \
-}
-#    elif defined(__DECC)
-#    define unaligned(x)                                        \
-static inline uint##x##_t unaligned##x(const void *v) {         \
-    return *(const __unaligned uint##x##_t *) v;                \
-}
-#    else
-#    define unaligned(x)                                        \
-static inline uint##x##_t unaligned##x(const void *v) {         \
-    return *(const uint##x##_t *) v;                            \
-}
-#    endif
-unaligned(16)
-unaligned(32)
-unaligned(64)
-#undef unaligned
-#endif /* defined(ARCH_X86) */
-
 #ifndef ALT_BITSTREAM_WRITER
 static inline void put_bits(PutBitContext *s, int n, unsigned int value)
 {
@@ -315,6 +282,13 @@ static inline void put_bits(PutBitContext *s, int n, unsigned int value)
 #    endif //!ALIGNED_BITSTREAM_WRITER
 }
 #endif
+
+static inline void put_sbits(PutBitContext *pb, int bits, int32_t val)
+{
+    assert(bits >= 0 && bits <= 31);
+
+    put_bits(pb, bits, val & ((1<<bits)-1));
+}
 
 
 static inline uint8_t* pbBufPtr(PutBitContext *s)
@@ -484,25 +458,12 @@ static inline void skip_bits_long(GetBitContext *s, int n){
         (gb)->cache= name##_cache;\
         (gb)->buffer_ptr= name##_buffer_ptr;\
 
-#ifdef LIBMPEG2_BITSTREAM_READER_HACK
-
 #   define UPDATE_CACHE(name, gb)\
     if(name##_bit_count >= 0){\
-        name##_cache+= (int)be2me_16(*(uint16_t*)name##_buffer_ptr) << name##_bit_count;\
-        name##_buffer_ptr += 2;\
-        name##_bit_count-= 16;\
-    }\
-
-#else
-
-#   define UPDATE_CACHE(name, gb)\
-    if(name##_bit_count >= 0){\
-        name##_cache+= ((name##_buffer_ptr[0]<<8) + name##_buffer_ptr[1]) << name##_bit_count;\
+        name##_cache+= AV_RB16(name##_buffer_ptr) << name##_bit_count; \
         name##_buffer_ptr+=2;\
         name##_bit_count-= 16;\
     }\
-
-#endif
 
 #   define SKIP_CACHE(name, gb, num)\
         name##_cache <<= (num);\

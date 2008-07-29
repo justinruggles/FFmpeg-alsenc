@@ -30,7 +30,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 51
-#define LIBAVCODEC_VERSION_MINOR 58
+#define LIBAVCODEC_VERSION_MINOR 62
 #define LIBAVCODEC_VERSION_MICRO  0
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
@@ -186,6 +186,8 @@ enum CodecID {
     CODEC_ID_ESCAPE124,
     CODEC_ID_DIRAC,
     CODEC_ID_BFI,
+    CODEC_ID_CMV,
+    CODEC_ID_MOTIONPIXELS,
 
     /* various PCM "codecs" */
     CODEC_ID_PCM_S16LE= 0x10000,
@@ -208,6 +210,7 @@ enum CodecID {
     CODEC_ID_PCM_ZORK,
     CODEC_ID_PCM_S16LE_PLANAR,
     CODEC_ID_PCM_DVD,
+    CODEC_ID_PCM_F32BE,
 
     /* various ADPCM codecs */
     CODEC_ID_ADPCM_IMA_QT= 0x11000,
@@ -311,6 +314,8 @@ enum CodecID {
     /* other specific kind of codecs (generally used for attachments) */
     CODEC_ID_TTF= 0x18000,
 
+    CODEC_ID_PROBE= 0x19000, ///< codec_id is not known (like CODEC_ID_NONE) but lavf should attempt to identify it
+
     CODEC_ID_MPEG2TS= 0x20000, /**< _FAKE_ codec to indicate a raw MPEG-2 TS
                                 * stream (only used by libavformat) */
 };
@@ -342,6 +347,7 @@ enum SampleFormat {
     SAMPLE_FMT_S24,             ///< signed 24 bits
     SAMPLE_FMT_S32,             ///< signed 32 bits
     SAMPLE_FMT_FLT,             ///< float
+    SAMPLE_FMT_NB               ///< Number of sample formats. DO NOT USE if dynamically linking to libavcodec
 };
 
 /* in bytes */
@@ -986,6 +992,8 @@ typedef struct AVCodecContext {
 
     /**
      * qscale factor between IP and B-frames
+     * If > 0 then the last P-frame quantizer will be used (q= lastp_q*factor+offset).
+     * If < 0 then normal ratecontrol will be done (q= -normal_q*factor+offset).
      * - encoding: Set by user.
      * - decoding: unused
      */
@@ -1113,7 +1121,14 @@ typedef struct AVCodecContext {
     /**
      * strictly follow the standard (MPEG4, ...).
      * - encoding: Set by user.
-     * - decoding: unused
+     * - decoding: Set by user.
+     * Setting this to STRICT or higher means the encoder and decoder will
+     * generally do stupid things. While setting it to inofficial or lower
+     * will mean the encoder might use things that are not supported by all
+     * spec compliant decoders. Decoders make no difference between normal,
+     * inofficial and experimental, that is they always try to decode things
+     * when they can unless they are explicitly asked to behave stupid
+     * (=strictly conform to the specs)
      */
     int strict_std_compliance;
 #define FF_COMPLIANCE_VERY_STRICT   2 ///< Strictly conform to a older more strict version of the spec or reference software.
@@ -1124,8 +1139,6 @@ typedef struct AVCodecContext {
 
     /**
      * qscale offset between IP and B-frames
-     * If > 0 then the last P-frame quantizer will be used (q= lastp_q*factor+offset).
-     * If < 0 then normal ratecontrol will be done (q= -normal_q*factor+offset).
      * - encoding: Set by user.
      * - decoding: unused
      */
@@ -1451,6 +1464,7 @@ typedef struct AVCodecContext {
 #define FF_DEBUG_BUGS        0x00001000
 #define FF_DEBUG_VIS_QP      0x00002000
 #define FF_DEBUG_VIS_MB_TYPE 0x00004000
+#define FF_DEBUG_BUFFERS     0x00008000
 
     /**
      * debug
@@ -2251,6 +2265,7 @@ typedef struct AVCodec {
      */
     const char *long_name;
     const int *supported_samplerates;       ///< array of supported audio samplerates, or NULL if unknown, array is terminated by 0
+    const enum SampleFormat *sample_fmts;   ///< array of supported sample formats, or NULL if unknown, array is terminated by -1
 } AVCodec;
 
 /**
@@ -2514,8 +2529,10 @@ AVCodec *av_codec_next(AVCodec *c);
 
 /* returns LIBAVCODEC_VERSION_INT constant */
 unsigned avcodec_version(void);
+#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
 /* returns LIBAVCODEC_BUILD constant */
-unsigned avcodec_build(void);
+attribute_deprecated unsigned avcodec_build(void);
+#endif
 
 /**
  * Initializes libavcodec.

@@ -78,6 +78,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (DSICINVIDEO, dsicinvideo);
     REGISTER_ENCDEC  (DVVIDEO, dvvideo);
     REGISTER_DECODER (DXA, dxa);
+    REGISTER_DECODER (EACMV, eacmv);
     REGISTER_DECODER (EIGHTBPS, eightbps);
     REGISTER_DECODER (EIGHTSVX_EXP, eightsvx_exp);
     REGISTER_DECODER (EIGHTSVX_FIB, eightsvx_fib);
@@ -109,6 +110,7 @@ void avcodec_register_all(void)
     REGISTER_ENCDEC  (MJPEG, mjpeg);
     REGISTER_DECODER (MJPEGB, mjpegb);
     REGISTER_DECODER (MMVIDEO, mmvideo);
+    REGISTER_DECODER (MOTIONPIXELS, motionpixels);
     REGISTER_DECODER (MPEG_XVMC, mpeg_xvmc);
     REGISTER_ENCDEC  (MPEG1VIDEO, mpeg1video);
     REGISTER_ENCDEC  (MPEG2VIDEO, mpeg2video);
@@ -216,6 +218,7 @@ void avcodec_register_all(void)
     /* PCM codecs */
     REGISTER_ENCDEC  (PCM_ALAW, pcm_alaw);
     REGISTER_DECODER (PCM_DVD, pcm_dvd);
+    REGISTER_ENCDEC  (PCM_F32BE, pcm_f32be);
     REGISTER_ENCDEC  (PCM_MULAW, pcm_mulaw);
     REGISTER_ENCDEC  (PCM_S8, pcm_s8);
     REGISTER_ENCDEC  (PCM_S16BE, pcm_s16be);

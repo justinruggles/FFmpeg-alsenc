@@ -225,7 +225,7 @@ int ogg_interleave_per_granule(AVFormatContext *s, AVPacket *out, AVPacket *pkt,
             next_granule = av_rescale_q(next_pkt->pts + next_pkt->duration,
                                         st2->time_base, AV_TIME_BASE_Q);
             cur_granule = av_rescale_q(pkt->pts + pkt->duration,
-                                        st->time_base, AV_TIME_BASE_Q);
+                                       st->time_base, AV_TIME_BASE_Q);
             if (next_granule > cur_granule)
                 break;
             next_point= &(*next_point)->next;
@@ -281,7 +281,7 @@ AVOutputFormat ogg_muxer = {
     "ogg",
     NULL_IF_CONFIG_SMALL("Ogg"),
     "application/ogg",
-    "ogg",
+    "ogg,ogv",
     0,
     CODEC_ID_FLAC,
     CODEC_ID_THEORA,

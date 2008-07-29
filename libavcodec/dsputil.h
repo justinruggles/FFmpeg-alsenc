@@ -63,7 +63,9 @@ void ff_h264_lowres_idct_put_c(uint8_t *dst, int stride, DCTELEM *block);
 
 void ff_vector_fmul_add_add_c(float *dst, const float *src0, const float *src1,
                               const float *src2, int src3, int blocksize, int step);
-void ff_float_to_int16_c(int16_t *dst, const float *src, int len);
+void ff_vector_fmul_window_c(float *dst, const float *src0, const float *src1,
+                             const float *win, float add_bias, int len);
+void ff_float_to_int16_c(int16_t *dst, const float *src, long len);
 
 /* encoding scans */
 extern const uint8_t ff_alternate_horizontal_scan[64];
@@ -345,7 +347,7 @@ typedef struct DSPContext {
     void (*h264_h_loop_filter_chroma_intra)(uint8_t *pix, int stride, int alpha, int beta);
     // h264_loop_filter_strength: simd only. the C version is inlined in h264.c
     void (*h264_loop_filter_strength)(int16_t bS[2][4][4], uint8_t nnz[40], int8_t ref[2][40], int16_t mv[2][40][2],
-                                      int bidir, int edges, int step, int mask_mv0, int mask_mv1);
+                                      int bidir, int edges, int step, int mask_mv0, int mask_mv1, int field);
 
     void (*h263_v_loop_filter)(uint8_t *src, int stride, int qscale);
     void (*h263_h_loop_filter)(uint8_t *src, int stride, int qscale);
@@ -364,10 +366,13 @@ typedef struct DSPContext {
     void (*vector_fmul_reverse)(float *dst, const float *src0, const float *src1, int len);
     /* assume len is a multiple of 8, and src arrays are 16-byte aligned */
     void (*vector_fmul_add_add)(float *dst, const float *src0, const float *src1, const float *src2, int src3, int len, int step);
+    /* assume len is a multiple of 4, and arrays are 16-byte aligned */
+    void (*vector_fmul_window)(float *dst, const float *src0, const float *src1, const float *win, float add_bias, int len);
 
     /* C version: convert floats from the range [384.0,386.0] to ints in [-32768,32767]
      * simd versions: convert floats from [-32768.0,32767.0] without rescaling and arrays are 16byte aligned */
-    void (*float_to_int16)(int16_t *dst, const float *src, int len);
+    void (*float_to_int16)(int16_t *dst, const float *src, long len);
+    void (*float_to_int16_interleave)(int16_t *dst, const float **src, long len, int channels);
 
     /* (I)DCT */
     void (*fdct)(DCTELEM *block/* align 16*/);
@@ -451,6 +456,23 @@ typedef struct DSPContext {
     void (*x8_setup_spatial_compensation)(uint8_t *src, uint8_t *dst, int linesize,
            int * range, int * sum,  int edges);
 
+    /* ape functions */
+    /**
+     * Add contents of the second vector to the first one.
+     * @param len length of vectors, should be multiple of 16
+     */
+    void (*add_int16)(int16_t *v1/*align 16*/, int16_t *v2, int len);
+    /**
+     * Add contents of the second vector to the first one.
+     * @param len length of vectors, should be multiple of 16
+     */
+    void (*sub_int16)(int16_t *v1/*align 16*/, int16_t *v2, int len);
+    /**
+     * Calculate scalar product of two vectors.
+     * @param len length of vectors, should be multiple of 16
+     * @param shift number of bits to discard from product
+     */
+    int32_t (*scalarproduct_int16)(int16_t *v1, int16_t *v2/*align 16*/, int len, int shift);
 } DSPContext;
 
 void dsputil_static_init(void);
@@ -619,6 +641,8 @@ typedef struct FFTContext {
     void (*fft_calc)(struct FFTContext *s, FFTComplex *z);
     void (*imdct_calc)(struct MDCTContext *s, FFTSample *output,
                        const FFTSample *input, FFTSample *tmp);
+    void (*imdct_half)(struct MDCTContext *s, FFTSample *output,
+                       const FFTSample *input, FFTSample *tmp);
 } FFTContext;
 
 int ff_fft_init(FFTContext *s, int nbits, int inverse);
@@ -664,9 +688,15 @@ void ff_sine_window_init(float *window, int n);
 int ff_mdct_init(MDCTContext *s, int nbits, int inverse);
 void ff_imdct_calc(MDCTContext *s, FFTSample *output,
                 const FFTSample *input, FFTSample *tmp);
+void ff_imdct_half(MDCTContext *s, FFTSample *output,
+                   const FFTSample *input, FFTSample *tmp);
 void ff_imdct_calc_3dn2(MDCTContext *s, FFTSample *output,
                         const FFTSample *input, FFTSample *tmp);
+void ff_imdct_half_3dn2(MDCTContext *s, FFTSample *output,
+                        const FFTSample *input, FFTSample *tmp);
 void ff_imdct_calc_sse(MDCTContext *s, FFTSample *output,
+                       const FFTSample *input, FFTSample *tmp);
+void ff_imdct_half_sse(MDCTContext *s, FFTSample *output,
                        const FFTSample *input, FFTSample *tmp);
 void ff_mdct_calc(MDCTContext *s, FFTSample *out,
                const FFTSample *input, FFTSample *tmp);

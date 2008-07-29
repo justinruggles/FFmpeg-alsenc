@@ -50,14 +50,6 @@
 #endif
 #endif
 
-#ifdef HAVE_ALTIVEC
-#ifdef HAVE_ALTIVEC_VECTOR_BRACES
-#define AVV(x...) {x}
-#else
-#define AVV(x...) (x)
-#endif
-#endif
-
 #ifndef M_PI
 #define M_PI    3.14159265358979323846
 #endif
@@ -154,6 +146,13 @@ extern const uint32_t ff_inverse[256];
             );\
         ret;\
     })
+#elif defined(HAVE_ARMV6)
+static inline av_const int FASTDIV(int a, int b)
+{
+    int r;
+    asm volatile("smmul %0, %1, %2" : "=r"(r) : "r"(a), "r"(ff_inverse[b]));
+    return r;
+}
 #elif defined(ARCH_ARMV4L)
 #    define FASTDIV(a,b) \
     ({\

@@ -137,6 +137,8 @@ static int nuv_header(AVFormatContext *s, AVFormatParameters *ap) {
     get_byte(pb); // 'P' == progressive, 'I' == interlaced
     url_fskip(pb, 3); // padding
     aspect = av_int2dbl(get_le64(pb));
+    if (aspect > 0.9999 && aspect < 1.0001)
+        aspect = 4.0 / 3.0;
     fps = av_int2dbl(get_le64(pb));
 
     // number of packets per stream type, -1 means unknown, e.g. streaming
@@ -156,7 +158,7 @@ static int nuv_header(AVFormatContext *s, AVFormatParameters *ap) {
         vst->codec->width = width;
         vst->codec->height = height;
         vst->codec->bits_per_sample = 10;
-        vst->codec->sample_aspect_ratio = av_d2q(aspect, 10000);
+        vst->codec->sample_aspect_ratio = av_d2q(aspect * height / width, 10000);
         vst->r_frame_rate = av_d2q(fps, 60000);
         av_set_pts_info(vst, 32, 1, 1000);
     } else
@@ -179,7 +181,7 @@ static int nuv_header(AVFormatContext *s, AVFormatParameters *ap) {
         ctx->a_id = -1;
 
     get_codec_data(pb, vst, ast, is_mythtv);
-    ctx->rtjpg_video = vst->codec->codec_id == CODEC_ID_NUV;
+    ctx->rtjpg_video = vst && vst->codec->codec_id == CODEC_ID_NUV;
     return 0;
 }
 

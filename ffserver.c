@@ -348,7 +348,7 @@ static void http_av_log(void *ptr, int level, const char *fmt, va_list vargs)
     if (level > av_log_level)
         return;
     if (print_prefix && avc)
-        http_log("[%s @ %p]", avc->item_name(ptr), avc);
+        http_log("[%s @ %p]", avc->item_name(ptr), ptr);
     print_prefix = strstr(fmt, "\n") != NULL;
     http_vlog(fmt, vargs);
 }
@@ -1497,9 +1497,8 @@ static int http_parse_request(HTTPContext *c)
     if (c->post) {
         /* if post, it means a feed is being sent */
         if (!stream->is_feed) {
-            /* However it might be a status report from WMP! Lets log the data
-             * as it might come in handy one day
-             */
+            /* However it might be a status report from WMP! Let us log the
+             * data as it might come in handy one day. */
             char *logline = 0;
             int client_id = 0;
 
@@ -3732,7 +3731,7 @@ static int opt_default(const char *opt, const char *arg,
     const AVOption *o  = NULL;
     const AVOption *o2 = av_find_opt(avctx, opt, NULL, type, type);
     if(o2)
-        o = av_set_string(avctx, opt, arg);
+        o = av_set_string2(avctx, opt, arg, 1);
     if(!o)
         return -1;
     return 0;

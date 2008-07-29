@@ -835,6 +835,7 @@ static int svq3_decode_frame (AVCodecContext *avctx,
   if (buf_size == 0) {
     if (s->next_picture_ptr && !s->low_delay) {
       *(AVFrame *) data = *(AVFrame *) &s->next_picture;
+      s->next_picture_ptr= NULL;
       *data_size = sizeof(AVFrame);
     }
     return 0;
@@ -851,9 +852,9 @@ static int svq3_decode_frame (AVCodecContext *avctx,
   s->picture_number = h->slice_num;
 
   if(avctx->debug&FF_DEBUG_PICT_INFO){
-      av_log(h->s.avctx, AV_LOG_DEBUG, "%c hpel:%d, tpel:%d aqp:%d qp:%d\n",
+      av_log(h->s.avctx, AV_LOG_DEBUG, "%c hpel:%d, tpel:%d aqp:%d qp:%d, slice_num:%02X\n",
       av_get_pict_type_char(s->pict_type), h->halfpel_flag, h->thirdpel_flag,
-      s->adaptive_quant, s->qscale
+      s->adaptive_quant, s->qscale, h->slice_num
       );
   }
 

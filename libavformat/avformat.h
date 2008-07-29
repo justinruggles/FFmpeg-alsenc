@@ -22,7 +22,7 @@
 #define FFMPEG_AVFORMAT_H
 
 #define LIBAVFORMAT_VERSION_MAJOR 52
-#define LIBAVFORMAT_VERSION_MINOR 16
+#define LIBAVFORMAT_VERSION_MINOR 18
 #define LIBAVFORMAT_VERSION_MICRO  0
 
 #define LIBAVFORMAT_VERSION_INT AV_VERSION_INT(LIBAVFORMAT_VERSION_MAJOR, \
@@ -160,13 +160,13 @@ typedef struct AVFormatParameters {
     enum PixelFormat pix_fmt;
     int channel; /**< used to select dv channel */
     const char *standard; /**< tv standard, NTSC, PAL, SECAM */
-    int mpeg2ts_raw:1;  /**< force raw MPEG2 transport stream output, if possible */
-    int mpeg2ts_compute_pcr:1; /**< compute exact PCR for each transport
-                                  stream packet (only meaningful if
-                                  mpeg2ts_raw is TRUE) */
-    int initial_pause:1;       /**< do not begin to play the stream
-                                  immediately (RTSP only) */
-    int prealloced_context:1;
+    unsigned int mpeg2ts_raw:1;  /**< force raw MPEG2 transport stream output, if possible */
+    unsigned int mpeg2ts_compute_pcr:1; /**< compute exact PCR for each transport
+                                            stream packet (only meaningful if
+                                            mpeg2ts_raw is TRUE) */
+    unsigned int initial_pause:1;       /**< do not begin to play the stream
+                                            immediately (RTSP only) */
+    unsigned int prealloced_context:1;
 #if LIBAVFORMAT_VERSION_INT < (53<<16)
     enum CodecID video_codec_id;
     enum CodecID audio_codec_id;
@@ -391,6 +391,8 @@ typedef struct AVStream {
     char *filename; /**< source filename of the stream */
 
     int disposition; /**< AV_DISPOSITION_* bitfield */
+
+    AVProbeData probe_data;
 } AVStream;
 
 #define AV_PROGRAM_RUNNING 1
@@ -555,6 +557,14 @@ typedef struct AVFormatContext {
      */
     int debug;
 #define FF_FDEBUG_TS        0x0001
+
+    /**
+     * raw packets from the demuxer, prior to parsing and decoding.
+     * This buffer is used for buffering packets until the codec can
+     * be identified, as parsing cannot be done without knowing the
+     * codec.
+     */
+    struct AVPacketList *raw_packet_buffer;
 } AVFormatContext;
 
 typedef struct AVPacketList {

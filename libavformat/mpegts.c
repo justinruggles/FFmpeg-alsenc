@@ -63,8 +63,8 @@ typedef struct MpegTSSectionFilter {
     int section_index;
     int section_h_size;
     uint8_t *section_buf;
-    int check_crc:1;
-    int end_of_section_reached:1;
+    unsigned int check_crc:1;
+    unsigned int end_of_section_reached:1;
     SectionCallback *section_cb;
     void *opaque;
 } MpegTSSectionFilter;
@@ -347,8 +347,8 @@ static int analyze(const uint8_t *buf, int size, int packet_size, int *index){
 
     memset(stat, 0, packet_size*sizeof(int));
 
-    for(x=i=0; i<size; i++){
-        if(buf[i] == 0x47){
+    for(x=i=0; i<size-3; i++){
+        if(buf[i] == 0x47 && !(buf[i+1] & 0x80) && (buf[i+3] & 0x30)){
             stat[x]++;
             if(stat[x] > best_score){
                 best_score= stat[x];
@@ -970,7 +970,7 @@ static AVStream* new_pes_av_stream(PESContext *pes, uint32_t code)
             codec_id = CODEC_ID_AC3;
         } else {
             codec_type = CODEC_TYPE_VIDEO;
-            codec_id = CODEC_ID_MPEG1VIDEO;
+            codec_id = CODEC_ID_PROBE;
         }
         break;
     }
