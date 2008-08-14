@@ -24,6 +24,7 @@
 #include "riff.h"
 #include <sys/time.h>
 #include <time.h>
+#include <strings.h>
 
 #undef NDEBUG
 #include <assert.h>
@@ -33,8 +34,60 @@
  * various utility functions for use within FFmpeg
  */
 
-static void av_frac_init(AVFrac *f, int64_t val, int64_t num, int64_t den);
-static void av_frac_add(AVFrac *f, int64_t incr);
+unsigned avformat_version(void)
+{
+    return LIBAVFORMAT_VERSION_INT;
+}
+
+/* fraction handling */
+
+/**
+ * f = val + (num / den) + 0.5.
+ *
+ * 'num' is normalized so that it is such as 0 <= num < den.
+ *
+ * @param f fractional number
+ * @param val integer value
+ * @param num must be >= 0
+ * @param den must be >= 1
+ */
+static void av_frac_init(AVFrac *f, int64_t val, int64_t num, int64_t den)
+{
+    num += (den >> 1);
+    if (num >= den) {
+        val += num / den;
+        num = num % den;
+    }
+    f->val = val;
+    f->num = num;
+    f->den = den;
+}
+
+/**
+ * Fractional addition to f: f = f + (incr / f->den).
+ *
+ * @param f fractional number
+ * @param incr increment, can be positive or negative
+ */
+static void av_frac_add(AVFrac *f, int64_t incr)
+{
+    int64_t num, den;
+
+    num = f->num + incr;
+    den = f->den;
+    if (num < 0) {
+        f->val += num / den;
+        num = num % den;
+        if (num < 0) {
+            num += den;
+            f->val--;
+        }
+    } else if (num >= den) {
+        f->val += num / den;
+        num = num % den;
+    }
+    f->num = num;
+}
 
 /** head of registered input format linked list */
 AVInputFormat *first_iformat = NULL;
@@ -524,15 +577,16 @@ int av_open_input_file(AVFormatContext **ic_ptr, const char *filename,
 
 /*******************************************************/
 
-static AVPacket *add_to_pktbuf(AVPacketList **packet_buffer, AVPacket *pkt){
-    AVPacketList *pktl;
-    AVPacketList **plast_pktl= packet_buffer;
-
-    while(*plast_pktl) plast_pktl= &(*plast_pktl)->next; //FIXME maybe maintain pointer to the last?
-
-    pktl = av_mallocz(sizeof(AVPacketList));
+static AVPacket *add_to_pktbuf(AVPacketList **packet_buffer, AVPacket *pkt,
+                               AVPacketList **plast_pktl){
+    AVPacketList *pktl = av_mallocz(sizeof(AVPacketList));
     if (!pktl)
         return NULL;
+
+    if (*packet_buffer)
+        (*plast_pktl)->next = pktl;
+    else
+        *packet_buffer = pktl;
 
     /* add the packet in the buffered packet list */
     *plast_pktl = pktl;
@@ -578,7 +632,7 @@ int av_read_packet(AVFormatContext *s, AVPacket *pkt)
         if(!pktl && st->codec->codec_id!=CODEC_ID_PROBE)
             return ret;
 
-        add_to_pktbuf(&s->raw_packet_buffer, pkt);
+        add_to_pktbuf(&s->raw_packet_buffer, pkt, &s->raw_packet_buffer_end);
 
         if(st->codec->codec_id == CODEC_ID_PROBE){
             AVProbeData *pd = &st->probe_data;
@@ -842,10 +896,8 @@ static void compute_pkt_fields(AVFormatContext *s, AVStream *st,
         }
     }
 
-    if(pkt->pts != AV_NOPTS_VALUE){
+    if(pkt->pts != AV_NOPTS_VALUE && delay <= MAX_REORDER_DELAY){
         st->pts_buffer[0]= pkt->pts;
-        for(i=1; i<delay+1 && st->pts_buffer[i] == AV_NOPTS_VALUE; i++)
-            st->pts_buffer[i]= (i-delay-1) * pkt->duration;
         for(i=0; i<delay && st->pts_buffer[i] > st->pts_buffer[i+1]; i++)
             FFSWAP(int64_t, st->pts_buffer[i], st->pts_buffer[i+1]);
         if(pkt->dts == AV_NOPTS_VALUE)
@@ -1043,7 +1095,8 @@ int av_read_frame(AVFormatContext *s, AVPacket *pkt)
                     return ret;
             }
 
-            if(av_dup_packet(add_to_pktbuf(&s->packet_buffer, pkt)) < 0)
+            if(av_dup_packet(add_to_pktbuf(&s->packet_buffer, pkt,
+                                           &s->packet_buffer_end)) < 0)
                 return AVERROR(ENOMEM);
         }else{
             assert(!s->packet_buffer);
@@ -1430,7 +1483,7 @@ static int av_seek_frame_byte(AVFormatContext *s, int stream_index, int64_t pos,
 static int av_seek_frame_generic(AVFormatContext *s,
                                  int stream_index, int64_t timestamp, int flags)
 {
-    int index;
+    int index, ret;
     AVStream *st;
     AVIndexEntry *ie;
 
@@ -1445,11 +1498,13 @@ static int av_seek_frame_generic(AVFormatContext *s,
         if(st->nb_index_entries){
             assert(st->index_entries);
             ie= &st->index_entries[st->nb_index_entries-1];
-            url_fseek(s->pb, ie->pos, SEEK_SET);
+            if ((ret = url_fseek(s->pb, ie->pos, SEEK_SET)) < 0)
+                return ret;
             av_update_cur_dts(s, st, ie->timestamp);
-        }else
-            url_fseek(s->pb, 0, SEEK_SET);
-
+        }else{
+            if ((ret = url_fseek(s->pb, 0, SEEK_SET)) < 0)
+                return ret;
+        }
         for(i=0;; i++) {
             int ret = av_read_frame(s, &pkt);
             if(ret<0)
@@ -1471,8 +1526,8 @@ static int av_seek_frame_generic(AVFormatContext *s,
             return 0;
     }
     ie = &st->index_entries[index];
-    url_fseek(s->pb, ie->pos, SEEK_SET);
-
+    if ((ret = url_fseek(s->pb, ie->pos, SEEK_SET)) < 0)
+        return ret;
     av_update_cur_dts(s, st, ie->timestamp);
 
     return 0;
@@ -2019,7 +2074,7 @@ int av_find_stream_info(AVFormatContext *ic)
             break;
         }
 
-        pkt= add_to_pktbuf(&ic->packet_buffer, &pkt1);
+        pkt= add_to_pktbuf(&ic->packet_buffer, &pkt1, &ic->packet_buffer_end);
         if(av_dup_packet(pkt) < 0) {
             av_free(duration_error);
             return AVERROR(ENOMEM);
@@ -2468,7 +2523,7 @@ static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
     }
 
     //calculate dts from pts
-    if(pkt->pts != AV_NOPTS_VALUE && pkt->dts == AV_NOPTS_VALUE){
+    if(pkt->pts != AV_NOPTS_VALUE && pkt->dts == AV_NOPTS_VALUE && delay <= MAX_REORDER_DELAY){
         st->pts_buffer[0]= pkt->pts;
         for(i=1; i<delay+1 && st->pts_buffer[i] == AV_NOPTS_VALUE; i++)
             st->pts_buffer[i]= (i-delay-1) * pkt->duration;
@@ -3161,54 +3216,4 @@ void av_set_pts_info(AVStream *s, int pts_wrap_bits,
 
     if(gcd>1)
         av_log(NULL, AV_LOG_DEBUG, "st:%d removing common factor %d from timebase\n", s->index, gcd);
-}
-
-/* fraction handling */
-
-/**
- * f = val + (num / den) + 0.5.
- *
- * 'num' is normalized so that it is such as 0 <= num < den.
- *
- * @param f fractional number
- * @param val integer value
- * @param num must be >= 0
- * @param den must be >= 1
- */
-static void av_frac_init(AVFrac *f, int64_t val, int64_t num, int64_t den)
-{
-    num += (den >> 1);
-    if (num >= den) {
-        val += num / den;
-        num = num % den;
-    }
-    f->val = val;
-    f->num = num;
-    f->den = den;
-}
-
-/**
- * Fractional addition to f: f = f + (incr / f->den).
- *
- * @param f fractional number
- * @param incr increment, can be positive or negative
- */
-static void av_frac_add(AVFrac *f, int64_t incr)
-{
-    int64_t num, den;
-
-    num = f->num + incr;
-    den = f->den;
-    if (num < 0) {
-        f->val += num / den;
-        num = num % den;
-        if (num < 0) {
-            num += den;
-            f->val--;
-        }
-    } else if (num >= den) {
-        f->val += num / den;
-        num = num % den;
-    }
-    f->num = num;
 }

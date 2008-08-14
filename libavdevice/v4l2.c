@@ -37,6 +37,7 @@
 #include <asm/types.h>
 #include <linux/videodev2.h>
 #include <time.h>
+#include <strings.h>
 
 static const int desired_video_buffers = 256;
 
@@ -495,9 +496,12 @@ static int v4l2_read_header(AVFormatContext *s1, AVFormatParameters *ap)
     int res, frame_rate, frame_rate_base;
     uint32_t desired_format, capabilities;
 
-    if (ap->width <= 0 || ap->height <= 0 || ap->time_base.den <= 0) {
-        av_log(s1, AV_LOG_ERROR, "Missing/Wrong width, height or framerate\n");
-
+    if (ap->width <= 0 || ap->height <= 0) {
+        av_log(s1, AV_LOG_ERROR, "Wrong size (%dx%d)\n", ap->width, ap->height);
+        return -1;
+    }
+    if (ap->time_base.den <= 0) {
+        av_log(s1, AV_LOG_ERROR, "Wrong time base (%d)\n", ap->time_base.den);
         return -1;
     }
 
@@ -507,7 +511,7 @@ static int v4l2_read_header(AVFormatContext *s1, AVFormatParameters *ap)
     frame_rate_base = ap->time_base.num;
 
     if((unsigned)width > 32767 || (unsigned)height > 32767) {
-        av_log(s1, AV_LOG_ERROR, "Wrong size %dx%d\n", width, height);
+        av_log(s1, AV_LOG_ERROR, "Wrong size (%dx%d)\n", width, height);
 
         return -1;
     }

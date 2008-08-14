@@ -58,6 +58,7 @@ static int ra144_decode_init(AVCodecContext * avctx)
     ractx->lpc_coef[0] = ractx->lpc_tables[0];
     ractx->lpc_coef[1] = ractx->lpc_tables[1];
 
+    avctx->sample_fmt = SAMPLE_FMT_S16;
     return 0;
 }
 
@@ -70,7 +71,7 @@ static int t_sqrt(unsigned int x)
     int s = 2;
     while (x > 0xfff) {
         s++;
-        x = x >> 2;
+        x >>= 2;
     }
 
     return ff_sqrt(x << 20) << s;
@@ -85,19 +86,19 @@ static void eval_coefs(int *coefs, const int *refl)
     int buffer[10];
     int *b1 = buffer;
     int *b2 = coefs;
-    int x, y;
+    int i, j;
 
-    for (x=0; x < 10; x++) {
-        b1[x] = refl[x] << 4;
+    for (i=0; i < 10; i++) {
+        b1[i] = refl[i] << 4;
 
-        for (y=0; y < x; y++)
-            b1[y] = ((refl[x] * b2[x-y-1]) >> 12) + b2[y];
+        for (j=0; j < i; j++)
+            b1[j] = ((refl[i] * b2[i-j-1]) >> 12) + b2[j];
 
         FFSWAP(int *, b1, b2);
     }
 
-    for (x=0; x < 10; x++)
-        coefs[x] >>= 4;
+    for (i=0; i < 10; i++)
+        coefs[i] >>= 4;
 }
 
 /**
@@ -151,12 +152,12 @@ static unsigned int rescale_rms(unsigned int rms, unsigned int energy)
 
 static unsigned int rms(const int *data)
 {
-    int x;
+    int i;
     unsigned int res = 0x10000;
-    int b = 0;
+    int b = 10;
 
-    for (x=0; x<10; x++) {
-        res = (((0x1000000 - data[x]*data[x]) >> 12) * res) >> 12;
+    for (i=0; i < 10; i++) {
+        res = (((0x1000000 - data[i]*data[i]) >> 12) * res) >> 12;
 
         if (res == 0)
             return 0;
@@ -167,10 +168,7 @@ static unsigned int rms(const int *data)
         }
     }
 
-    res = t_sqrt(res);
-
-    res >>= (b + 10);
-    return res;
+    return t_sqrt(res) >> b;
 }
 
 static void do_output_subblock(RA144Context *ractx, const uint16_t  *lpc_coefs,
@@ -205,14 +203,9 @@ static void do_output_subblock(RA144Context *ractx, const uint16_t  *lpc_coefs,
 
     memcpy(ractx->curr_sblock, ractx->curr_sblock + 40,
            10*sizeof(*ractx->curr_sblock));
-    memcpy(ractx->curr_sblock + 10, block,
-           BLOCKSIZE*sizeof(*ractx->curr_sblock));
 
-    if (ff_acelp_lp_synthesis_filter(
-                                     ractx->curr_sblock + 10, lpc_coefs,
-                                     ractx->curr_sblock + 10, BLOCKSIZE,
-                                     10, 1, 0xfff)
-        )
+    if (ff_acelp_lp_synthesis_filter(ractx->curr_sblock + 10, lpc_coefs,
+                                     block, BLOCKSIZE, 10, 1, 0xfff))
         memset(ractx->curr_sblock, 0, 50*sizeof(*ractx->curr_sblock));
 }
 
@@ -220,7 +213,7 @@ static void int_to_int16(int16_t *out, const int *inp)
 {
     int i;
 
-    for (i=0; i<30; i++)
+    for (i=0; i < 30; i++)
         *(out++) = *(inp++);
 }
 
@@ -233,9 +226,7 @@ static void int_to_int16(int16_t *out, const int *inp)
  */
 static int eval_refl(int *refl, const int16_t *coefs, RA144Context *ractx)
 {
-    int retval = 0;
-    int b, c, i;
-    unsigned int u;
+    int b, i, j;
     int buffer1[10];
     int buffer2[10];
     int *bp1 = buffer1;
@@ -244,36 +235,30 @@ static int eval_refl(int *refl, const int16_t *coefs, RA144Context *ractx)
     for (i=0; i < 10; i++)
         buffer2[i] = coefs[i];
 
-    u = refl[9] = bp2[9];
+    refl[9] = bp2[9];
 
-    if (u + 0x1000 > 0x1fff) {
+    if ((unsigned) bp2[9] + 0x1000 > 0x1fff) {
         av_log(ractx, AV_LOG_ERROR, "Overflow. Broken sample?\n");
         return 1;
     }
 
-    for (c=8; c >= 0; c--) {
-        if (u == 0x1000)
-            u++;
+    for (i=8; i >= 0; i--) {
+        b = 0x1000-((bp2[i+1] * bp2[i+1]) >> 12);
 
-        if (u == 0xfffff000)
-            u--;
+        if (!b)
+            b = -2;
 
-        b = 0x1000-((u * u) >> 12);
+        for (j=0; j <= i; j++)
+            bp1[j] = ((bp2[j] - ((refl[i+1] * bp2[i-j]) >> 12)) * (0x1000000 / b)) >> 12;
 
-        if (b == 0)
-            b++;
+        refl[i] = bp1[i];
 
-        for (u=0; u<=c; u++)
-            bp1[u] = ((bp2[u] - ((refl[c+1] * bp2[c-u]) >> 12)) * (0x1000000 / b)) >> 12;
-
-        refl[c] = u = bp1[c];
-
-        if ((u + 0x1000) > 0x1fff)
-            retval = 1;
+        if ((unsigned) bp1[i] + 0x1000 > 0x1fff)
+            return 1;
 
         FFSWAP(int *, bp1, bp2);
     }
-    return retval;
+    return 0;
 }
 
 static int interp(RA144Context *ractx, int16_t *out, int block_num,
@@ -282,12 +267,12 @@ static int interp(RA144Context *ractx, int16_t *out, int block_num,
     int work[10];
     int a = block_num + 1;
     int b = NBLOCKS - a;
-    int x;
+    int i;
 
     // Interpolate block coefficients from the this frame forth block and
     // last frame forth block
-    for (x=0; x<30; x++)
-        out[x] = (a * ractx->lpc_coef[0][x] + b * ractx->lpc_coef[1][x])>> 2;
+    for (i=0; i<30; i++)
+        out[i] = (a * ractx->lpc_coef[0][i] + b * ractx->lpc_coef[1][i])>> 2;
 
     if (eval_refl(work, out, ractx)) {
         // The interpolated coefficients are unstable, copy either new or old
@@ -307,12 +292,15 @@ static int ra144_decode_frame(AVCodecContext * avctx, void *vdata,
     unsigned int refl_rms[4];    // RMS of the reflection coefficients
     uint16_t block_coefs[4][30]; // LPC coefficients of each sub-block
     unsigned int lpc_refl[10];   // LPC reflection coefficients of the frame
-    int i, c;
+    int i, j;
     int16_t *data = vdata;
     unsigned int energy;
 
     RA144Context *ractx = avctx->priv_data;
     GetBitContext gb;
+
+    if (*data_size < 2*160)
+        return -1;
 
     if(buf_size < 20) {
         av_log(avctx, AV_LOG_ERROR,
@@ -338,11 +326,11 @@ static int ra144_decode_frame(AVCodecContext * avctx, void *vdata,
 
     int_to_int16(block_coefs[3], ractx->lpc_coef[0]);
 
-    for (c=0; c<4; c++) {
-        do_output_subblock(ractx, block_coefs[c], refl_rms[c], &gb);
+    for (i=0; i < 4; i++) {
+        do_output_subblock(ractx, block_coefs[i], refl_rms[i], &gb);
 
-        for (i=0; i<BLOCKSIZE; i++)
-            *data++ = av_clip_int16(ractx->curr_sblock[i + 10] << 2);
+        for (j=0; j < BLOCKSIZE; j++)
+            *data++ = av_clip_int16(ractx->curr_sblock[j + 10] << 2);
     }
 
     ractx->old_energy = energy;

@@ -440,8 +440,8 @@ av_cold int MPV_encode_init(AVCodecContext *avctx)
     }
 
     if(s->flags & CODEC_FLAG_LOW_DELAY){
-        if (s->codec_id != CODEC_ID_MPEG2VIDEO && s->codec_id != CODEC_ID_MPEG1VIDEO){
-            av_log(avctx, AV_LOG_ERROR, "low delay forcing is only available for mpeg1/2\n");
+        if (s->codec_id != CODEC_ID_MPEG2VIDEO){
+            av_log(avctx, AV_LOG_ERROR, "low delay forcing is only available for mpeg2\n");
             return -1;
         }
         if (s->max_b_frames != 0){
@@ -2012,6 +2012,7 @@ static void write_slice_end(MpegEncContext *s){
 static int encode_thread(AVCodecContext *c, void *arg){
     MpegEncContext *s= arg;
     int mb_x, mb_y, pdif = 0;
+    int chr_h= 16>>s->chroma_y_shift;
     int i, j;
     MpegEncContext best_s, backup_s;
     uint8_t bit_buf[2][MAX_MB_BYTES];
@@ -2606,11 +2607,11 @@ static int encode_thread(AVCodecContext *c, void *arg){
                     s, s->new_picture.data[0] + s->mb_x*16 + s->mb_y*s->linesize*16,
                     s->dest[0], w, h, s->linesize);
                 s->current_picture.error[1] += sse(
-                    s, s->new_picture.data[1] + s->mb_x*8  + s->mb_y*s->uvlinesize*8,
-                    s->dest[1], w>>1, h>>1, s->uvlinesize);
+                    s, s->new_picture.data[1] + s->mb_x*8  + s->mb_y*s->uvlinesize*chr_h,
+                    s->dest[1], w>>1, h>>s->chroma_y_shift, s->uvlinesize);
                 s->current_picture.error[2] += sse(
-                    s, s->new_picture    .data[2] + s->mb_x*8  + s->mb_y*s->uvlinesize*8,
-                    s->dest[2], w>>1, h>>1, s->uvlinesize);
+                    s, s->new_picture.data[2] + s->mb_x*8  + s->mb_y*s->uvlinesize*chr_h,
+                    s->dest[2], w>>1, h>>s->chroma_y_shift, s->uvlinesize);
             }
             if(s->loop_filter){
                 if(ENABLE_ANY_H263_ENCODER && s->out_format == FMT_H263)

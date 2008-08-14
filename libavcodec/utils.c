@@ -31,6 +31,7 @@
 #include "dsputil.h"
 #include "opt.h"
 #include "imgconvert.h"
+#include "audioconvert.h"
 #include <stdarg.h>
 #include <limits.h>
 #include <float.h>
@@ -1148,6 +1149,10 @@ void avcodec_string(char *buf, int buf_size, AVCodecContext *enc, int encode)
                      enc->sample_rate,
                      channels_str);
         }
+        if (enc->sample_fmt != SAMPLE_FMT_NONE) {
+            snprintf(buf + strlen(buf), buf_size - strlen(buf),
+                     ", %s", avcodec_get_sample_fmt_name(enc->sample_fmt));
+        }
 
         /* for PCM codecs, compute bitrate directly */
         switch(enc->codec_id) {
@@ -1176,6 +1181,7 @@ void avcodec_string(char *buf, int buf_size, AVCodecContext *enc, int encode)
         case CODEC_ID_PCM_U8:
         case CODEC_ID_PCM_ALAW:
         case CODEC_ID_PCM_MULAW:
+        case CODEC_ID_PCM_ZORK:
             bitrate = enc->sample_rate * enc->channels * 8;
             break;
         default:
@@ -1285,6 +1291,7 @@ int av_get_bits_per_sample(enum CodecID codec_id){
     case CODEC_ID_PCM_MULAW:
     case CODEC_ID_PCM_S8:
     case CODEC_ID_PCM_U8:
+    case CODEC_ID_PCM_ZORK:
         return 8;
     case CODEC_ID_PCM_S16BE:
     case CODEC_ID_PCM_S16LE:
@@ -1505,4 +1512,17 @@ int av_parse_video_frame_rate(AVRational *frame_rate, const char *arg)
         return -1;
     else
         return 0;
+}
+
+void av_log_missing_feature(void *avc, const char *feature, int want_sample)
+{
+    av_log(avc, AV_LOG_WARNING, "%s not implemented. Update your FFmpeg "
+            "version to the newest one from SVN. If the problem still "
+            "occurs, it means that your file has a feature which has not "
+            "been implemented.", feature);
+    if(want_sample)
+        av_log(avc, AV_LOG_WARNING, " If you want to help, upload a sample "
+                "of this file to ftp://upload.mplayerhq.hu/MPlayer/incoming/ "
+                "and contact the FFmpeg-devel mailing list.");
+    av_log(avc, AV_LOG_WARNING, "\n");
 }

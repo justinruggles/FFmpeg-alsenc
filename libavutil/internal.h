@@ -50,10 +50,6 @@
 #endif
 #endif
 
-#ifndef M_PI
-#define M_PI    3.14159265358979323846
-#endif
-
 #ifndef INT16_MIN
 #define INT16_MIN       (-0x7fff-1)
 #endif
@@ -106,7 +102,7 @@
 #    define offsetof(T,F) ((unsigned int)((char *)&((T *)0)->F))
 #endif
 
-#ifdef USE_FASTMEMCPY
+#ifdef CONFIG_FASTMEMCPY
 #    include "libvo/fastmemcpy.h"
 #    define memcpy(a,b,c) fast_memcpy(a,b,c)
 #endif
@@ -150,7 +146,10 @@ extern const uint32_t ff_inverse[256];
 static inline av_const int FASTDIV(int a, int b)
 {
     int r;
-    asm volatile("smmul %0, %1, %2" : "=r"(r) : "r"(a), "r"(ff_inverse[b]));
+    asm volatile("cmp   %2, #0        \n\t"
+                 "smmul %0, %1, %2    \n\t"
+                 "rsblt %0, %0, #0    \n\t"
+                 : "=r"(r) : "r"(a), "r"(ff_inverse[b]));
     return r;
 }
 #elif defined(ARCH_ARMV4L)

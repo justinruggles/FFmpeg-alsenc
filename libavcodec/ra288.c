@@ -42,6 +42,12 @@ typedef struct {
     float gain_block[10];  ///< Gain data of four blocks (spec: GSTATE)
 } RA288Context;
 
+static av_cold int ra288_decode_init(AVCodecContext *avctx)
+{
+    avctx->sample_fmt = SAMPLE_FMT_S16;
+    return 0;
+}
+
 static inline float scalar_product_float(const float * v1, const float * v2,
                                          int size)
 {
@@ -61,18 +67,23 @@ static void colmult(float *tgt, const float *m1, const float *m2, int n)
 
 static void decode(RA288Context *ractx, float gain, int cb_coef)
 {
-    int x, y;
+    int i, j;
     double sumsum;
     float sum, buffer[5];
+    float *block = ractx->sp_block + 36; // Current block
 
-    memmove(ractx->sp_block + 5, ractx->sp_block, 36*sizeof(*ractx->sp_block));
+    memmove(ractx->sp_block, ractx->sp_block + 5, 36*sizeof(*ractx->sp_block));
 
-    for (x=4; x >= 0; x--)
-        ractx->sp_block[x] = -scalar_product_float(ractx->sp_block + x + 1,
-                                             ractx->sp_lpc, 36);
+    for (i=0; i < 5; i++) {
+        block[i] = 0.;
+        for (j=0; j < 36; j++)
+            block[i] -= block[i-1-j]*ractx->sp_lpc[j];
+    }
 
     /* block 46 of G.728 spec */
-    sum = 32. - scalar_product_float(ractx->gain_lpc, ractx->gain_block, 10);
+    sum = 32.;
+    for (i=0; i < 10; i++)
+        sum -= ractx->gain_block[9-i] * ractx->gain_lpc[i];
 
     /* block 47 of G.728 spec */
     sum = av_clipf(sum, 0, 60);
@@ -80,27 +91,26 @@ static void decode(RA288Context *ractx, float gain, int cb_coef)
     /* block 48 of G.728 spec */
     sumsum = exp(sum * 0.1151292546497) * gain; /* pow(10.0,sum/20)*gain */
 
-    for (x=0; x < 5; x++)
-        buffer[x] = codetable[cb_coef][x] * sumsum;
+    for (i=0; i < 5; i++)
+        buffer[i] = codetable[cb_coef][i] * sumsum;
 
     sum = scalar_product_float(buffer, buffer, 5) / 5;
 
     sum = FFMAX(sum, 1);
 
     /* shift and store */
-    memmove(ractx->gain_block, ractx->gain_block - 1,
-            10 * sizeof(*ractx->gain_block));
+    memmove(ractx->gain_block, ractx->gain_block + 1,
+            9 * sizeof(*ractx->gain_block));
 
-    *ractx->gain_block = 10 * log10(sum) - 32;
+    ractx->gain_block[9] = 10 * log10(sum) - 32;
 
-    for (x=1; x < 5; x++)
-        for (y=x-1; y >= 0; y--)
-            buffer[x] -= ractx->sp_lpc[x-y-1] * buffer[y];
+    for (i=1; i < 5; i++)
+        for (j=i-1; j >= 0; j--)
+            buffer[i] -= ractx->sp_lpc[i-j-1] * buffer[j];
 
     /* output */
-    for (x=0; x < 5; x++)
-        ractx->sp_block[4-x] =
-            av_clipf(ractx->sp_block[4-x] + buffer[x], -4095, 4095);
+    for (i=0; i < 5; i++)
+        block[i] = av_clipf(block[i] + buffer[i], -4095, 4095);
 }
 
 /**
@@ -111,7 +121,7 @@ static void decode(RA288Context *ractx, float gain, int cb_coef)
  */
 static int eval_lpc_coeffs(const float *in, float *tgt, int n)
 {
-    int x, y;
+    int i, j;
     double f0, f1, f2;
 
     if (in[n] == 0)
@@ -122,17 +132,17 @@ static int eval_lpc_coeffs(const float *in, float *tgt, int n)
 
     in--; // To avoid a -1 subtraction in the inner loop
 
-    for (x=1; x <= n; x++) {
-        f1 = in[x+1];
+    for (i=1; i <= n; i++) {
+        f1 = in[i+1];
 
-        for (y=0; y < x - 1; y++)
-            f1 += in[x-y]*tgt[y];
+        for (j=0; j < i - 1; j++)
+            f1 += in[i-j]*tgt[j];
 
-        tgt[x-1] = f2 = -f1/f0;
-        for (y=0; y < x >> 1; y++) {
-            float temp = tgt[y] + tgt[x-y-2]*f2;
-            tgt[x-y-2] += tgt[y]*f2;
-            tgt[y] = temp;
+        tgt[i-1] = f2 = -f1/f0;
+        for (j=0; j < i >> 1; j++) {
+            float temp = tgt[j] + tgt[i-j-2]*f2;
+            tgt[i-j-2] += tgt[j]*f2;
+            tgt[j] = temp;
         }
         if ((f0 += f1*f2) < 0)
             return -1;
@@ -141,7 +151,7 @@ static int eval_lpc_coeffs(const float *in, float *tgt, int n)
     return 0;
 }
 
-static void prodsum(float *tgt, const float *src, int len, int n)
+static void convolve(float *tgt, const float *src, int len, int n)
 {
     for (; n >= 0; n--)
         tgt[n] = scalar_product_float(src, src - n, len);
@@ -150,11 +160,6 @@ static void prodsum(float *tgt, const float *src, int len, int n)
 
 /**
  * Hybrid window filtering. See blocks 36 and 49 of the G.728 specification.
- *
- * @note This function is slightly different from that described in the spec.
- *       It expects in[0] to be the newest sample and in[n-1] to be the oldest
- *       one stored. The spec has in the more ordinary way (in[0] the oldest
- *       and in[n-1] the newest).
  *
  * @param order   the order of the filter
  * @param n       the length of the input
@@ -171,25 +176,23 @@ static void do_hybrid_window(int order, int n, int non_rec, const float *in,
                              float *out, float *hist, float *out2,
                              const float *window)
 {
-    unsigned int x;
+    int i;
     float buffer1[order + 1];
     float buffer2[order + 1];
     float work[order + n + non_rec];
 
     /* update history */
-    memmove(hist, hist + n, (order + non_rec)*sizeof(*hist));
-
-    for (x=0; x < n; x++)
-        hist[order + non_rec + x] = in[n-x-1];
+    memmove(hist                  , hist + n, (order + non_rec)*sizeof(*hist));
+    memcpy (hist + order + non_rec, in      , n                *sizeof(*hist));
 
     colmult(work, window, hist, order + n + non_rec);
 
-    prodsum(buffer1, work + order    , n      , order);
-    prodsum(buffer2, work + order + n, non_rec, order);
+    convolve(buffer1, work + order    , n      , order);
+    convolve(buffer2, work + order + n, non_rec, order);
 
-    for (x=0; x <= order; x++) {
-        out2[x] = out2[x] * 0.5625 + buffer1[x];
-        out [x] = out2[x]          + buffer2[x];
+    for (i=0; i <= order; i++) {
+        out2[i] = out2[i] * 0.5625 + buffer1[i];
+        out [i] = out2[i]          + buffer2[i];
     }
 
     /* Multiply by the white noise correcting factor (WNCF) */
@@ -204,13 +207,13 @@ static void backward_filter(RA288Context *ractx)
     float temp1[37]; // RTMP in the spec
     float temp2[11]; // GPTPMP in the spec
 
-    do_hybrid_window(36, 40, 35, ractx->sp_block, temp1, ractx->sp_hist,
+    do_hybrid_window(36, 40, 35, ractx->sp_block+1, temp1, ractx->sp_hist,
                      ractx->sp_rec, syn_window);
 
     if (!eval_lpc_coeffs(temp1, ractx->sp_lpc, 36))
         colmult(ractx->sp_lpc, ractx->sp_lpc, syn_bw_tab, 36);
 
-    do_hybrid_window(10, 8, 20, ractx->gain_block, temp2, ractx->gain_hist,
+    do_hybrid_window(10, 8, 20, ractx->gain_block+2, temp2, ractx->gain_hist,
                      ractx->gain_rec, gain_window);
 
     if (!eval_lpc_coeffs(temp2, ractx->gain_lpc, 10))
@@ -222,7 +225,7 @@ static int ra288_decode_frame(AVCodecContext * avctx, void *data,
                               int buf_size)
 {
     int16_t *out = data;
-    int x, y;
+    int i, j;
     RA288Context *ractx = avctx->priv_data;
     GetBitContext gb;
 
@@ -233,18 +236,21 @@ static int ra288_decode_frame(AVCodecContext * avctx, void *data,
         return 0;
     }
 
+    if (*data_size < 32*5*2)
+        return -1;
+
     init_get_bits(&gb, buf, avctx->block_align * 8);
 
-    for (x=0; x < 32; x++) {
+    for (i=0; i < 32; i++) {
         float gain = amptable[get_bits(&gb, 3)];
-        int cb_coef = get_bits(&gb, 6 + (x&1));
+        int cb_coef = get_bits(&gb, 6 + (i&1));
 
         decode(ractx, gain, cb_coef);
 
-        for (y=0; y < 5; y++)
-            *(out++) = 8 * ractx->sp_block[4 - y];
+        for (j=0; j < 5; j++)
+            *(out++) = 8 * ractx->sp_block[36 + j];
 
-        if ((x & 7) == 3)
+        if ((i & 7) == 3)
             backward_filter(ractx);
     }
 
@@ -258,7 +264,7 @@ AVCodec ra_288_decoder =
     CODEC_TYPE_AUDIO,
     CODEC_ID_RA_288,
     sizeof(RA288Context),
-    NULL,
+    ra288_decode_init,
     NULL,
     NULL,
     ra288_decode_frame,

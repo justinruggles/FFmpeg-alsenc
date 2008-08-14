@@ -126,7 +126,7 @@ do_audio_encoding()
 
 do_audio_decoding()
 {
-    do_ffmpeg $pcm_dst -i $file -f wav $pcm_dst
+    do_ffmpeg $pcm_dst -i $file -sample_fmt s16 -f wav $pcm_dst
 }
 
 do_libav()
@@ -181,6 +181,10 @@ do_video_decoding
 
 # mpeg2 encoding intra vlc qprd
 do_video_encoding mpeg2ivlc-qprd.mpg "-vb 500k -bf 2 -flags +trell+qprd+mv0 -flags2 +ivlc -cmp 2 -subcmp 2 -mbd rd" "-vcodec mpeg2video -f mpeg2video"
+do_video_decoding
+
+#mpeg2 4:2:2 encoding
+do_video_encoding mpeg2_422.mpg "-vb 1000k -bf 2 -trellis 1 -flags +qprd+mv0+ildct+ilme -flags2 +ivlc -mbd rd" "-vcodec mpeg2video -pix_fmt yuv422p -f mpeg2video"
 do_video_decoding
 
 # mpeg2
@@ -349,6 +353,9 @@ fi
 if [ -n "$do_dv" ] ; then
 do_video_encoding dv.dv "-dct int" "-s pal -an"
 do_video_decoding "" "-s cif"
+
+do_video_encoding dv411.dv "-dct int" "-s pal -an -pix_fmt yuv411p"
+do_video_decoding "" "-s cif"
 fi
 
 if [ -n "$do_dv50" ] ; then
@@ -429,6 +436,33 @@ fi
 #do_audio_encoding vorbis.asf "-ar 44100" "-acodec vorbis"
 #do_audio_decoding
 #fi
+
+do_audio_enc_dec() {
+    do_audio_encoding $3.$1 "" "$4 -sample_fmt $2 -acodec $3"
+    do_audio_decoding
+}
+
+if [ -n "$do_pcm" ] ; then
+do_audio_enc_dec wav s16 pcm_alaw
+do_audio_enc_dec wav s16 pcm_mulaw
+do_audio_enc_dec mov u8 pcm_s8
+do_audio_enc_dec wav u8 pcm_u8
+do_audio_enc_dec mov s16 pcm_s16be
+do_audio_enc_dec wav s16 pcm_s16le
+do_audio_enc_dec mkv s16 pcm_u16be
+do_audio_enc_dec mkv s16 pcm_u16le
+do_audio_enc_dec mov s32 pcm_s24be
+do_audio_enc_dec wav s32 pcm_s24le
+#do_audio_enc_dec ??? s32 pcm_u24be #no compatible muxer or demuxer
+#do_audio_enc_dec ??? s32 pcm_u24le #no compatible muxer or demuxer
+do_audio_enc_dec mov s32 pcm_s32be
+do_audio_enc_dec wav s32 pcm_s32le
+#do_audio_enc_dec ??? s32 pcm_u32be #no compatible muxer or demuxer
+#do_audio_enc_dec ??? s32 pcm_u32le #no compatible muxer or demuxer
+do_audio_enc_dec au  flt pcm_f32be
+do_audio_enc_dec wav s16 pcm_zork
+do_audio_enc_dec 302 s16 pcm_s24daud "-ac 6 -ar 96000"
+fi
 
 # libavformat testing
 

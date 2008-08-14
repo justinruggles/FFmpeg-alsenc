@@ -140,6 +140,25 @@ The mapping is particularly useful for DVD transcoding
 to get the desired audio language.
 
 NOTE: To see the supported input formats, use @code{ffmpeg -formats}.
+
+* You can extract images from a video:
+
+@example
+ffmpeg -i foo.avi -r 1 -s WxH -f image2 foo-%03d.jpeg
+@end example
+
+This will extract one video frame per second from the video and will
+output them in files named @file{foo-001.jpeg}, @file{foo-002.jpeg},
+etc. Images will be rescaled to fit the new WxH values.
+
+The syntax @code{foo-%03d.jpeg} specifies to use a decimal number
+composed of three digits padded with zeroes to express the sequence
+number. It is the same syntax supported by the C printf function, but
+only formats accepting a normal integer are suitable.
+
+If you want to extract just a limited number of frames, you can use the
+above command in combination with the -vframes or -t option, or in
+combination with -ss to start extracting from a certain point in time.
 @c man end
 
 @chapter Invocation
@@ -410,6 +429,12 @@ Select the pass number (1 or 2). It is useful to do two pass
 encoding. The statistics of the video are recorded in the first
 pass and the video is generated at the exact requested bitrate
 in the second pass.
+On pass 1, you may just deactivate audio and set output to null,
+examples for Windows and Unix:
+@example
+ffmpeg -i foo.mov -vcodec libxvid -pass 1 -an -f rawvideo -y NUL
+ffmpeg -i foo.mov -vcodec libxvid -pass 1 -an -f rawvideo -y /dev/null
+@end example
 
 @item -passlogfile @var{file}
 Set two pass logfile name to @var{file}.
@@ -690,10 +715,11 @@ Synchronize read on input.
 @section Advanced options
 
 @table @option
-@item -map input stream id[:input stream id]
+@item -map @var{input_stream_id}[:@var{sync_stream_id}]
 Set stream mapping from input streams to output streams.
 Just enumerate the input streams in the order you want them in the output.
-[input stream id] sets the (input) stream to sync against.
+@var{sync_stream_id} if specified sets the input stream to sync
+against.
 @item -map_meta_data @var{outfile}:@var{infile}
 Set meta data information of @var{outfile} from @var{infile}.
 @item -debug

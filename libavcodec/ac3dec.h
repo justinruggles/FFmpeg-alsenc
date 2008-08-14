@@ -1,5 +1,5 @@
 /*
- * Common code between AC3 and E-AC3 decoder
+ * Common code between the AC-3 and E-AC-3 decoders
  * Copyright (c) 2007 Bartlomiej Wolowiec <bartek.wolowiec@gmail.com>
  *
  * This file is part of FFmpeg.
@@ -21,7 +21,7 @@
 
 /**
  * @file ac3.h
- * Common code between AC3 and E-AC3 decoder.
+ * Common code between the AC-3 and E-AC-3 decoders.
  */
 
 #ifndef FFMPEG_AC3DEC_H
@@ -90,8 +90,8 @@ typedef struct {
 ///@}
 
 ///@defgroup aht adaptive hybrid transform
-    int channel_uses_aht[AC3_MAX_CHANNELS];                 ///< channel AHT in use     (chahtinu)
-    int pre_mantissa[6][AC3_MAX_CHANNELS][AC3_MAX_COEFS];   ///< pre-IDCT mantissas
+    int channel_uses_aht[AC3_MAX_CHANNELS];                         ///< channel AHT in use (chahtinu)
+    int pre_mantissa[AC3_MAX_CHANNELS][AC3_MAX_COEFS][MAX_BLOCKS];  ///< pre-IDCT mantissas
 ///@}
 
 ///@defgroup channel channel
@@ -99,7 +99,6 @@ typedef struct {
     int channels;                               ///< number of total channels
     int lfe_ch;                                 ///< index of LFE channel
     float downmix_coeffs[AC3_MAX_CHANNELS][2];  ///< stereo downmix coefficients
-    float downmix_coeff_adjust[2];              ///< adjustment needed for each output channel when downmixing
     int downmixed;                              ///< indicates if coeffs are currently downmixed
     int output_mode;                            ///< output channel configuration
     int out_channels;                           ///< number of output channels
@@ -159,16 +158,14 @@ typedef struct {
     float mul_bias;                         ///< scaling for float_to_int16 conversion
 ///@}
 
-    int fixed_coeffs[AC3_MAX_CHANNELS][AC3_MAX_COEFS];  ///> fixed-point transform coefficients
+    DECLARE_ALIGNED_16(int, fixed_coeffs[AC3_MAX_CHANNELS][AC3_MAX_COEFS]);  ///> fixed-point transform coefficients
 
 ///@defgroup arrays aligned arrays
     DECLARE_ALIGNED_16(float, transform_coeffs[AC3_MAX_CHANNELS][AC3_MAX_COEFS]);   ///< transform coefficients
     DECLARE_ALIGNED_16(float, delay[AC3_MAX_CHANNELS][AC3_BLOCK_SIZE]);             ///< delay - added to the next block
     DECLARE_ALIGNED_16(float, window[AC3_BLOCK_SIZE]);                              ///< window coefficients
-    DECLARE_ALIGNED_16(float, tmp_output[AC3_BLOCK_SIZE*2]);                        ///< temporary storage for output before windowing
-    DECLARE_ALIGNED_16(float, tmp_imdct[AC3_BLOCK_SIZE]);                           ///< temporary storage for imdct transform
+    DECLARE_ALIGNED_16(float, tmp_output[AC3_BLOCK_SIZE]);                          ///< temporary storage for output before windowing
     DECLARE_ALIGNED_16(float, output[AC3_MAX_CHANNELS][AC3_BLOCK_SIZE]);            ///< output after imdct transform and windowing
-    DECLARE_ALIGNED_16(short, int_output[AC3_MAX_CHANNELS-1][AC3_BLOCK_SIZE]);      ///< final 16-bit integer output
 ///@}
 } AC3DecodeContext;
 

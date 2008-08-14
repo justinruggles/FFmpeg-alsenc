@@ -915,7 +915,7 @@ static int apply_window_and_mdct(venc_context_t * venc, signed short * audio, in
     }
 
     for (channel = 0; channel < venc->channels; channel++) {
-        ff_mdct_calc(&venc->mdct[0], venc->coeffs + channel*window_len, venc->samples + channel*window_len*2, venc->floor/*tmp*/);
+        ff_mdct_calc(&venc->mdct[0], venc->coeffs + channel*window_len, venc->samples + channel*window_len*2);
     }
 
     if (samples) {
@@ -1084,5 +1084,6 @@ AVCodec vorbis_encoder = {
     vorbis_encode_frame,
     vorbis_encode_close,
     .capabilities= CODEC_CAP_DELAY,
+    .sample_fmts = (enum SampleFormat[]){SAMPLE_FMT_S16,SAMPLE_FMT_NONE},
     .long_name = NULL_IF_CONFIG_SMALL("Vorbis"),
 };

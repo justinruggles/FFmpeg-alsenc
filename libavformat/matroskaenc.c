@@ -424,7 +424,7 @@ static int put_xiph_codecpriv(AVFormatContext *s, ByteIOContext *pb, AVCodecCont
 static int put_flac_codecpriv(AVFormatContext *s, ByteIOContext *pb, AVCodecContext *codec)
 {
     // if the extradata_size is greater than FLAC_STREAMINFO_SIZE,
-    // assume that it's in Matroska's format already
+    // assume that it's in Matroska format already
     if (codec->extradata_size < FLAC_STREAMINFO_SIZE) {
         av_log(s, AV_LOG_ERROR, "Invalid FLAC extradata\n");
         return -1;
@@ -587,7 +587,7 @@ static int mkv_write_tracks(AVFormatContext *s)
                     put_ebml_string(pb, MATROSKA_ID_CODECID, "V_QUICKTIME");
                 else if (!native_id)
                     // if there is no mkv-specific codec ID, use VFW mode
-                    put_ebml_string(pb, MATROSKA_ID_CODECID, MATROSKA_CODEC_ID_VIDEO_VFW_FOURCC);
+                    put_ebml_string(pb, MATROSKA_ID_CODECID, "V_MS/VFW/FOURCC");
 
                 subinfo = start_ebml_master(pb, MATROSKA_ID_TRACKVIDEO, 0);
                 // XXX: interlace flag?
@@ -607,7 +607,7 @@ static int mkv_write_tracks(AVFormatContext *s)
 
                 if (!native_id)
                     // no mkv-specific ID, use ACM mode
-                    put_ebml_string(pb, MATROSKA_ID_CODECID, MATROSKA_CODEC_ID_AUDIO_ACM);
+                    put_ebml_string(pb, MATROSKA_ID_CODECID, "A_MS/ACM");
 
                 subinfo = start_ebml_master(pb, MATROSKA_ID_TRACKAUDIO, 0);
                 put_ebml_uint  (pb, MATROSKA_ID_AUDIOCHANNELS    , codec->channels);

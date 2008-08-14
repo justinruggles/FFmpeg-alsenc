@@ -788,7 +788,7 @@ static void draw_edges_mmx(uint8_t *buf, int wrap, int width, int height, int w)
 }
 
 #define PAETH(cpu, abs3)\
-void add_png_paeth_prediction_##cpu(uint8_t *dst, uint8_t *src, uint8_t *top, int w, int bpp)\
+static void add_png_paeth_prediction_##cpu(uint8_t *dst, uint8_t *src, uint8_t *top, int w, int bpp)\
 {\
     x86_reg i = -bpp;\
     x86_reg end = w-3;\
@@ -1842,6 +1842,105 @@ static void vorbis_inverse_coupling_sse(float *mag, float *ang, int blocksize)
     }
 }
 
+#define IF1(x) x
+#define IF0(x)
+
+#define MIX5(mono,stereo)\
+    asm volatile(\
+        "movss          0(%2), %%xmm5 \n"\
+        "movss          8(%2), %%xmm6 \n"\
+        "movss         24(%2), %%xmm7 \n"\
+        "shufps    $0, %%xmm5, %%xmm5 \n"\
+        "shufps    $0, %%xmm6, %%xmm6 \n"\
+        "shufps    $0, %%xmm7, %%xmm7 \n"\
+        "1: \n"\
+        "movaps       (%0,%1), %%xmm0 \n"\
+        "movaps  0x400(%0,%1), %%xmm1 \n"\
+        "movaps  0x800(%0,%1), %%xmm2 \n"\
+        "movaps  0xc00(%0,%1), %%xmm3 \n"\
+        "movaps 0x1000(%0,%1), %%xmm4 \n"\
+        "mulps         %%xmm5, %%xmm0 \n"\
+        "mulps         %%xmm6, %%xmm1 \n"\
+        "mulps         %%xmm5, %%xmm2 \n"\
+        "mulps         %%xmm7, %%xmm3 \n"\
+        "mulps         %%xmm7, %%xmm4 \n"\
+ stereo("addps         %%xmm1, %%xmm0 \n")\
+        "addps         %%xmm1, %%xmm2 \n"\
+        "addps         %%xmm3, %%xmm0 \n"\
+        "addps         %%xmm4, %%xmm2 \n"\
+   mono("addps         %%xmm2, %%xmm0 \n")\
+        "movaps  %%xmm0,      (%0,%1) \n"\
+ stereo("movaps  %%xmm2, 0x400(%0,%1) \n")\
+        "add $16, %0 \n"\
+        "jl 1b \n"\
+        :"+&r"(i)\
+        :"r"(samples[0]+len), "r"(matrix)\
+        :"memory"\
+    );
+
+#define MIX_MISC(stereo)\
+    asm volatile(\
+        "1: \n"\
+        "movaps  (%3,%0), %%xmm0 \n"\
+ stereo("movaps   %%xmm0, %%xmm1 \n")\
+        "mulps    %%xmm6, %%xmm0 \n"\
+ stereo("mulps    %%xmm7, %%xmm1 \n")\
+        "lea 1024(%3,%0), %1 \n"\
+        "mov %5, %2 \n"\
+        "2: \n"\
+        "movaps   (%1),   %%xmm2 \n"\
+ stereo("movaps   %%xmm2, %%xmm3 \n")\
+        "mulps   (%4,%2), %%xmm2 \n"\
+ stereo("mulps 16(%4,%2), %%xmm3 \n")\
+        "addps    %%xmm2, %%xmm0 \n"\
+ stereo("addps    %%xmm3, %%xmm1 \n")\
+        "add $1024, %1 \n"\
+        "add $32, %2 \n"\
+        "jl 2b \n"\
+        "movaps   %%xmm0,     (%3,%0) \n"\
+ stereo("movaps   %%xmm1, 1024(%3,%0) \n")\
+        "add $16, %0 \n"\
+        "jl 1b \n"\
+        :"+&r"(i), "=&r"(j), "=&r"(k)\
+        :"r"(samples[0]+len), "r"(matrix_simd+in_ch), "g"((intptr_t)-32*(in_ch-1))\
+        :"memory"\
+    );
+
+static void ac3_downmix_sse(float (*samples)[256], float (*matrix)[2], int out_ch, int in_ch, int len)
+{
+    int (*matrix_cmp)[2] = (int(*)[2])matrix;
+    intptr_t i,j,k;
+
+    i = -len*sizeof(float);
+    if(in_ch == 5 && out_ch == 2 && !(matrix_cmp[0][1]|matrix_cmp[2][0]|matrix_cmp[3][1]|matrix_cmp[4][0]|(matrix_cmp[1][0]^matrix_cmp[1][1])|(matrix_cmp[0][0]^matrix_cmp[2][1]))) {
+        MIX5(IF0,IF1);
+    } else if(in_ch == 5 && out_ch == 1 && matrix_cmp[0][0]==matrix_cmp[2][0] && matrix_cmp[3][0]==matrix_cmp[4][0]) {
+        MIX5(IF1,IF0);
+    } else {
+        DECLARE_ALIGNED_16(float, matrix_simd[in_ch][2][4]);
+        j = 2*in_ch*sizeof(float);
+        asm volatile(
+            "1: \n"
+            "sub $8, %0 \n"
+            "movss     (%2,%0), %%xmm6 \n"
+            "movss    4(%2,%0), %%xmm7 \n"
+            "shufps $0, %%xmm6, %%xmm6 \n"
+            "shufps $0, %%xmm7, %%xmm7 \n"
+            "movaps %%xmm6,   (%1,%0,4) \n"
+            "movaps %%xmm7, 16(%1,%0,4) \n"
+            "jg 1b \n"
+            :"+&r"(j)
+            :"r"(matrix_simd), "r"(matrix)
+            :"memory"
+        );
+        if(out_ch == 2) {
+            MIX_MISC(IF1);
+        } else {
+            MIX_MISC(IF0);
+        }
+    }
+}
+
 static void vector_fmul_3dnow(float *dst, const float *src, int len){
     x86_reg i = (len-4)*4;
     asm volatile(
@@ -2093,6 +2192,50 @@ static void vector_fmul_window_sse(float *dst, const float *src0, const float *s
         ff_vector_fmul_window_c(dst, src0, src1, win, add_bias, len);
 }
 
+static void int32_to_float_fmul_scalar_sse(float *dst, const int *src, float mul, int len)
+{
+    x86_reg i = -4*len;
+    asm volatile(
+        "movss  %3, %%xmm4 \n"
+        "shufps $0, %%xmm4, %%xmm4 \n"
+        "1: \n"
+        "cvtpi2ps   (%2,%0), %%xmm0 \n"
+        "cvtpi2ps  8(%2,%0), %%xmm1 \n"
+        "cvtpi2ps 16(%2,%0), %%xmm2 \n"
+        "cvtpi2ps 24(%2,%0), %%xmm3 \n"
+        "movlhps  %%xmm1,    %%xmm0 \n"
+        "movlhps  %%xmm3,    %%xmm2 \n"
+        "mulps    %%xmm4,    %%xmm0 \n"
+        "mulps    %%xmm4,    %%xmm2 \n"
+        "movaps   %%xmm0,   (%1,%0) \n"
+        "movaps   %%xmm2, 16(%1,%0) \n"
+        "add $32, %0 \n"
+        "jl 1b \n"
+        :"+r"(i)
+        :"r"(dst+len), "r"(src+len), "m"(mul)
+    );
+}
+
+static void int32_to_float_fmul_scalar_sse2(float *dst, const int *src, float mul, int len)
+{
+    x86_reg i = -4*len;
+    asm volatile(
+        "movss  %3, %%xmm4 \n"
+        "shufps $0, %%xmm4, %%xmm4 \n"
+        "1: \n"
+        "cvtdq2ps   (%2,%0), %%xmm0 \n"
+        "cvtdq2ps 16(%2,%0), %%xmm1 \n"
+        "mulps    %%xmm4,    %%xmm0 \n"
+        "mulps    %%xmm4,    %%xmm1 \n"
+        "movaps   %%xmm0,   (%1,%0) \n"
+        "movaps   %%xmm1, 16(%1,%0) \n"
+        "add $32, %0 \n"
+        "jl 1b \n"
+        :"+r"(i)
+        :"r"(dst+len), "r"(src+len), "m"(mul)
+    );
+}
+
 static void float_to_int16_3dnow(int16_t *dst, const float *src, long len){
     // not bit-exact: pf2id uses different rounding than C and SSE
     asm volatile(
@@ -2154,9 +2297,20 @@ static void float_to_int16_sse2(int16_t *dst, const float *src, long len){
     );
 }
 
+#ifdef HAVE_YASM
+void ff_float_to_int16_interleave6_sse(int16_t *dst, const float **src, int len);
+void ff_float_to_int16_interleave6_3dnow(int16_t *dst, const float **src, int len);
+void ff_float_to_int16_interleave6_3dn2(int16_t *dst, const float **src, int len);
+#else
+#define ff_float_to_int16_interleave6_sse(a,b,c)   float_to_int16_interleave_misc_sse(a,b,c,6)
+#define ff_float_to_int16_interleave6_3dnow(a,b,c) float_to_int16_interleave_misc_3dnow(a,b,c,6)
+#define ff_float_to_int16_interleave6_3dn2(a,b,c)  float_to_int16_interleave_misc_3dnow(a,b,c,6)
+#endif
+#define ff_float_to_int16_interleave6_sse2 ff_float_to_int16_interleave6_sse
+
 #define FLOAT_TO_INT16_INTERLEAVE(cpu, body) \
 /* gcc pessimizes register allocation if this is in the same function as float_to_int16_interleave_sse2*/\
-static av_noinline void float_to_int16_interleave2_##cpu(int16_t *dst, const float **src, long len, int channels){\
+static av_noinline void float_to_int16_interleave_misc_##cpu(int16_t *dst, const float **src, long len, int channels){\
     DECLARE_ALIGNED_16(int16_t, tmp[len]);\
     int i,j,c;\
     for(c=0; c<channels; c++){\
@@ -2169,9 +2323,7 @@ static av_noinline void float_to_int16_interleave2_##cpu(int16_t *dst, const flo
 static void float_to_int16_interleave_##cpu(int16_t *dst, const float **src, long len, int channels){\
     if(channels==1)\
         float_to_int16_##cpu(dst, src[0], len);\
-    else if(channels>2)\
-        float_to_int16_interleave2_##cpu(dst, src, len, channels);\
-    else{\
+    else if(channels==2){\
         const float *src0 = src[0];\
         const float *src1 = src[1];\
         asm volatile(\
@@ -2183,7 +2335,10 @@ static void float_to_int16_interleave_##cpu(int16_t *dst, const float **src, lon
             body\
             :"+r"(len), "+r"(dst), "+r"(src0), "+r"(src1)\
         );\
-    }\
+    }else if(channels==6){\
+        ff_float_to_int16_interleave6_##cpu(dst, src, len);\
+    }else\
+        float_to_int16_interleave_misc_##cpu(dst, src, len, channels);\
 }
 
 FLOAT_TO_INT16_INTERLEAVE(3dnow,
@@ -2233,6 +2388,13 @@ FLOAT_TO_INT16_INTERLEAVE(sse2,
     "add $16, %0                \n"
     "js 1b                      \n"
 )
+
+static void float_to_int16_interleave_3dn2(int16_t *dst, const float **src, long len, int channels){
+    if(channels==6)
+        ff_float_to_int16_interleave6_3dn2(dst, src, len);
+    else
+        float_to_int16_interleave_3dnow(dst, src, len, channels);
+}
 
 
 extern void ff_snow_horizontal_compose97i_sse2(IDWTELEM *b, int width);
@@ -2679,23 +2841,27 @@ void dsputil_init_mmx(DSPContext* c, AVCodecContext *avctx)
         if(mm_flags & MM_3DNOWEXT){
             c->vector_fmul_reverse = vector_fmul_reverse_3dnow2;
             c->vector_fmul_window = vector_fmul_window_3dnow2;
+            if(!(avctx->flags & CODEC_FLAG_BITEXACT)){
+                c->float_to_int16_interleave = float_to_int16_interleave_3dn2;
+            }
         }
         if(mm_flags & MM_SSE){
             c->vorbis_inverse_coupling = vorbis_inverse_coupling_sse;
+            c->ac3_downmix = ac3_downmix_sse;
             c->vector_fmul = vector_fmul_sse;
-            c->float_to_int16 = float_to_int16_sse;
-            c->float_to_int16_interleave = float_to_int16_interleave_sse;
             c->vector_fmul_reverse = vector_fmul_reverse_sse;
             c->vector_fmul_add_add = vector_fmul_add_add_sse;
             c->vector_fmul_window = vector_fmul_window_sse;
-        }
-        if(mm_flags & MM_SSE2){
-            c->float_to_int16 = float_to_int16_sse2;
-            c->float_to_int16_interleave = float_to_int16_interleave_sse2;
+            c->int32_to_float_fmul_scalar = int32_to_float_fmul_scalar_sse;
+            c->float_to_int16 = float_to_int16_sse;
+            c->float_to_int16_interleave = float_to_int16_interleave_sse;
         }
         if(mm_flags & MM_3DNOW)
             c->vector_fmul_add_add = vector_fmul_add_add_3dnow; // faster than sse
         if(mm_flags & MM_SSE2){
+            c->int32_to_float_fmul_scalar = int32_to_float_fmul_scalar_sse2;
+            c->float_to_int16 = float_to_int16_sse2;
+            c->float_to_int16_interleave = float_to_int16_interleave_sse2;
             c->add_int16 = add_int16_sse2;
             c->sub_int16 = sub_int16_sse2;
             c->scalarproduct_int16 = scalarproduct_int16_sse2;

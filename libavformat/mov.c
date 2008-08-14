@@ -665,6 +665,41 @@ static int mov_read_stco(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
     return 0;
 }
 
+/**
+ * Compute codec id for 'lpcm' tag.
+ * See CoreAudioTypes and AudioStreamBasicDescription at Apple.
+ */
+static int mov_get_lpcm_codec_id(int bps, int flags)
+{
+    if (flags & 1) { // floating point
+        if (flags & 2) { // big endian
+            if      (bps == 32) return CODEC_ID_PCM_F32BE;
+          //else if (bps == 64) return CODEC_ID_PCM_F64BE;
+        } else {
+          //if      (bps == 32) return CODEC_ID_PCM_F32LE;
+          //else if (bps == 64) return CODEC_ID_PCM_F64LE;
+        }
+    } else {
+        if (flags & 2) {
+            if      (bps == 8)
+                // signed integer
+                if (flags & 4)  return CODEC_ID_PCM_S8;
+                else            return CODEC_ID_PCM_U8;
+            else if (bps == 16) return CODEC_ID_PCM_S16BE;
+            else if (bps == 24) return CODEC_ID_PCM_S24BE;
+            else if (bps == 32) return CODEC_ID_PCM_S32BE;
+        } else {
+            if      (bps == 8)
+                if (flags & 4)  return CODEC_ID_PCM_S8;
+                else            return CODEC_ID_PCM_U8;
+            else if (bps == 16) return CODEC_ID_PCM_S16LE;
+            else if (bps == 24) return CODEC_ID_PCM_S24LE;
+            else if (bps == 32) return CODEC_ID_PCM_S32LE;
+        }
+    }
+    return 0;
+}
+
 static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
 {
     AVStream *st = c->fc->streams[c->fc->nb_streams-1];
@@ -832,7 +867,7 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
             } else
                 st->codec->palctrl = NULL;
         } else if(st->codec->codec_type==CODEC_TYPE_AUDIO) {
-            int bits_per_sample;
+            int bits_per_sample, flags;
             uint16_t version = get_be16(pb);
 
             st->codec->codec_id = id;
@@ -848,6 +883,28 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
 
             st->codec->sample_rate = ((get_be32(pb) >> 16));
 
+            //Read QT version 1 fields. In version 0 these do not exist.
+            dprintf(c->fc, "version =%d, isom =%d\n",version,c->isom);
+            if(!c->isom) {
+                if(version==1) {
+                    sc->samples_per_frame = get_be32(pb);
+                    get_be32(pb); /* bytes per packet */
+                    sc->bytes_per_frame = get_be32(pb);
+                    get_be32(pb); /* bytes per sample */
+                } else if(version==2) {
+                    get_be32(pb); /* sizeof struct only */
+                    st->codec->sample_rate = av_int2dbl(get_be64(pb)); /* float 64 */
+                    st->codec->channels = get_be32(pb);
+                    get_be32(pb); /* always 0x7F000000 */
+                    st->codec->bits_per_sample = get_be32(pb); /* bits per channel if sound is uncompressed */
+                    flags = get_be32(pb); /* lcpm format specific flag */
+                    sc->bytes_per_frame = get_be32(pb); /* bytes per audio packet if constant */
+                    sc->samples_per_frame = get_be32(pb); /* lpcm frames per audio packet if constant */
+                    if (format == MKTAG('l','p','c','m'))
+                        st->codec->codec_id = mov_get_lpcm_codec_id(st->codec->bits_per_sample, flags);
+                }
+            }
+
             switch (st->codec->codec_id) {
             case CODEC_ID_PCM_S8:
             case CODEC_ID_PCM_U8:
@@ -859,7 +916,9 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
                 if (st->codec->bits_per_sample == 8)
                     st->codec->codec_id = CODEC_ID_PCM_S8;
                 else if (st->codec->bits_per_sample == 24)
-                    st->codec->codec_id = CODEC_ID_PCM_S24BE;
+                    st->codec->codec_id =
+                        st->codec->codec_id == CODEC_ID_PCM_S16BE ?
+                        CODEC_ID_PCM_S24BE : CODEC_ID_PCM_S24LE;
                 break;
             /* set values for old format before stsd version 1 appeared */
             case CODEC_ID_MACE3:
@@ -880,26 +939,6 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
                 break;
             default:
                 break;
-            }
-
-            //Read QT version 1 fields. In version 0 these do not exist.
-            dprintf(c->fc, "version =%d, isom =%d\n",version,c->isom);
-            if(!c->isom) {
-                if(version==1) {
-                    sc->samples_per_frame = get_be32(pb);
-                    get_be32(pb); /* bytes per packet */
-                    sc->bytes_per_frame = get_be32(pb);
-                    get_be32(pb); /* bytes per sample */
-                } else if(version==2) {
-                    get_be32(pb); /* sizeof struct only */
-                    st->codec->sample_rate = av_int2dbl(get_be64(pb)); /* float 64 */
-                    st->codec->channels = get_be32(pb);
-                    get_be32(pb); /* always 0x7F000000 */
-                    get_be32(pb); /* bits per channel if sound is uncompressed */
-                    get_be32(pb); /* lcpm format specific flag */
-                    get_be32(pb); /* bytes per audio packet if constant */
-                    get_be32(pb); /* lpcm frames per audio packet if constant */
-                }
             }
 
             bits_per_sample = av_get_bits_per_sample(st->codec->codec_id);
@@ -1125,7 +1164,7 @@ static int mov_read_ctts(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
         int duration =get_be32(pb);
 
         if (duration < 0) {
-            av_log(c->fc, AV_LOG_ERROR, "negative ctts, ignoring\n");
+            av_log(c->fc, AV_LOG_WARNING, "negative ctts, ignoring\n");
             sc->ctts_count = 0;
             url_fskip(pb, 8 * (entries - i - 1));
             break;

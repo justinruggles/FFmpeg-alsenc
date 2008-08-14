@@ -112,7 +112,6 @@ typedef struct cook {
 
     /* transform data */
     MDCTContext         mdct_ctx;
-    DECLARE_ALIGNED_16(FFTSample, mdct_tmp[1024]);  /* temporary storage for imlt */
     float*              mlt_window;
 
     /* gain buffers */
@@ -734,8 +733,7 @@ static void imlt_gain(COOKContext *q, float *inbuffer,
     int i;
 
     /* Inverse modified discrete cosine transform */
-    q->mdct_ctx.fft.imdct_calc(&q->mdct_ctx, q->mono_mdct_output,
-                               inbuffer, q->mdct_tmp);
+    ff_imdct_calc(&q->mdct_ctx, q->mono_mdct_output, inbuffer);
 
     q->imlt_window (q, buffer1, gains_ptr, previous_buffer);
 
@@ -1177,6 +1175,8 @@ static int cook_decode_init(AVCodecContext *avctx)
         av_log(avctx,AV_LOG_ERROR,"q->js_vlc_bits = %d, only >= 0 and <= 6 allowed!\n",q->js_vlc_bits);
         return -1;
     }
+
+    avctx->sample_fmt = SAMPLE_FMT_S16;
 
 #ifdef COOKDEBUG
     dump_cook_context(q);

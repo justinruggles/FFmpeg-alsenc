@@ -1,5 +1,5 @@
 /*
- * AC3 and E-AC3 decoder tables
+ * AC-3 and E-AC-3 decoder tables
  * Copyright (c) 2007 Bartlomiej Wolowiec <bartek.wolowiec@gmail.com>
  *
  * This file is part of FFmpeg.
@@ -21,11 +21,27 @@
 
 /**
  * @file ac3dec_data.c
- * tables taken directly from AC3 spec.
+ * tables taken directly from the AC-3 spec.
  */
 
 #include "ac3dec_data.h"
 #include "ac3.h"
+
+/**
+ * table used to ungroup 3 values stored in 5 bits.
+ * used by bap=1 mantissas and GAQ.
+ * ff_ac3_ungroup_3_in_5_bits_tab[i] = { i/9, (i%9)/3, (i%9)%3 }
+ */
+const uint8_t ff_ac3_ungroup_3_in_5_bits_tab[32][3] = {
+    { 0, 0, 0 }, { 0, 0, 1 }, { 0, 0, 2 }, { 0, 1, 0 },
+    { 0, 1, 1 }, { 0, 1, 2 }, { 0, 2, 0 }, { 0, 2, 1 },
+    { 0, 2, 2 }, { 1, 0, 0 }, { 1, 0, 1 }, { 1, 0, 2 },
+    { 1, 1, 0 }, { 1, 1, 1 }, { 1, 1, 2 }, { 1, 2, 0 },
+    { 1, 2, 1 }, { 1, 2, 2 }, { 2, 0, 0 }, { 2, 0, 1 },
+    { 2, 0, 2 }, { 2, 1, 0 }, { 2, 1, 1 }, { 2, 1, 2 },
+    { 2, 2, 0 }, { 2, 2, 1 }, { 2, 2, 2 }, { 3, 0, 0 },
+    { 3, 0, 1 }, { 3, 0, 2 }, { 3, 1, 0 }, { 3, 1, 1 }
+};
 
 const uint8_t ff_eac3_hebap_tab[64] = {
     0, 1, 2, 3, 4, 5, 6, 7, 8, 8,

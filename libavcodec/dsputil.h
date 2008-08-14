@@ -66,6 +66,7 @@ void ff_vector_fmul_add_add_c(float *dst, const float *src0, const float *src1,
 void ff_vector_fmul_window_c(float *dst, const float *src0, const float *src1,
                              const float *win, float add_bias, int len);
 void ff_float_to_int16_c(int16_t *dst, const float *src, long len);
+void ff_float_to_int16_interleave_c(int16_t *dst, const float **src, long len, int channels);
 
 /* encoding scans */
 extern const uint8_t ff_alternate_horizontal_scan[64];
@@ -359,6 +360,7 @@ typedef struct DSPContext {
 
     /* assume len is a multiple of 4, and arrays are 16-byte aligned */
     void (*vorbis_inverse_coupling)(float *mag, float *ang, int blocksize);
+    void (*ac3_downmix)(float (*samples)[256], float (*matrix)[2], int out_ch, int in_ch, int len);
     /* no alignment needed */
     void (*flac_compute_autocorr)(const int32_t *data, int len, int lag, double *autoc);
     /* assume len is a multiple of 8, and arrays are 16-byte aligned */
@@ -368,6 +370,8 @@ typedef struct DSPContext {
     void (*vector_fmul_add_add)(float *dst, const float *src0, const float *src1, const float *src2, int src3, int len, int step);
     /* assume len is a multiple of 4, and arrays are 16-byte aligned */
     void (*vector_fmul_window)(float *dst, const float *src0, const float *src1, const float *win, float add_bias, int len);
+    /* assume len is a multiple of 8, and arrays are 16-byte aligned */
+    void (*int32_to_float_fmul_scalar)(float *dst, const int *src, float mul, int len);
 
     /* C version: convert floats from the range [384.0,386.0] to ints in [-32768,32767]
      * simd versions: convert floats from [-32768.0,32767.0] without rescaling and arrays are 16byte aligned */
@@ -638,21 +642,26 @@ typedef struct FFTContext {
     uint16_t *revtab;
     FFTComplex *exptab;
     FFTComplex *exptab1; /* only used by SSE code */
+    FFTComplex *tmp_buf;
+    void (*fft_permute)(struct FFTContext *s, FFTComplex *z);
     void (*fft_calc)(struct FFTContext *s, FFTComplex *z);
-    void (*imdct_calc)(struct MDCTContext *s, FFTSample *output,
-                       const FFTSample *input, FFTSample *tmp);
-    void (*imdct_half)(struct MDCTContext *s, FFTSample *output,
-                       const FFTSample *input, FFTSample *tmp);
+    void (*imdct_calc)(struct MDCTContext *s, FFTSample *output, const FFTSample *input);
+    void (*imdct_half)(struct MDCTContext *s, FFTSample *output, const FFTSample *input);
 } FFTContext;
 
 int ff_fft_init(FFTContext *s, int nbits, int inverse);
-void ff_fft_permute(FFTContext *s, FFTComplex *z);
+void ff_fft_permute_c(FFTContext *s, FFTComplex *z);
+void ff_fft_permute_sse(FFTContext *s, FFTComplex *z);
 void ff_fft_calc_c(FFTContext *s, FFTComplex *z);
 void ff_fft_calc_sse(FFTContext *s, FFTComplex *z);
 void ff_fft_calc_3dn(FFTContext *s, FFTComplex *z);
 void ff_fft_calc_3dn2(FFTContext *s, FFTComplex *z);
 void ff_fft_calc_altivec(FFTContext *s, FFTComplex *z);
 
+static inline void ff_fft_permute(FFTContext *s, FFTComplex *z)
+{
+    s->fft_permute(s, z);
+}
 static inline void ff_fft_calc(FFTContext *s, FFTComplex *z)
 {
     s->fft_calc(s, z);
@@ -670,6 +679,15 @@ typedef struct MDCTContext {
     FFTContext fft;
 } MDCTContext;
 
+static inline void ff_imdct_calc(MDCTContext *s, FFTSample *output, const FFTSample *input)
+{
+    s->fft.imdct_calc(s, output, input);
+}
+static inline void ff_imdct_half(MDCTContext *s, FFTSample *output, const FFTSample *input)
+{
+    s->fft.imdct_half(s, output, input);
+}
+
 /**
  * Generate a Kaiser-Bessel Derived Window.
  * @param   window  pointer to half window
@@ -684,22 +702,23 @@ void ff_kbd_window_init(float *window, float alpha, int n);
  * @param   n       size of half window
  */
 void ff_sine_window_init(float *window, int n);
+extern float ff_sine_128 [ 128];
+extern float ff_sine_256 [ 256];
+extern float ff_sine_512 [ 512];
+extern float ff_sine_1024[1024];
+extern float ff_sine_2048[2048];
+extern float *ff_sine_windows[5];
 
 int ff_mdct_init(MDCTContext *s, int nbits, int inverse);
-void ff_imdct_calc(MDCTContext *s, FFTSample *output,
-                const FFTSample *input, FFTSample *tmp);
-void ff_imdct_half(MDCTContext *s, FFTSample *output,
-                   const FFTSample *input, FFTSample *tmp);
-void ff_imdct_calc_3dn2(MDCTContext *s, FFTSample *output,
-                        const FFTSample *input, FFTSample *tmp);
-void ff_imdct_half_3dn2(MDCTContext *s, FFTSample *output,
-                        const FFTSample *input, FFTSample *tmp);
-void ff_imdct_calc_sse(MDCTContext *s, FFTSample *output,
-                       const FFTSample *input, FFTSample *tmp);
-void ff_imdct_half_sse(MDCTContext *s, FFTSample *output,
-                       const FFTSample *input, FFTSample *tmp);
-void ff_mdct_calc(MDCTContext *s, FFTSample *out,
-               const FFTSample *input, FFTSample *tmp);
+void ff_imdct_calc_c(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_half_c(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_calc_3dn(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_half_3dn(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_calc_3dn2(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_half_3dn2(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_calc_sse(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_imdct_half_sse(MDCTContext *s, FFTSample *output, const FFTSample *input);
+void ff_mdct_calc(MDCTContext *s, FFTSample *out, const FFTSample *input);
 void ff_mdct_end(MDCTContext *s);
 
 #define WRAPPER8_16(name8, name16)\

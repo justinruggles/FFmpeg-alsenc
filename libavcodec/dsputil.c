@@ -41,6 +41,9 @@ void ff_spatial_dwt(int *buffer, int width, int height, int stride, int type, in
 /* vorbis.c */
 void vorbis_inverse_coupling(float *mag, float *ang, int blocksize);
 
+/* ac3dec.c */
+void ff_ac3_downmix_c(float (*samples)[256], float (*matrix)[2], int out_ch, int in_ch, int len);
+
 /* flacenc.c */
 void ff_flac_compute_autocorr(const int32_t *data, int len, int lag, double *autoc);
 
@@ -3945,6 +3948,12 @@ void ff_vector_fmul_window_c(float *dst, const float *src0, const float *src1, c
     }
 }
 
+static void int32_to_float_fmul_scalar_c(float *dst, const int *src, float mul, int len){
+    int i;
+    for(i=0; i<len; i++)
+        dst[i] = src[i] * mul;
+}
+
 static av_always_inline int float_to_int16_one(const float *src){
     int_fast32_t tmp = *(const int32_t*)src;
     if(tmp & 0xf0000){
@@ -4476,6 +4485,9 @@ void dsputil_init(DSPContext* c, AVCodecContext *avctx)
 #ifdef CONFIG_VORBIS_DECODER
     c->vorbis_inverse_coupling = vorbis_inverse_coupling;
 #endif
+#ifdef CONFIG_AC3_DECODER
+    c->ac3_downmix = ff_ac3_downmix_c;
+#endif
 #ifdef CONFIG_FLAC_ENCODER
     c->flac_compute_autocorr = ff_flac_compute_autocorr;
 #endif
@@ -4483,6 +4495,7 @@ void dsputil_init(DSPContext* c, AVCodecContext *avctx)
     c->vector_fmul_reverse = vector_fmul_reverse_c;
     c->vector_fmul_add_add = ff_vector_fmul_add_add_c;
     c->vector_fmul_window = ff_vector_fmul_window_c;
+    c->int32_to_float_fmul_scalar = int32_to_float_fmul_scalar_c;
     c->float_to_int16 = ff_float_to_int16_c;
     c->float_to_int16_interleave = ff_float_to_int16_interleave_c;
     c->add_int16 = add_int16_c;

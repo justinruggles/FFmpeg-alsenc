@@ -32,35 +32,7 @@
 #include "libavutil/crc.h"
 #include "parser.h"
 #include "mlp_parser.h"
-
-/** Maximum number of channels that can be decoded. */
-#define MAX_CHANNELS        16
-
-/** Maximum number of matrices used in decoding; most streams have one matrix
- *  per output channel, but some rematrix a channel (usually 0) more than once.
- */
-
-#define MAX_MATRICES        15
-
-/** Maximum number of substreams that can be decoded. This could also be set
- *  higher, but I haven't seen any examples with more than two. */
-#define MAX_SUBSTREAMS      2
-
-/** maximum sample frequency seen in files */
-#define MAX_SAMPLERATE      192000
-
-/** maximum number of audio samples within one access unit */
-#define MAX_BLOCKSIZE       (40 * (MAX_SAMPLERATE / 48000))
-/** next power of two greater than MAX_BLOCKSIZE */
-#define MAX_BLOCKSIZE_POW2  (64 * (MAX_SAMPLERATE / 48000))
-
-/** number of allowed filters */
-#define NUM_FILTERS         2
-
-/** The maximum number of taps in either the IIR or FIR filter;
- *  I believe MLP actually specifies the maximum order for IIR filters as four,
- *  and that the sum of the orders of both filters must be <= 8. */
-#define MAX_FILTER_ORDER    8
+#include "mlp.h"
 
 /** number of bits used for VLC lookup - longest Huffman code is 9 */
 #define VLC_BITS            9
@@ -158,129 +130,42 @@ typedef struct MLPDecodeContext {
 
     SubStream   substream[MAX_SUBSTREAMS];
 
-    //@{
-    /** filter data */
-#define FIR 0
-#define IIR 1
-    //! number of taps in filter
-    uint8_t     filter_order[MAX_CHANNELS][NUM_FILTERS];
-    //! Right shift to apply to output of filter.
-    uint8_t     filter_shift[MAX_CHANNELS][NUM_FILTERS];
-
-    int32_t     filter_coeff[MAX_CHANNELS][NUM_FILTERS][MAX_FILTER_ORDER];
-    int32_t     filter_state[MAX_CHANNELS][NUM_FILTERS][MAX_FILTER_ORDER];
-    //@}
-
-    //@{
-    /** sample data coding information */
-    //! Offset to apply to residual values.
-    int16_t     huff_offset[MAX_CHANNELS];
-    //! sign/rounding-corrected version of huff_offset
-    int32_t     sign_huff_offset[MAX_CHANNELS];
-    //! Which VLC codebook to use to read residuals.
-    uint8_t     codebook[MAX_CHANNELS];
-    //! Size of residual suffix not encoded using VLC.
-    uint8_t     huff_lsbs[MAX_CHANNELS];
-    //@}
+    ChannelParams channel_params[MAX_CHANNELS];
 
     int8_t      noise_buffer[MAX_BLOCKSIZE_POW2];
     int8_t      bypassed_lsbs[MAX_BLOCKSIZE][MAX_CHANNELS];
     int32_t     sample_buffer[MAX_BLOCKSIZE][MAX_CHANNELS+2];
 } MLPDecodeContext;
 
-/** Tables defining the Huffman codes.
- *  There are three entropy coding methods used in MLP (four if you count
- *  "none" as a method). These use the same sequences for codes starting with
- *  00 or 01, but have different codes starting with 1. */
-
-static const uint8_t huffman_tables[3][18][2] = {
-    {    /* Huffman table 0, -7 - +10 */
-        {0x01, 9}, {0x01, 8}, {0x01, 7}, {0x01, 6}, {0x01, 5}, {0x01, 4}, {0x01, 3},
-        {0x04, 3}, {0x05, 3}, {0x06, 3}, {0x07, 3},
-        {0x03, 3}, {0x05, 4}, {0x09, 5}, {0x11, 6}, {0x21, 7}, {0x41, 8}, {0x81, 9},
-    }, { /* Huffman table 1, -7 - +8 */
-        {0x01, 9}, {0x01, 8}, {0x01, 7}, {0x01, 6}, {0x01, 5}, {0x01, 4}, {0x01, 3},
-        {0x02, 2}, {0x03, 2},
-        {0x03, 3}, {0x05, 4}, {0x09, 5}, {0x11, 6}, {0x21, 7}, {0x41, 8}, {0x81, 9},
-    }, { /* Huffman table 2, -7 - +7 */
-        {0x01, 9}, {0x01, 8}, {0x01, 7}, {0x01, 6}, {0x01, 5}, {0x01, 4}, {0x01, 3},
-        {0x01, 1},
-        {0x03, 3}, {0x05, 4}, {0x09, 5}, {0x11, 6}, {0x21, 7}, {0x41, 8}, {0x81, 9},
-    }
-};
-
 static VLC huff_vlc[3];
-
-static int crc_init = 0;
-static AVCRC crc_63[1024];
-static AVCRC crc_1D[1024];
-
 
 /** Initialize static data, constant between all invocations of the codec. */
 
 static av_cold void init_static()
 {
     INIT_VLC_STATIC(&huff_vlc[0], VLC_BITS, 18,
-                &huffman_tables[0][0][1], 2, 1,
-                &huffman_tables[0][0][0], 2, 1, 512);
+                &ff_mlp_huffman_tables[0][0][1], 2, 1,
+                &ff_mlp_huffman_tables[0][0][0], 2, 1, 512);
     INIT_VLC_STATIC(&huff_vlc[1], VLC_BITS, 16,
-                &huffman_tables[1][0][1], 2, 1,
-                &huffman_tables[1][0][0], 2, 1, 512);
+                &ff_mlp_huffman_tables[1][0][1], 2, 1,
+                &ff_mlp_huffman_tables[1][0][0], 2, 1, 512);
     INIT_VLC_STATIC(&huff_vlc[2], VLC_BITS, 15,
-                &huffman_tables[2][0][1], 2, 1,
-                &huffman_tables[2][0][0], 2, 1, 512);
+                &ff_mlp_huffman_tables[2][0][1], 2, 1,
+                &ff_mlp_huffman_tables[2][0][0], 2, 1, 512);
 
-    if (!crc_init) {
-        av_crc_init(crc_63, 0,  8,   0x63, sizeof(crc_63));
-        av_crc_init(crc_1D, 0,  8,   0x1D, sizeof(crc_1D));
-        crc_init = 1;
-    }
-}
-
-
-/** MLP uses checksums that seem to be based on the standard CRC algorithm, but
- *  are not (in implementation terms, the table lookup and XOR are reversed).
- *  We can implement this behavior using a standard av_crc on all but the
- *  last element, then XOR that with the last element. */
-
-static uint8_t mlp_checksum8(const uint8_t *buf, unsigned int buf_size)
-{
-    uint8_t checksum = av_crc(crc_63, 0x3c, buf, buf_size - 1); // crc_63[0xa2] == 0x3c
-    checksum ^= buf[buf_size-1];
-    return checksum;
-}
-
-/** Calculate an 8-bit checksum over a restart header -- a non-multiple-of-8
- *  number of bits, starting two bits into the first byte of buf. */
-
-static uint8_t mlp_restart_checksum(const uint8_t *buf, unsigned int bit_size)
-{
-    int i;
-    int num_bytes = (bit_size + 2) / 8;
-
-    int crc = crc_1D[buf[0] & 0x3f];
-    crc = av_crc(crc_1D, crc, buf + 1, num_bytes - 2);
-    crc ^= buf[num_bytes - 1];
-
-    for (i = 0; i < ((bit_size + 2) & 7); i++) {
-        crc <<= 1;
-        if (crc & 0x100)
-            crc ^= 0x11D;
-        crc ^= (buf[num_bytes] >> (7 - i)) & 1;
-    }
-
-    return crc;
+    ff_mlp_init_crc();
 }
 
 static inline int32_t calculate_sign_huff(MLPDecodeContext *m,
                                           unsigned int substr, unsigned int ch)
 {
+    ChannelParams *cp = &m->channel_params[ch];
     SubStream *s = &m->substream[substr];
-    int lsb_bits = m->huff_lsbs[ch] - s->quant_step_size[ch];
-    int sign_shift = lsb_bits + (m->codebook[ch] ? 2 - m->codebook[ch] : -1);
-    int32_t sign_huff_offset = m->huff_offset[ch];
+    int lsb_bits = cp->huff_lsbs - s->quant_step_size[ch];
+    int sign_shift = lsb_bits + (cp->codebook ? 2 - cp->codebook : -1);
+    int32_t sign_huff_offset = cp->huff_offset;
 
-    if (m->codebook[ch] > 0)
+    if (cp->codebook > 0)
         sign_huff_offset -= 7 << lsb_bits;
 
     if (sign_shift >= 0)
@@ -303,9 +188,10 @@ static inline int read_huff_channels(MLPDecodeContext *m, GetBitContext *gbp,
             m->bypassed_lsbs[pos + s->blockpos][mat] = get_bits1(gbp);
 
     for (channel = s->min_channel; channel <= s->max_channel; channel++) {
-        int codebook = m->codebook[channel];
+        ChannelParams *cp = &m->channel_params[channel];
+        int codebook = cp->codebook;
         int quant_step_size = s->quant_step_size[channel];
-        int lsb_bits = m->huff_lsbs[channel] - quant_step_size;
+        int lsb_bits = cp->huff_lsbs - quant_step_size;
         int result = 0;
 
         if (codebook > 0)
@@ -318,7 +204,7 @@ static inline int read_huff_channels(MLPDecodeContext *m, GetBitContext *gbp,
         if (lsb_bits > 0)
             result = (result << lsb_bits) + get_bits(gbp, lsb_bits);
 
-        result  += m->sign_huff_offset[channel];
+        result  += cp->sign_huff_offset;
         result <<= quant_step_size;
 
         m->sample_buffer[pos + s->blockpos][channel] = result;
@@ -336,6 +222,7 @@ static av_cold int mlp_decode_init(AVCodecContext *avctx)
     m->avctx = avctx;
     for (substr = 0; substr < MAX_SUBSTREAMS; substr++)
         m->substream[substr].lossless_check_data = 0xffffffff;
+    avctx->sample_fmt = SAMPLE_FMT_S16;
     return 0;
 }
 
@@ -477,10 +364,7 @@ static int read_restart_header(MLPDecodeContext *m, GetBitContext *gbp,
     lossless_check = get_bits(gbp, 8);
     if (substr == m->max_decoded_substream
         && s->lossless_check_data != 0xffffffff) {
-        tmp = s->lossless_check_data;
-        tmp ^= tmp >> 16;
-        tmp ^= tmp >> 8;
-        tmp &= 0xff;
+        tmp = xor_32_to_8(s->lossless_check_data);
         if (tmp != lossless_check)
             av_log(m->avctx, AV_LOG_WARNING,
                    "Lossless check failed - expected %02x, calculated %02x.\n",
@@ -504,7 +388,7 @@ static int read_restart_header(MLPDecodeContext *m, GetBitContext *gbp,
         }
     }
 
-    checksum = mlp_restart_checksum(buf, get_bits_count(gbp) - start_count);
+    checksum = ff_mlp_restart_checksum(buf, get_bits_count(gbp) - start_count);
 
     if (checksum != get_bits(gbp, 8))
         av_log(m->avctx, AV_LOG_ERROR, "restart header checksum error\n");
@@ -519,16 +403,17 @@ static int read_restart_header(MLPDecodeContext *m, GetBitContext *gbp,
     memset(s->quant_step_size, 0, sizeof(s->quant_step_size));
 
     for (ch = s->min_channel; ch <= s->max_channel; ch++) {
-        m->filter_order[ch][FIR] = 0;
-        m->filter_order[ch][IIR] = 0;
-        m->filter_shift[ch][FIR] = 0;
-        m->filter_shift[ch][IIR] = 0;
+        ChannelParams *cp = &m->channel_params[ch];
+        cp->filter_params[FIR].order = 0;
+        cp->filter_params[IIR].order = 0;
+        cp->filter_params[FIR].shift = 0;
+        cp->filter_params[IIR].shift = 0;
 
         /* Default audio coding is 24-bit raw PCM. */
-        m->huff_offset     [ch] = 0;
-        m->sign_huff_offset[ch] = (-1) << 23;
-        m->codebook        [ch] = 0;
-        m->huff_lsbs       [ch] = 24;
+        cp->huff_offset      = 0;
+        cp->sign_huff_offset = (-1) << 23;
+        cp->codebook         = 0;
+        cp->huff_lsbs        = 24;
     }
 
     if (substr == m->max_decoded_substream) {
@@ -543,6 +428,7 @@ static int read_restart_header(MLPDecodeContext *m, GetBitContext *gbp,
 static int read_filter_params(MLPDecodeContext *m, GetBitContext *gbp,
                               unsigned int channel, unsigned int filter)
 {
+    FilterParams *fp = &m->channel_params[channel].filter_params[filter];
     const char fchar = filter ? 'I' : 'F';
     int i, order;
 
@@ -556,12 +442,12 @@ static int read_filter_params(MLPDecodeContext *m, GetBitContext *gbp,
                fchar, order, MAX_FILTER_ORDER);
         return -1;
     }
-    m->filter_order[channel][filter] = order;
+    fp->order = order;
 
     if (order > 0) {
         int coeff_bits, coeff_shift;
 
-        m->filter_shift[channel][filter] = get_bits(gbp, 4);
+        fp->shift = get_bits(gbp, 4);
 
         coeff_bits  = get_bits(gbp, 5);
         coeff_shift = get_bits(gbp, 3);
@@ -579,8 +465,7 @@ static int read_filter_params(MLPDecodeContext *m, GetBitContext *gbp,
         }
 
         for (i = 0; i < order; i++)
-            m->filter_coeff[channel][filter][i] =
-                    get_sbits(gbp, coeff_bits) << coeff_shift;
+            fp->coeff[i] = get_sbits(gbp, coeff_bits) << coeff_shift;
 
         if (get_bits1(gbp)) {
             int state_bits, state_shift;
@@ -597,8 +482,7 @@ static int read_filter_params(MLPDecodeContext *m, GetBitContext *gbp,
             /* TODO: Check validity of state data. */
 
             for (i = 0; i < order; i++)
-                m->filter_state[channel][filter][i] =
-                    get_sbits(gbp, state_bits) << state_shift;
+                fp->state[i] = get_sbits(gbp, state_bits) << state_shift;
         }
     }
 
@@ -680,14 +564,20 @@ static int read_decoding_params(MLPDecodeContext *m, GetBitContext *gbp,
     if (s->param_presence_flags & PARAM_QUANTSTEP)
         if (get_bits1(gbp))
             for (ch = 0; ch <= s->max_channel; ch++) {
+                ChannelParams *cp = &m->channel_params[ch];
+
                 s->quant_step_size[ch] = get_bits(gbp, 4);
                 /* TODO: validate */
 
-                m->sign_huff_offset[ch] = calculate_sign_huff(m, substr, ch);
+                cp->sign_huff_offset = calculate_sign_huff(m, substr, ch);
             }
 
     for (ch = s->min_channel; ch <= s->max_channel; ch++)
         if (get_bits1(gbp)) {
+            ChannelParams *cp = &m->channel_params[ch];
+            FilterParams *fir = &cp->filter_params[FIR];
+            FilterParams *iir = &cp->filter_params[IIR];
+
             if (s->param_presence_flags & PARAM_FIR)
                 if (get_bits1(gbp))
                     if (read_filter_params(m, gbp, ch, FIR) < 0)
@@ -698,8 +588,8 @@ static int read_decoding_params(MLPDecodeContext *m, GetBitContext *gbp,
                     if (read_filter_params(m, gbp, ch, IIR) < 0)
                         return -1;
 
-            if (m->filter_order[ch][FIR] && m->filter_order[ch][IIR] &&
-                m->filter_shift[ch][FIR] != m->filter_shift[ch][IIR]) {
+            if (fir->order && iir->order &&
+                fir->shift != iir->shift) {
                 av_log(m->avctx, AV_LOG_ERROR,
                        "FIR and IIR filters must use the same precision.\n");
                 return -1;
@@ -709,17 +599,17 @@ static int read_decoding_params(MLPDecodeContext *m, GetBitContext *gbp,
              * FIR filter is considered. If only the IIR filter is employed,
              * the FIR filter precision is set to that of the IIR filter, so
              * that the filtering code can use it. */
-            if (!m->filter_order[ch][FIR] && m->filter_order[ch][IIR])
-                m->filter_shift[ch][FIR] = m->filter_shift[ch][IIR];
+            if (!fir->order && iir->order)
+                fir->shift = iir->shift;
 
             if (s->param_presence_flags & PARAM_HUFFOFFSET)
                 if (get_bits1(gbp))
-                    m->huff_offset[ch] = get_sbits(gbp, 15);
+                    cp->huff_offset = get_sbits(gbp, 15);
 
-            m->codebook [ch] = get_bits(gbp, 2);
-            m->huff_lsbs[ch] = get_bits(gbp, 5);
+            cp->codebook  = get_bits(gbp, 2);
+            cp->huff_lsbs = get_bits(gbp, 5);
 
-            m->sign_huff_offset[ch] = calculate_sign_huff(m, substr, ch);
+            cp->sign_huff_offset = calculate_sign_huff(m, substr, ch);
 
             /* TODO: validate */
         }
@@ -737,14 +627,15 @@ static void filter_channel(MLPDecodeContext *m, unsigned int substr,
 {
     SubStream *s = &m->substream[substr];
     int32_t filter_state_buffer[NUM_FILTERS][MAX_BLOCKSIZE + MAX_FILTER_ORDER];
-    unsigned int filter_shift = m->filter_shift[channel][FIR];
+    FilterParams *fp[NUM_FILTERS] = { &m->channel_params[channel].filter_params[FIR],
+                                      &m->channel_params[channel].filter_params[IIR], };
+    unsigned int filter_shift = fp[FIR]->shift;
     int32_t mask = MSB_MASK(s->quant_step_size[channel]);
     int index = MAX_BLOCKSIZE;
     int j, i;
 
     for (j = 0; j < NUM_FILTERS; j++) {
-        memcpy(&   filter_state_buffer  [j][MAX_BLOCKSIZE],
-               &m->filter_state[channel][j][0],
+        memcpy(&filter_state_buffer[j][MAX_BLOCKSIZE], &fp[j]->state[0],
                MAX_FILTER_ORDER * sizeof(int32_t));
     }
 
@@ -757,9 +648,9 @@ static void filter_channel(MLPDecodeContext *m, unsigned int substr,
         /* TODO: Move this code to DSPContext? */
 
         for (j = 0; j < NUM_FILTERS; j++)
-            for (order = 0; order < m->filter_order[channel][j]; order++)
+            for (order = 0; order < fp[j]->order; order++)
                 accum += (int64_t)filter_state_buffer[j][index + order] *
-                        m->filter_coeff[channel][j][order];
+                                  fp[j]->coeff[order];
 
         accum  = accum >> filter_shift;
         result = (accum + residual) & mask;
@@ -773,8 +664,7 @@ static void filter_channel(MLPDecodeContext *m, unsigned int substr,
     }
 
     for (j = 0; j < NUM_FILTERS; j++) {
-        memcpy(&m->filter_state[channel][j][0],
-               &   filter_state_buffer  [j][index],
+        memcpy(&fp[j]->state[0], &filter_state_buffer[j][index],
                MAX_FILTER_ORDER * sizeof(int32_t));
     }
 }
@@ -967,26 +857,6 @@ static int output_data(MLPDecodeContext *m, unsigned int substr,
 }
 
 
-/** XOR together all the bytes of a buffer.
- *  Does this belong in dspcontext? */
-
-static uint8_t calculate_parity(const uint8_t *buf, unsigned int buf_size)
-{
-    uint32_t scratch = 0;
-    const uint8_t *buf_end = buf + buf_size;
-
-    for (; buf < buf_end - 3; buf += 4)
-        scratch ^= *((const uint32_t*)buf);
-
-    scratch ^= scratch >> 16;
-    scratch ^= scratch >> 8;
-
-    for (; buf < buf_end; buf++)
-        scratch ^= *buf;
-
-    return scratch;
-}
-
 /** Read an access unit from the stream.
  *  Returns < 0 on error, 0 if not enough data is present in the input stream
  *  otherwise returns the number of bytes consumed. */
@@ -1070,8 +940,8 @@ static int read_access_unit(AVCodecContext *avctx, void* data, int *data_size,
         substream_start = end;
     }
 
-    parity_bits  = calculate_parity(buf, 4);
-    parity_bits ^= calculate_parity(buf + header_size, substr_header_size);
+    parity_bits  = ff_mlp_calculate_parity(buf, 4);
+    parity_bits ^= ff_mlp_calculate_parity(buf + header_size, substr_header_size);
 
     if ((((parity_bits >> 4) ^ parity_bits) & 0xF) != 0xF) {
         av_log(avctx, AV_LOG_ERROR, "Parity check failed.\n");
@@ -1120,7 +990,7 @@ static int read_access_unit(AVCodecContext *avctx, void* data, int *data_size,
 
         skip_bits(&gb, (-get_bits_count(&gb)) & 15);
         if (substream_data_len[substr] * 8 - get_bits_count(&gb) >= 32 &&
-            (show_bits_long(&gb, 32) == 0xd234d234 ||
+            (show_bits_long(&gb, 32) == END_OF_STREAM ||
              show_bits_long(&gb, 20) == 0xd234e)) {
             skip_bits(&gb, 18);
             if (substr == m->max_decoded_substream)
@@ -1137,12 +1007,12 @@ static int read_access_unit(AVCodecContext *avctx, void* data, int *data_size,
             substream_parity_present[substr]) {
             uint8_t parity, checksum;
 
-            parity = calculate_parity(buf, substream_data_len[substr] - 2);
+            parity = ff_mlp_calculate_parity(buf, substream_data_len[substr] - 2);
             if ((parity ^ get_bits(&gb, 8)) != 0xa9)
                 av_log(m->avctx, AV_LOG_ERROR,
                        "Substream %d parity check failed.\n", substr);
 
-            checksum = mlp_checksum8(buf, substream_data_len[substr] - 2);
+            checksum = ff_mlp_checksum8(buf, substream_data_len[substr] - 2);
             if (checksum != get_bits(&gb, 8))
                 av_log(m->avctx, AV_LOG_ERROR, "Substream %d checksum failed.\n",
                        substr);

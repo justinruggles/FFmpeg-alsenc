@@ -31,6 +31,9 @@
 #define SEAD_TAG MKTAG('S', 'E', 'A', 'D')    /* Sxxx header */
 #define SNDC_TAG MKTAG('S', 'N', 'D', 'C')    /* Sxxx data */
 #define SEND_TAG MKTAG('S', 'E', 'N', 'D')    /* Sxxx end */
+#define SHEN_TAG MKTAG('S', 'H', 'E', 'N')    /* SxEN header */
+#define SDEN_TAG MKTAG('S', 'D', 'E', 'N')    /* SxEN data */
+#define SEEN_TAG MKTAG('S', 'E', 'E', 'N')    /* SxEN end */
 #define ISNh_TAG MKTAG('1', 'S', 'N', 'h')    /* 1SNx header */
 #define EACS_TAG MKTAG('E', 'A', 'C', 'S')
 #define ISNd_TAG MKTAG('1', 'S', 'N', 'd')    /* 1SNx data */
@@ -40,6 +43,8 @@
 #define SCDl_TAG MKTAG('S', 'C', 'D', 'l')
 #define SCEl_TAG MKTAG('S', 'C', 'E', 'l')
 #define kVGT_TAG MKTAG('k', 'V', 'G', 'T')    /* TGV i-frame */
+#define fVGT_TAG MKTAG('f', 'V', 'G', 'T')    /* TGV p-frame */
+#define mTCD_TAG MKTAG('m', 'T', 'C', 'D')    /* MDEC */
 #define MADk_TAG MKTAG('M', 'A', 'D', 'k')    /* MAD i-frame */
 #define MPCh_TAG MKTAG('M', 'P', 'C', 'h')    /* MPEG2 */
 #define MVhd_TAG MKTAG('M', 'V', 'h', 'd')
@@ -53,6 +58,7 @@ typedef struct EaDemuxContext {
 
     enum CodecID video_codec;
     AVRational time_base;
+    int width, height;
     int video_stream_index;
 
     enum CodecID audio_codec;
@@ -178,6 +184,8 @@ static int process_audio_header_elements(AVFormatContext *s)
         }
         switch (revision2) {
         case  8: ea->audio_codec = CODEC_ID_PCM_S16LE_PLANAR; break;
+        case 10: ea->audio_codec = CODEC_ID_ADPCM_EA_R2; break;
+        case -1: break;
         default:
             av_log(s, AV_LOG_ERROR, "unsupported stream type; revision2=%i\n", revision2);
             return 0;
@@ -243,6 +251,18 @@ static int process_audio_header_sead(AVFormatContext *s)
     return 1;
 }
 
+static int process_video_header_mdec(AVFormatContext *s)
+{
+    EaDemuxContext *ea = s->priv_data;
+    ByteIOContext *pb = s->pb;
+    url_fskip(pb, 4);
+    ea->width  = get_le16(pb);
+    ea->height = get_le16(pb);
+    ea->time_base = (AVRational){1,15};
+    ea->video_codec = CODEC_ID_MDEC;
+    return 1;
+}
+
 static int process_video_header_vp6(AVFormatContext *s)
 {
     EaDemuxContext *ea = s->priv_data;
@@ -287,10 +307,11 @@ static int process_ea_header(AVFormatContext *s) {
                 break;
 
             case SCHl_TAG :
+            case SHEN_TAG :
                 blockid = get_le32(pb);
                 if (blockid == GSTR_TAG) {
                     url_fskip(pb, 4);
-                } else if (blockid != PT00_TAG) {
+                } else if ((blockid & 0xFFFF)!=PT00_TAG) {
                     av_log (s, AV_LOG_ERROR, "unknown SCHl headerid\n");
                     return 0;
                 }
@@ -304,6 +325,19 @@ static int process_ea_header(AVFormatContext *s) {
             case MVIh_TAG :
                 ea->video_codec = CODEC_ID_CMV;
                 ea->time_base = (AVRational){0,0};
+                break;
+
+            case kVGT_TAG:
+                ea->video_codec = CODEC_ID_TGV;
+                ea->time_base = (AVRational){0,0};
+                break;
+
+            case mTCD_TAG :
+                err = process_video_header_mdec(s);
+                break;
+
+            case MPCh_TAG:
+                ea->video_codec = CODEC_ID_MPEG2VIDEO;
                 break;
 
             case MVhd_TAG :
@@ -331,6 +365,7 @@ static int ea_probe(AVProbeData *p)
     case ISNh_TAG:
     case SCHl_TAG:
     case SEAD_TAG:
+    case SHEN_TAG:
     case kVGT_TAG:
     case MADk_TAG:
     case MPCh_TAG:
@@ -360,6 +395,8 @@ static int ea_read_header(AVFormatContext *s,
         st->codec->codec_id = ea->video_codec;
         st->codec->codec_tag = 0;  /* no fourcc */
         st->codec->time_base = ea->time_base;
+        st->codec->width = ea->width;
+        st->codec->height = ea->height;
     }
 
     if (ea->audio_codec) {
@@ -407,6 +444,7 @@ static int ea_read_packet(AVFormatContext *s,
         case ISNd_TAG:
         case SCDl_TAG:
         case SNDC_TAG:
+        case SDEN_TAG:
             if (!ea->audio_codec) {
                 url_fskip(pb, chunk_size);
                 break;
@@ -444,18 +482,27 @@ static int ea_read_packet(AVFormatContext *s,
         case ISNe_TAG:
         case SCEl_TAG:
         case SEND_TAG:
+        case SEEN_TAG:
             ret = AVERROR(EIO);
             packet_read = 1;
             break;
 
         case MVIh_TAG:
+        case kVGT_TAG:
             key = PKT_FLAG_KEY;
         case MVIf_TAG:
+        case fVGT_TAG:
             url_fseek(pb, -8, SEEK_CUR);     // include chunk preamble
             chunk_size += 8;
             goto get_video_packet;
 
+        case mTCD_TAG:
+            url_fseek(pb, 8, SEEK_CUR);  // skip ea dct header
+            chunk_size -= 8;
+            goto get_video_packet;
+
         case MV0K_TAG:
+        case MPCh_TAG:
             key = PKT_FLAG_KEY;
         case MV0F_TAG:
 get_video_packet:

@@ -8,6 +8,7 @@ ifndef SUBDIR
 vpath %.c $(SRC_DIR)
 vpath %.h $(SRC_DIR)
 vpath %.S $(SRC_DIR)
+vpath %.asm $(SRC_DIR)
 
 ifeq ($(SRC_DIR),$(SRC_PATH_BARE))
 BUILD_ROOT_REL = .
@@ -18,7 +19,7 @@ endif
 ALLFFLIBS = avcodec avdevice avfilter avformat avutil postproc swscale
 
 CFLAGS := -DHAVE_AV_CONFIG_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
-          -D_ISOC9X_SOURCE -I$(BUILD_ROOT_REL) -I$(SRC_PATH) $(OPTFLAGS)
+          -I$(BUILD_ROOT_REL) -I$(SRC_PATH) $(OPTFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(LIBOBJFLAGS) -c -o $@ $<
@@ -95,6 +96,12 @@ $(SUBDIR)%-test.o: $(SUBDIR)%.c
 
 $(SUBDIR)%-test.o: $(SUBDIR)%-test.c
 	$(CC) $(CFLAGS) -DTEST -c -o $$@ $$^
+
+$(SUBDIR)i386/%.o: $(SUBDIR)i386/%.asm
+	$(YASM) $(YASMFLAGS) -I $$(<D)/ -o $$@ $$<
+
+$(SUBDIR)i386/%.d: $(SUBDIR)i386/%.asm
+	$(YASM) $(YASMFLAGS) -I $$(<D)/ -M -o $$(@:%.d=%.o) $$< > $$@
 
 clean::
 	rm -f $(TESTS) $(addprefix $(SUBDIR),$(CLEANFILES) $(CLEANSUFFIXES) $(LIBSUFFIXES)) \

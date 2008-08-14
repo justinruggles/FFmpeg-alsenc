@@ -62,6 +62,7 @@ OBJS-$(CONFIG_DVVIDEO_DECODER)         += dv.o
 OBJS-$(CONFIG_DVVIDEO_ENCODER)         += dv.o
 OBJS-$(CONFIG_DXA_DECODER)             += dxa.o
 OBJS-$(CONFIG_EACMV_DECODER)           += eacmv.o
+OBJS-$(CONFIG_EATGV_DECODER)           += eatgv.o
 OBJS-$(CONFIG_EIGHTBPS_DECODER)        += 8bps.o
 OBJS-$(CONFIG_EIGHTSVX_EXP_DECODER)    += 8svx.o
 OBJS-$(CONFIG_EIGHTSVX_FIB_DECODER)    += 8svx.o
@@ -108,7 +109,7 @@ OBJS-$(CONFIG_MIMIC_DECODER)           += mimic.o
 OBJS-$(CONFIG_MJPEG_DECODER)           += mjpegdec.o mjpeg.o
 OBJS-$(CONFIG_MJPEG_ENCODER)           += mjpegenc.o mjpeg.o mpegvideo_enc.o motion_est.o ratecontrol.o mpeg12data.o mpegvideo.o
 OBJS-$(CONFIG_MJPEGB_DECODER)          += mjpegbdec.o mjpegdec.o mjpeg.o
-OBJS-$(CONFIG_MLP_DECODER)             += mlpdec.o
+OBJS-$(CONFIG_MLP_DECODER)             += mlp.o mlpdec.o
 OBJS-$(CONFIG_MMVIDEO_DECODER)         += mmvideo.o
 OBJS-$(CONFIG_MOTIONPIXELS_DECODER)    += motionpixels.o
 OBJS-$(CONFIG_MP2_DECODER)             += mpegaudiodec.o mpegaudiodecheader.o mpegaudio.o mpegaudiodata.o
@@ -347,7 +348,7 @@ OBJS-$(CONFIG_H261_PARSER)             += h261_parser.o
 OBJS-$(CONFIG_H263_PARSER)             += h263_parser.o
 OBJS-$(CONFIG_H264_PARSER)             += h264_parser.o
 OBJS-$(CONFIG_MJPEG_PARSER)            += mjpeg_parser.o
-OBJS-$(CONFIG_MLP_PARSER)              += mlp_parser.o
+OBJS-$(CONFIG_MLP_PARSER)              += mlp.o mlp_parser.o
 OBJS-$(CONFIG_MPEG4VIDEO_PARSER)       += mpeg4video_parser.o h263.o mpeg12data.o mpegvideo.o error_resilience.o
 OBJS-$(CONFIG_MPEGAUDIO_PARSER)        += mpegaudio_parser.o mpegaudiodecheader.o mpegaudiodata.o
 OBJS-$(CONFIG_MPEGVIDEO_PARSER)        += mpegvideo_parser.o mpeg12.o mpeg12data.o mpegvideo.o error_resilience.o
@@ -387,9 +388,12 @@ OBJS += i386/fdct_mmx.o \
         i386/simple_idct_mmx.o \
         i386/idct_mmx_xvid.o \
         i386/idct_sse2_xvid.o \
-        i386/fft_sse.o \
-        i386/fft_3dn.o \
-        i386/fft_3dn2.o \
+
+OBJS-$(HAVE_YASM)                      += i386/fft_mmx.o \
+                                          i386/fft_sse.o \
+                                          i386/fft_3dn.o \
+                                          i386/fft_3dn2.o \
+                                          i386/dsputil_yasm.o \
 
 OBJS-$(CONFIG_GPL)                     += i386/idct_mmx.o
 
