@@ -9,6 +9,7 @@ OBJS = adler32.o \
        des.o \
        fifo.o \
        intfloat_readwrite.o \
+       lfg.o \
        lls.o \
        log.o \
        lzo.o \
@@ -40,7 +41,7 @@ HEADERS = adler32.h \
           rational.h \
           sha1.h
 
-TESTS = $(addsuffix -test$(EXESUF), adler32 aes crc des lls md5 random sha1 softfloat tree)
+TESTS = $(addsuffix -test$(EXESUF), adler32 aes crc des lls md5 pca random sha1 softfloat tree)
 
 include $(SUBDIR)../subdir.mak
 

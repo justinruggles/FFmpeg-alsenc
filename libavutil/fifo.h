@@ -93,12 +93,23 @@ attribute_deprecated void av_fifo_write(AVFifoBuffer *f, const uint8_t *buf, int
  */
 int av_fifo_generic_write(AVFifoBuffer *f, void *src, int size, int (*func)(void*, void*, int));
 
+#if LIBAVUTIL_VERSION_MAJOR < 50
 /**
  * Resizes an AVFifoBuffer.
  * @param *f AVFifoBuffer to resize
  * @param size new AVFifoBuffer size in bytes
+ * @see av_fifo_realloc2()
  */
-void av_fifo_realloc(AVFifoBuffer *f, unsigned int size);
+attribute_deprecated void av_fifo_realloc(AVFifoBuffer *f, unsigned int size);
+#endif
+
+/**
+ * Resizes an AVFifoBuffer.
+ * @param *f AVFifoBuffer to resize
+ * @param size new AVFifoBuffer size in bytes
+ * @return <0 for failure >=0 otherwise
+ */
+int av_fifo_realloc2(AVFifoBuffer *f, unsigned int size);
 
 /**
  * Reads and discards the specified amount of data from an AVFifoBuffer.

@@ -22,7 +22,7 @@
 #define FFMPEG_AVFORMAT_H
 
 #define LIBAVFORMAT_VERSION_MAJOR 52
-#define LIBAVFORMAT_VERSION_MINOR 20
+#define LIBAVFORMAT_VERSION_MINOR 21
 #define LIBAVFORMAT_VERSION_MICRO  0
 
 #define LIBAVFORMAT_VERSION_INT AV_VERSION_INT(LIBAVFORMAT_VERSION_MAJOR, \
@@ -187,6 +187,7 @@ typedef struct AVFormatParameters {
 #define AVFMT_GLOBALHEADER  0x0040 /**< format wants global header */
 #define AVFMT_NOTIMESTAMPS  0x0080 /**< format does not need / have any timestamps */
 #define AVFMT_GENERIC_INDEX 0x0100 /**< use generic index building code */
+#define AVFMT_TS_DISCONT    0x0200 /**< format allows timestamo discontinuities */
 
 typedef struct AVOutputFormat {
     const char *name;
@@ -216,7 +217,7 @@ typedef struct AVOutputFormat {
      * list of supported codec_id-codec_tag pairs, ordered by "better choice first"
      * the arrays are all CODEC_ID_NONE terminated
      */
-    const struct AVCodecTag **codec_tag;
+    const struct AVCodecTag * const *codec_tag;
 
     enum CodecID subtitle_codec; /**< default subtitle codec */
 
@@ -286,7 +287,7 @@ typedef struct AVInputFormat {
        (RTSP) */
     int (*read_pause)(struct AVFormatContext *);
 
-    const struct AVCodecTag **codec_tag;
+    const struct AVCodecTag * const *codec_tag;
 
     /* private fields */
     struct AVInputFormat *next;
@@ -401,6 +402,13 @@ typedef struct AVStream {
     AVProbeData probe_data;
 #define MAX_REORDER_DELAY 16
     int64_t pts_buffer[MAX_REORDER_DELAY+1];
+
+    /**
+     * sample aspect ratio (0 if unknown)
+     * - encoding: Set by user.
+     * - decoding: Set by libavformat.
+     */
+    AVRational sample_aspect_ratio;
 } AVStream;
 
 #define AV_PROGRAM_RUNNING 1

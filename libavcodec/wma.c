@@ -302,8 +302,8 @@ int ff_wma_init(AVCodecContext * avctx, int flags2)
     for(i = 0; i < s->nb_block_sizes; i++) {
         int n;
         n = 1 << (s->frame_len_bits - i);
-        ff_sine_window_init(ff_sine_windows[i], n);
-        s->windows[i] = ff_sine_windows[i];
+        ff_sine_window_init(ff_sine_windows[s->frame_len_bits - i - 7], n);
+        s->windows[i] = ff_sine_windows[s->frame_len_bits - i - 7];
     }
 
     s->reset_block_lengths = 1;
@@ -366,8 +366,6 @@ int ff_wma_end(AVCodecContext *avctx)
 
     for(i = 0; i < s->nb_block_sizes; i++)
         ff_mdct_end(&s->mdct_ctx[i]);
-    for(i = 0; i < s->nb_block_sizes; i++)
-        av_free(s->windows[i]);
 
     if (s->use_exp_vlc) {
         free_vlc(&s->exp_vlc);

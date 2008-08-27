@@ -90,10 +90,6 @@
 #include <math.h>
 #include <string.h>
 
-#ifndef CONFIG_HARDCODED_TABLES
-    static float ff_aac_pow2sf_tab[316];
-#endif /* CONFIG_HARDCODED_TABLES */
-
 static VLC vlc_scalefactors;
 static VLC vlc_spectral[11];
 
@@ -122,7 +118,7 @@ static int output_configure(AACContext *ac, enum ChannelPosition che_pos[4][MAX_
      * Set up default 1:1 output mapping.
      *
      * For a 5.1 stream the output order will be:
-     *    [ Front Left ] [ Front Right ] [ Center ] [ LFE ] [ Surround Left ] [ Surround Right ]
+     *    [ Center ] [ Front Left ] [ Front Right ] [ LFE ] [ Surround Left ] [ Surround Right ]
      */
 
     for(i = 0; i < MAX_ELEM_ID; i++) {
@@ -413,6 +409,12 @@ static av_cold int aac_decode_init(AVCodecContext * avccontext) {
 
     ff_mdct_init(&ac->mdct, 11, 1);
     ff_mdct_init(&ac->mdct_small, 8, 1);
+    // window initialization
+    ff_kbd_window_init(ff_aac_kbd_long_1024, 4.0, 1024);
+    ff_kbd_window_init(ff_aac_kbd_short_128, 6.0, 128);
+    ff_sine_window_init(ff_sine_1024, 1024);
+    ff_sine_window_init(ff_sine_128, 128);
+
     return 0;
 }
 
@@ -446,7 +448,27 @@ static int decode_ics_info(AACContext * ac, IndividualChannelStream * ics, GetBi
     ics->use_kb_window[0] = get_bits1(gb);
     ics->num_window_groups = 1;
     ics->group_len[0] = 1;
-
+    if (ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE) {
+        int i;
+        ics->max_sfb = get_bits(gb, 4);
+        for (i = 0; i < 7; i++) {
+            if (get_bits1(gb)) {
+                ics->group_len[ics->num_window_groups-1]++;
+            } else {
+                ics->num_window_groups++;
+                ics->group_len[ics->num_window_groups-1] = 1;
+            }
+        }
+        ics->num_windows   = 8;
+        ics->swb_offset    =      swb_offset_128[ac->m4ac.sampling_index];
+        ics->num_swb       =  ff_aac_num_swb_128[ac->m4ac.sampling_index];
+        ics->tns_max_bands =   tns_max_bands_128[ac->m4ac.sampling_index];
+    } else {
+        ics->max_sfb       = get_bits(gb, 6);
+        ics->num_windows   = 1;
+        ics->swb_offset    =     swb_offset_1024[ac->m4ac.sampling_index];
+        ics->num_swb       = ff_aac_num_swb_1024[ac->m4ac.sampling_index];
+        ics->tns_max_bands =  tns_max_bands_1024[ac->m4ac.sampling_index];
         if (get_bits1(gb)) {
             av_log_missing_feature(ac->avccontext, "Predictor bit set but LTP is", 1);
             memset(ics, 0, sizeof(IndividualChannelStream));
@@ -495,6 +517,10 @@ static int decode_band_types(AACContext * ac, enum BandType band_type[120],
                     "Number of bands (%d) exceeds limit (%d).\n",
                     sect_len, ics->max_sfb);
                 return -1;
+            }
+            for (; k < sect_len; k++) {
+                band_type        [idx]   = sect_band_type;
+                band_type_run_end[idx++] = sect_len;
             }
         }
     }
@@ -579,6 +605,43 @@ static void decode_pulses(Pulse * pulse, GetBitContext * gb, const uint16_t * sw
 }
 
 /**
+ * Decode Temporal Noise Shaping data; reference: table 4.48.
+ *
+ * @return  Returns error status. 0 - OK, !0 - error
+ */
+static int decode_tns(AACContext * ac, TemporalNoiseShaping * tns,
+        GetBitContext * gb, const IndividualChannelStream * ics) {
+    int w, filt, i, coef_len, coef_res, coef_compress;
+    const int is8 = ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE;
+    const int tns_max_order = is8 ? 7 : ac->m4ac.object_type == AOT_AAC_MAIN ? 20 : 12;
+    for (w = 0; w < ics->num_windows; w++) {
+        if ((tns->n_filt[w] = get_bits(gb, 2 - is8))) {
+            coef_res = get_bits1(gb);
+
+            for (filt = 0; filt < tns->n_filt[w]; filt++) {
+                int tmp2_idx;
+                tns->length[w][filt] = get_bits(gb, 6 - 2*is8);
+
+                if ((tns->order[w][filt] = get_bits(gb, 5 - 2*is8)) > tns_max_order) {
+                    av_log(ac->avccontext, AV_LOG_ERROR, "TNS filter order %d is greater than maximum %d.",
+                           tns->order[w][filt], tns_max_order);
+                    tns->order[w][filt] = 0;
+                    return -1;
+                }
+                tns->direction[w][filt] = get_bits1(gb);
+                coef_compress = get_bits1(gb);
+                coef_len = coef_res + 3 - coef_compress;
+                tmp2_idx = 2*coef_compress + coef_res;
+
+                for (i = 0; i < tns->order[w][filt]; i++)
+                    tns->coef[w][filt][i] = tns_tmp2_map[tmp2_idx][get_bits(gb, coef_len)];
+            }
+        }
+    }
+    return 0;
+}
+
+/**
  * Decode Mid/Side data; reference: table 4.54.
  *
  * @param   ms_present  Indicates mid/side stereo presence. [0] mask is all 0s;
@@ -594,6 +657,106 @@ static void decode_mid_side_stereo(ChannelElement * cpe, GetBitContext * gb,
     } else if (ms_present == 2) {
         memset(cpe->ms_mask, 1, cpe->ch[0].ics.num_window_groups * cpe->ch[0].ics.max_sfb * sizeof(cpe->ms_mask[0]));
     }
+}
+
+/**
+ * Decode spectral data; reference: table 4.50.
+ * Dequantize and scale spectral data; reference: 4.6.3.3.
+ *
+ * @param   coef            array of dequantized, scaled spectral data
+ * @param   sf              array of scalefactors or intensity stereo positions
+ * @param   pulse_present   set if pulses are present
+ * @param   pulse           pointer to pulse data struct
+ * @param   band_type       array of the used band type
+ *
+ * @return  Returns error status. 0 - OK, !0 - error
+ */
+static int decode_spectrum_and_dequant(AACContext * ac, float coef[1024], GetBitContext * gb, float sf[120],
+        int pulse_present, const Pulse * pulse, const IndividualChannelStream * ics, enum BandType band_type[120]) {
+    int i, k, g, idx = 0;
+    const int c = 1024/ics->num_windows;
+    const uint16_t * offsets = ics->swb_offset;
+    float *coef_base = coef;
+
+    for (g = 0; g < ics->num_windows; g++)
+        memset(coef + g * 128 + offsets[ics->max_sfb], 0, sizeof(float)*(c - offsets[ics->max_sfb]));
+
+    for (g = 0; g < ics->num_window_groups; g++) {
+        for (i = 0; i < ics->max_sfb; i++, idx++) {
+            const int cur_band_type = band_type[idx];
+            const int dim = cur_band_type >= FIRST_PAIR_BT ? 2 : 4;
+            const int is_cb_unsigned = IS_CODEBOOK_UNSIGNED(cur_band_type);
+            int group;
+            if (cur_band_type == ZERO_BT) {
+                for (group = 0; group < ics->group_len[g]; group++) {
+                    memset(coef + group * 128 + offsets[i], 0, (offsets[i+1] - offsets[i])*sizeof(float));
+                }
+            }else if (cur_band_type == NOISE_BT) {
+                const float scale = sf[idx] / ((offsets[i+1] - offsets[i]) * PNS_MEAN_ENERGY);
+                for (group = 0; group < ics->group_len[g]; group++) {
+                    for (k = offsets[i]; k < offsets[i+1]; k++) {
+                        ac->random_state  = lcg_random(ac->random_state);
+                        coef[group*128+k] = ac->random_state * scale;
+                    }
+                }
+            }else if (cur_band_type != INTENSITY_BT2 && cur_band_type != INTENSITY_BT) {
+                for (group = 0; group < ics->group_len[g]; group++) {
+                    for (k = offsets[i]; k < offsets[i+1]; k += dim) {
+                        const int index = get_vlc2(gb, vlc_spectral[cur_band_type - 1].table, 6, 3);
+                        const int coef_tmp_idx = (group << 7) + k;
+                        const float *vq_ptr;
+                        int j;
+                        if(index >= ff_aac_spectral_sizes[cur_band_type - 1]) {
+                            av_log(ac->avccontext, AV_LOG_ERROR,
+                                "Read beyond end of ff_aac_codebook_vectors[%d][]. index %d >= %d\n",
+                                cur_band_type - 1, index, ff_aac_spectral_sizes[cur_band_type - 1]);
+                            return -1;
+                        }
+                        vq_ptr = &ff_aac_codebook_vectors[cur_band_type - 1][index * dim];
+                        if (is_cb_unsigned) {
+                            for (j = 0; j < dim; j++)
+                                if (vq_ptr[j])
+                                    coef[coef_tmp_idx + j] = 1 - 2*(int)get_bits1(gb);
+                        }else {
+                            for (j = 0; j < dim; j++)
+                                coef[coef_tmp_idx + j] = 1.0f;
+                        }
+                        if (cur_band_type == ESC_BT) {
+                            for (j = 0; j < 2; j++) {
+                                if (vq_ptr[j] == 64.0f) {
+                                    int n = 4;
+                                    /* The total length of escape_sequence must be < 22 bits according
+                                       to the specification (i.e. max is 11111111110xxxxxxxxxx). */
+                                    while (get_bits1(gb) && n < 15) n++;
+                                    if(n == 15) {
+                                        av_log(ac->avccontext, AV_LOG_ERROR, "error in spectral data, ESC overflow\n");
+                                        return -1;
+                                    }
+                                    n = (1<<n) + get_bits(gb, n);
+                                    coef[coef_tmp_idx + j] *= cbrtf(fabsf(n)) * n;
+                                }else
+                                    coef[coef_tmp_idx + j] *= vq_ptr[j];
+                            }
+                        }else
+                            for (j = 0; j < dim; j++)
+                                coef[coef_tmp_idx + j] *= vq_ptr[j];
+                        for (j = 0; j < dim; j++)
+                            coef[coef_tmp_idx + j] *= sf[idx];
+                    }
+                }
+            }
+        }
+        coef += ics->group_len[g]<<7;
+    }
+
+    if (pulse_present) {
+        for(i = 0; i < pulse->num_pulse; i++){
+            float co  = coef_base[ pulse->pos[i] ];
+            float ico = co / sqrtf(sqrtf(fabsf(co))) + pulse->amp[i];
+            coef_base[ pulse->pos[i] ] = cbrtf(fabsf(ico)) * ico;
+        }
+    }
+    return 0;
 }
 
 /**
@@ -651,6 +814,72 @@ static int decode_ics(AACContext * ac, SingleChannelElement * sce, GetBitContext
 }
 
 /**
+ * Mid/Side stereo decoding; reference: 4.6.8.1.3.
+ */
+static void apply_mid_side_stereo(ChannelElement * cpe) {
+    const IndividualChannelStream * ics = &cpe->ch[0].ics;
+    float *ch0 = cpe->ch[0].coeffs;
+    float *ch1 = cpe->ch[1].coeffs;
+    int g, i, k, group, idx = 0;
+    const uint16_t * offsets = ics->swb_offset;
+    for (g = 0; g < ics->num_window_groups; g++) {
+        for (i = 0; i < ics->max_sfb; i++, idx++) {
+            if (cpe->ms_mask[idx] &&
+                cpe->ch[0].band_type[idx] < NOISE_BT && cpe->ch[1].band_type[idx] < NOISE_BT) {
+                for (group = 0; group < ics->group_len[g]; group++) {
+                    for (k = offsets[i]; k < offsets[i+1]; k++) {
+                        float tmp = ch0[group*128 + k] - ch1[group*128 + k];
+                        ch0[group*128 + k] += ch1[group*128 + k];
+                        ch1[group*128 + k] = tmp;
+                    }
+                }
+            }
+        }
+        ch0 += ics->group_len[g]*128;
+        ch1 += ics->group_len[g]*128;
+    }
+}
+
+/**
+ * intensity stereo decoding; reference: 4.6.8.2.3
+ *
+ * @param   ms_present  Indicates mid/side stereo presence. [0] mask is all 0s;
+ *                      [1] mask is decoded from bitstream; [2] mask is all 1s;
+ *                      [3] reserved for scalable AAC
+ */
+static void apply_intensity_stereo(ChannelElement * cpe, int ms_present) {
+    const IndividualChannelStream * ics = &cpe->ch[1].ics;
+    SingleChannelElement * sce1 = &cpe->ch[1];
+    float *coef0 = cpe->ch[0].coeffs, *coef1 = cpe->ch[1].coeffs;
+    const uint16_t * offsets = ics->swb_offset;
+    int g, group, i, k, idx = 0;
+    int c;
+    float scale;
+    for (g = 0; g < ics->num_window_groups; g++) {
+        for (i = 0; i < ics->max_sfb;) {
+            if (sce1->band_type[idx] == INTENSITY_BT || sce1->band_type[idx] == INTENSITY_BT2) {
+                const int bt_run_end = sce1->band_type_run_end[idx];
+                for (; i < bt_run_end; i++, idx++) {
+                    c = -1 + 2 * (sce1->band_type[idx] - 14);
+                    if (ms_present)
+                        c *= 1 - 2 * cpe->ms_mask[idx];
+                    scale = c * sce1->sf[idx];
+                    for (group = 0; group < ics->group_len[g]; group++)
+                        for (k = offsets[i]; k < offsets[i+1]; k++)
+                            coef1[group*128 + k] = scale * coef0[group*128 + k];
+                }
+            } else {
+                int bt_run_end = sce1->band_type_run_end[idx];
+                idx += bt_run_end - i;
+                i    = bt_run_end;
+            }
+        }
+        coef0 += ics->group_len[g]*128;
+        coef1 += ics->group_len[g]*128;
+    }
+}
+
+/**
  * Decode a channel_pair_element; reference: table 4.4.
  *
  * @param   elem_id Identifies the instance of a syntax element.
@@ -687,6 +916,21 @@ static int decode_cpe(AACContext * ac, GetBitContext * gb, int elem_id) {
     apply_intensity_stereo(cpe, ms_present);
     return 0;
 }
+
+/**
+ * Decode coupling_channel_element; reference: table 4.8.
+ *
+ * @param   elem_id Identifies the instance of a syntax element.
+ *
+ * @return  Returns error status. 0 - OK, !0 - error
+ */
+static int decode_cce(AACContext * ac, GetBitContext * gb, ChannelElement * che) {
+    int num_gain = 0;
+    int c, g, sfb, ret, idx = 0;
+    int sign;
+    float scale;
+    SingleChannelElement * sce = &che->ch[0];
+    ChannelCoupling * coup     = &che->coup;
 
     coup->coupling_point = 2*get_bits1(gb);
     coup->num_coupled = get_bits(gb, 3);
@@ -860,6 +1104,61 @@ static int decode_extension_payload(AACContext * ac, GetBitContext * gb, int cnt
 }
 
 /**
+ * Decode Temporal Noise Shaping filter coefficients and apply all-pole filters; reference: 4.6.9.3.
+ *
+ * @param   decode  1 if tool is used normally, 0 if tool is used in LTP.
+ * @param   coef    spectral coefficients
+ */
+static void apply_tns(float coef[1024], TemporalNoiseShaping * tns, IndividualChannelStream * ics, int decode) {
+    const int mmm = FFMIN(ics->tns_max_bands,  ics->max_sfb);
+    int w, filt, m, i;
+    int bottom, top, order, start, end, size, inc;
+    float lpc[TNS_MAX_ORDER];
+
+    for (w = 0; w < ics->num_windows; w++) {
+        bottom = ics->num_swb;
+        for (filt = 0; filt < tns->n_filt[w]; filt++) {
+            top    = bottom;
+            bottom = FFMAX(0, top - tns->length[w][filt]);
+            order  = tns->order[w][filt];
+            if (order == 0)
+                continue;
+
+            /* tns_decode_coef
+             * FIXME: This duplicates the functionality of some double code in lpc.c.
+             */
+            for (m = 0; m < order; m++) {
+                float tmp;
+                lpc[m] = tns->coef[w][filt][m];
+                for (i = 0; i < m/2; i++) {
+                    tmp = lpc[i];
+                    lpc[i]     += lpc[m] * lpc[m-1-i];
+                    lpc[m-1-i] += lpc[m] * tmp;
+                }
+                if(m & 1)
+                    lpc[i]     += lpc[m] * lpc[i];
+            }
+
+            start = ics->swb_offset[FFMIN(bottom, mmm)];
+            end   = ics->swb_offset[FFMIN(   top, mmm)];
+            if ((size = end - start) <= 0)
+                continue;
+            if (tns->direction[w][filt]) {
+                inc = -1; start = end - 1;
+            } else {
+                inc = 1;
+            }
+            start += w * 128;
+
+            // ar filter
+            for (m = 0; m < size; m++, start += inc)
+                for (i = 1; i <= FFMIN(m, order); i++)
+                    coef[start] -= coef[start - i*inc] * lpc[i-1];
+        }
+    }
+}
+
+/**
  * Conduct IMDCT and windowing.
  */
 static void imdct_and_windowing(AACContext * ac, SingleChannelElement * sce) {
@@ -867,59 +1166,64 @@ static void imdct_and_windowing(AACContext * ac, SingleChannelElement * sce) {
     float * in = sce->coeffs;
     float * out = sce->ret;
     float * saved = sce->saved;
-    const float * lwindow      = ics->use_kb_window[0] ? ff_aac_kbd_long_1024 : ff_sine_1024;
     const float * swindow      = ics->use_kb_window[0] ? ff_aac_kbd_short_128 : ff_sine_128;
     const float * lwindow_prev = ics->use_kb_window[1] ? ff_aac_kbd_long_1024 : ff_sine_1024;
     const float * swindow_prev = ics->use_kb_window[1] ? ff_aac_kbd_short_128 : ff_sine_128;
     float * buf = ac->buf_mdct;
+    DECLARE_ALIGNED(16, float, temp[128]);
     int i;
 
+    // imdct
     if (ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE) {
         if (ics->window_sequence[1] == ONLY_LONG_SEQUENCE || ics->window_sequence[1] == LONG_STOP_SEQUENCE)
             av_log(ac->avccontext, AV_LOG_WARNING,
                    "Transition from an ONLY_LONG or LONG_STOP to an EIGHT_SHORT sequence detected. "
                    "If you heard an audible artifact, please submit the sample to the FFmpeg developers.\n");
-        for (i = 0; i < 2048; i += 256) {
-            ff_imdct_calc(&ac->mdct_small, buf + i, in + i/2);
-            ac->dsp.vector_fmul_reverse(ac->revers + i/2, buf + i + 128, swindow, 128);
-        }
-        for (i = 0; i < 448; i++)   out[i] = saved[i] + ac->add_bias;
+        for (i = 0; i < 1024; i += 128)
+            ff_imdct_half(&ac->mdct_small, buf + i, in + i);
+    } else
+        ff_imdct_half(&ac->mdct, buf, in);
 
-        ac->dsp.vector_fmul_add_add(out + 448 + 0*128, buf + 0*128, swindow_prev, saved + 448 ,       ac->add_bias, 128, 1);
-        ac->dsp.vector_fmul_add_add(out + 448 + 1*128, buf + 2*128, swindow,      ac->revers + 0*128, ac->add_bias, 128, 1);
-        ac->dsp.vector_fmul_add_add(out + 448 + 2*128, buf + 4*128, swindow,      ac->revers + 1*128, ac->add_bias, 128, 1);
-        ac->dsp.vector_fmul_add_add(out + 448 + 3*128, buf + 6*128, swindow,      ac->revers + 2*128, ac->add_bias, 128, 1);
-        ac->dsp.vector_fmul_add_add(out + 448 + 4*128, buf + 8*128, swindow,      ac->revers + 3*128, ac->add_bias,  64, 1);
-
-#if 0
-        vector_fmul_add_add_add(&ac->dsp, out + 448 + 1*128, buf + 2*128, swindow,      saved + 448 + 1*128, ac->revers + 0*128, ac->add_bias, 128);
-        vector_fmul_add_add_add(&ac->dsp, out + 448 + 2*128, buf + 4*128, swindow,      saved + 448 + 2*128, ac->revers + 1*128, ac->add_bias, 128);
-        vector_fmul_add_add_add(&ac->dsp, out + 448 + 3*128, buf + 6*128, swindow,      saved + 448 + 3*128, ac->revers + 2*128, ac->add_bias, 128);
-        vector_fmul_add_add_add(&ac->dsp, out + 448 + 4*128, buf + 8*128, swindow,      saved + 448 + 4*128, ac->revers + 3*128, ac->add_bias, 64);
-#endif
-
-        ac->dsp.vector_fmul_add_add(saved,       buf + 1024 + 64,    swindow + 64, ac->revers + 3*128+64,  0, 64, 1);
-        ac->dsp.vector_fmul_add_add(saved + 64,  buf + 1024 + 2*128, swindow,      ac->revers + 4*128,     0, 128, 1);
-        ac->dsp.vector_fmul_add_add(saved + 192, buf + 1024 + 4*128, swindow,      ac->revers + 5*128,     0, 128, 1);
-        ac->dsp.vector_fmul_add_add(saved + 320, buf + 1024 + 6*128, swindow,      ac->revers + 6*128,     0, 128, 1);
-        memcpy(                     saved + 448, ac->revers + 7*128, 128 * sizeof(float));
-        memset(                     saved + 576, 0,                  448 * sizeof(float));
+    /* window overlapping
+     * NOTE: To simplify the overlapping code, all 'meaningless' short to long
+     * and long to short transitions are considered to be short to short
+     * transitions. This leaves just two cases (long to long and short to short)
+     * with a little special sauce for EIGHT_SHORT_SEQUENCE.
+     */
+    if ((ics->window_sequence[1] == ONLY_LONG_SEQUENCE || ics->window_sequence[1] == LONG_STOP_SEQUENCE) &&
+        (ics->window_sequence[0] == ONLY_LONG_SEQUENCE || ics->window_sequence[0] == LONG_START_SEQUENCE)) {
+        ac->dsp.vector_fmul_window(    out,               saved,            buf,         lwindow_prev, ac->add_bias, 512);
     } else {
-        ff_imdct_calc(&ac->mdct, buf, in);
-        if (ics->window_sequence[0] == LONG_STOP_SEQUENCE) {
-            for (i = 0;   i < 448;  i++)   out[i] =          saved[i] + ac->add_bias;
-            ac->dsp.vector_fmul_add_add(out + 448, buf + 448, swindow_prev, saved + 448, ac->add_bias, 128, 1);
-            for (i = 576; i < 1024; i++)   out[i] = buf[i] + saved[i] + ac->add_bias;
+        for (i = 0; i < 448; i++)
+            out[i] = saved[i] + ac->add_bias;
+
+        if (ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE) {
+            ac->dsp.vector_fmul_window(out + 448 + 0*128, saved + 448,      buf + 0*128, swindow_prev, ac->add_bias, 64);
+            ac->dsp.vector_fmul_window(out + 448 + 1*128, buf + 0*128 + 64, buf + 1*128, swindow,      ac->add_bias, 64);
+            ac->dsp.vector_fmul_window(out + 448 + 2*128, buf + 1*128 + 64, buf + 2*128, swindow,      ac->add_bias, 64);
+            ac->dsp.vector_fmul_window(out + 448 + 3*128, buf + 2*128 + 64, buf + 3*128, swindow,      ac->add_bias, 64);
+            ac->dsp.vector_fmul_window(temp,              buf + 3*128 + 64, buf + 4*128, swindow,      ac->add_bias, 64);
+            memcpy(                    out + 448 + 4*128, temp, 64 * sizeof(float));
         } else {
-            ac->dsp.vector_fmul_add_add(out, buf, lwindow_prev, saved, ac->add_bias, 1024, 1);
+            ac->dsp.vector_fmul_window(out + 448,         saved + 448,      buf,         swindow_prev, ac->add_bias, 64);
+            for (i = 576; i < 1024; i++)
+                out[i] = buf[i-512] + ac->add_bias;
         }
-        if (ics->window_sequence[0] == LONG_START_SEQUENCE) {
-            memcpy(saved, buf + 1024, 448 * sizeof(float));
-            ac->dsp.vector_fmul_reverse(saved + 448, buf + 1024 + 448, swindow, 128);
-            memset(saved + 576, 0, 448 * sizeof(float));
-        } else {
-            ac->dsp.vector_fmul_reverse(saved, buf + 1024, lwindow, 1024);
-        }
+    }
+
+    // buffer update
+    if (ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE) {
+        for (i = 0; i < 64; i++)
+            saved[i] = temp[64 + i] - ac->add_bias;
+        ac->dsp.vector_fmul_window(saved + 64,  buf + 4*128 + 64, buf + 5*128, swindow, 0, 64);
+        ac->dsp.vector_fmul_window(saved + 192, buf + 5*128 + 64, buf + 6*128, swindow, 0, 64);
+        ac->dsp.vector_fmul_window(saved + 320, buf + 6*128 + 64, buf + 7*128, swindow, 0, 64);
+        memcpy(                    saved + 448, buf + 7*128 + 64,  64 * sizeof(float));
+    } else if (ics->window_sequence[0] == LONG_START_SEQUENCE) {
+        memcpy(                    saved,       buf + 512,        448 * sizeof(float));
+        memcpy(                    saved + 448, buf + 7*128 + 64,  64 * sizeof(float));
+    } else { // LONG_STOP or ONLY_LONG
+        memcpy(                    saved,       buf + 512,        512 * sizeof(float));
     }
 }
 
@@ -966,6 +1270,58 @@ static void apply_independent_coupling(AACContext * ac, SingleChannelElement * s
         sce->ret[i] += cc->coup.gain[index][0] * (cc->ch[0].ret[i] - ac->add_bias);
 }
 
+/**
+ * channel coupling transformation interface
+ *
+ * @param   index   index into coupling gain array
+ * @param   apply_coupling_method   pointer to (in)dependent coupling function
+ */
+static void apply_channel_coupling(AACContext * ac, ChannelElement * cc,
+        void (*apply_coupling_method)(AACContext * ac, SingleChannelElement * sce, ChannelElement * cc, int index))
+{
+    int c;
+    int index = 0;
+    ChannelCoupling * coup = &cc->coup;
+    for (c = 0; c <= coup->num_coupled; c++) {
+        if (ac->che[coup->type[c]][coup->id_select[c]]) {
+            if (coup->ch_select[c] != 2) {
+                apply_coupling_method(ac, &ac->che[coup->type[c]][coup->id_select[c]]->ch[0], cc, index);
+                if (coup->ch_select[c] != 0)
+                    index++;
+            }
+            if (coup->ch_select[c] != 1)
+                apply_coupling_method(ac, &ac->che[coup->type[c]][coup->id_select[c]]->ch[1], cc, index++);
+        } else {
+            av_log(ac->avccontext, AV_LOG_ERROR,
+                   "coupling target %sE[%d] not available\n",
+                   coup->type[c] == TYPE_CPE ? "CP" : "SC", coup->id_select[c]);
+            break;
+        }
+    }
+}
+
+/**
+ * Convert spectral data to float samples, applying all supported tools as appropriate.
+ */
+static void spectral_to_sample(AACContext * ac) {
+    int i, type;
+    for (i = 0; i < MAX_ELEM_ID; i++) {
+        for(type = 0; type < 4; type++) {
+            ChannelElement *che = ac->che[type][i];
+            if(che) {
+                if(che->coup.coupling_point == BEFORE_TNS)
+                    apply_channel_coupling(ac, che, apply_dependent_coupling);
+                if(che->ch[0].tns.present)
+                    apply_tns(che->ch[0].coeffs, &che->ch[0].tns, &che->ch[0].ics, 1);
+                if(che->ch[1].tns.present)
+                    apply_tns(che->ch[1].coeffs, &che->ch[1].tns, &che->ch[1].ics, 1);
+                if(che->coup.coupling_point == BETWEEN_TNS_AND_IMDCT)
+                    apply_channel_coupling(ac, che, apply_dependent_coupling);
+                imdct_and_windowing(ac, &che->ch[0]);
+                if(type == TYPE_CPE)
+                    imdct_and_windowing(ac, &che->ch[1]);
+                if(che->coup.coupling_point == AFTER_IMDCT)
+                    apply_channel_coupling(ac, che, apply_independent_coupling);
             }
         }
     }

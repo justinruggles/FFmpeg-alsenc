@@ -27,8 +27,8 @@
 #include "avformat.h"
 #include "raw.h"
 
-#ifdef CONFIG_MUXERS
 /* simple formats */
+#ifdef CONFIG_FLAC_MUXER
 static int flac_write_header(struct AVFormatContext *s)
 {
     static const uint8_t header[8] = {
@@ -42,8 +42,9 @@ static int flac_write_header(struct AVFormatContext *s)
     }
     return 0;
 }
+#endif
 
-
+#ifdef CONFIG_ROQ_MUXER
 static int roq_write_header(struct AVFormatContext *s)
 {
     static const uint8_t header[] = {
@@ -55,20 +56,25 @@ static int roq_write_header(struct AVFormatContext *s)
 
     return 0;
 }
+#endif
 
+#ifdef CONFIG_NULL_MUXER
 static int null_write_packet(struct AVFormatContext *s, AVPacket *pkt)
 {
     return 0;
 }
+#endif
 
+#ifdef CONFIG_MUXERS
 static int raw_write_packet(struct AVFormatContext *s, AVPacket *pkt)
 {
     put_buffer(s->pb, pkt->data, pkt->size);
     put_flush_packet(s->pb);
     return 0;
 }
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_DEMUXERS
 /* raw input */
 static int raw_read_header(AVFormatContext *s, AVFormatParameters *ap)
 {
@@ -156,7 +162,9 @@ static int raw_read_partial_packet(AVFormatContext *s, AVPacket *pkt)
     pkt->size = ret;
     return ret;
 }
+#endif
 
+#ifdef CONFIG_RAWVIDEO_DEMUXER
 static int rawvideo_read_packet(AVFormatContext *s, AVPacket *pkt)
 {
     int packet_size, ret, width, height;
@@ -180,7 +188,9 @@ static int rawvideo_read_packet(AVFormatContext *s, AVPacket *pkt)
         return 0;
     }
 }
+#endif
 
+#ifdef CONFIG_INGENIENT_DEMUXER
 // http://www.artificis.hu/files/texts/ingenient.txt
 static int ingenient_read_packet(AVFormatContext *s, AVPacket *pkt)
 {
@@ -198,7 +208,7 @@ static int ingenient_read_packet(AVFormatContext *s, AVPacket *pkt)
     url_fskip(s->pb, 2);
     unk1 = get_le16(s->pb);
     unk2 = get_le16(s->pb);
-    url_fskip(s->pb, 22); // ascii timestamp
+    url_fskip(s->pb, 22); // ASCII timestamp
 
     av_log(NULL, AV_LOG_DEBUG, "Ingenient packet: size=%d, width=%d, height=%d, unk1=%d unk2=%d\n",
         size, w, h, unk1, unk2);
@@ -216,7 +226,9 @@ static int ingenient_read_packet(AVFormatContext *s, AVPacket *pkt)
     pkt->size = ret;
     return ret;
 }
+#endif
 
+#ifdef CONFIG_DEMUXERS
 int pcm_read_seek(AVFormatContext *s,
                   int stream_index, int64_t timestamp, int flags)
 {
@@ -261,7 +273,7 @@ static int audio_read_header(AVFormatContext *s,
     return 0;
 }
 
-/* mpeg1/h263 input */
+/* MPEG-1/H.263 input */
 static int video_read_header(AVFormatContext *s,
                              AVFormatParameters *ap)
 {
@@ -275,8 +287,8 @@ static int video_read_header(AVFormatContext *s,
     st->codec->codec_id = s->iformat->value;
     st->need_parsing = AVSTREAM_PARSE_FULL;
 
-    /* for mjpeg, specify frame rate */
-    /* for mpeg4 specify it too (most mpeg4 streams do not have the fixed_vop_rate set ...)*/
+    /* for MJPEG, specify frame rate */
+    /* for MPEG-4 specify it, too (most MPEG-4 streams do not have the fixed_vop_rate set ...)*/
     if (ap->time_base.num) {
         av_set_pts_info(st, 64, ap->time_base.num, ap->time_base.den);
     } else if ( st->codec->codec_id == CODEC_ID_MJPEG ||
@@ -288,7 +300,9 @@ static int video_read_header(AVFormatContext *s,
 
     return 0;
 }
+#endif
 
+#ifdef CONFIG_MPEGVIDEO_DEMUXER
 #define SEQ_START_CODE          0x000001b3
 #define GOP_START_CODE          0x000001b8
 #define PICTURE_START_CODE      0x00000100
@@ -320,7 +334,9 @@ static int mpegvideo_probe(AVProbeData *p)
         return AVPROBE_SCORE_MAX/2+1; // +1 for .mpg
     return 0;
 }
+#endif
 
+#ifdef CONFIG_M4V_DEMUXER
 #define VISUAL_OBJECT_START_CODE       0x000001b5
 #define VOP_START_CODE                 0x000001b6
 
@@ -347,7 +363,9 @@ static int mpeg4video_probe(AVProbeData *probe_packet)
         return AVPROBE_SCORE_MAX/2;
     return 0;
 }
+#endif
 
+#ifdef CONFIG_H264_DEMUXER
 static int h264_probe(AVProbeData *p)
 {
     uint32_t code= -1;
@@ -392,7 +410,9 @@ static int h264_probe(AVProbeData *p)
         return AVPROBE_SCORE_MAX/2+1; // +1 for .mpg
     return 0;
 }
+#endif
 
+#ifdef CONFIG_H263_DEMUXER
 static int h263_probe(AVProbeData *p)
 {
     int code;
@@ -405,7 +425,9 @@ static int h263_probe(AVProbeData *p)
     }
     return 0;
 }
+#endif
 
+#ifdef CONFIG_H261_DEMUXER
 static int h261_probe(AVProbeData *p)
 {
     int code;
@@ -418,7 +440,9 @@ static int h261_probe(AVProbeData *p)
     }
     return 0;
 }
+#endif
 
+#ifdef CONFIG_DTS_DEMUXER
 #define DCA_MARKER_14B_BE 0x1FFFE800
 #define DCA_MARKER_14B_LE 0xFF1F00E8
 #define DCA_MARKER_RAW_BE 0x7FFE8001
@@ -434,16 +458,16 @@ static int dts_probe(AVProbeData *p)
         bufp = buf;
         state = (state << 16) | bytestream_get_be16(&bufp);
 
-        /* Regular bitstream */
+        /* regular bitstream */
         if (state == DCA_MARKER_RAW_BE || state == DCA_MARKER_RAW_LE)
             return AVPROBE_SCORE_MAX/2+1;
 
-        /* 14 bits big endian bitstream */
+        /* 14 bits big-endian bitstream */
         if (state == DCA_MARKER_14B_BE)
             if ((bytestream_get_be16(&bufp) & 0xFFF0) == 0x07F0)
                 return AVPROBE_SCORE_MAX/2+1;
 
-        /* 14 bits little endian bitstream */
+        /* 14 bits little-endian bitstream */
         if (state == DCA_MARKER_14B_LE)
             if ((bytestream_get_be16(&bufp) & 0xF0FF) == 0xF007)
                 return AVPROBE_SCORE_MAX/2+1;
@@ -451,7 +475,9 @@ static int dts_probe(AVProbeData *p)
 
     return 0;
 }
+#endif
 
+#ifdef CONFIG_DIRAC_DEMUXER
 static int dirac_probe(AVProbeData *p)
 {
     if (AV_RL32(p->buf) == MKTAG('B', 'B', 'C', 'D'))
@@ -459,7 +485,9 @@ static int dirac_probe(AVProbeData *p)
     else
         return 0;
 }
+#endif
 
+#ifdef CONFIG_AC3_DEMUXER
 static int ac3_probe(AVProbeData *p)
 {
     int max_frames, first_frames = 0, frames;
@@ -492,16 +520,20 @@ static int ac3_probe(AVProbeData *p)
     else if(max_frames>=1) return 1;
     else                   return 0;
 }
+#endif
 
+#ifdef CONFIG_FLAC_DEMUXER
 static int flac_probe(AVProbeData *p)
 {
     if(memcmp(p->buf, "fLaC", 4)) return 0;
     else                          return AVPROBE_SCORE_MAX / 2;
 }
+#endif
 
 
 /* Note: Do not forget to add new entries to the Makefile as well. */
 
+#ifdef CONFIG_AAC_DEMUXER
 AVInputFormat aac_demuxer = {
     "aac",
     NULL_IF_CONFIG_SMALL("ADTS AAC"),
@@ -513,6 +545,7 @@ AVInputFormat aac_demuxer = {
     .extensions = "aac",
     .value = CODEC_ID_AAC,
 };
+#endif
 
 #ifdef CONFIG_AC3_DEMUXER
 AVInputFormat ac3_demuxer = {
@@ -528,7 +561,7 @@ AVInputFormat ac3_demuxer = {
 };
 #endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_AC3_MUXER
 AVOutputFormat ac3_muxer = {
     "ac3",
     NULL_IF_CONFIG_SMALL("raw AC-3"),
@@ -541,8 +574,9 @@ AVOutputFormat ac3_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_DIRAC_DEMUXER
 AVInputFormat dirac_demuxer = {
     "dirac",
     NULL_IF_CONFIG_SMALL("raw Dirac"),
@@ -553,8 +587,9 @@ AVInputFormat dirac_demuxer = {
     .flags= AVFMT_GENERIC_INDEX,
     .value = CODEC_ID_DIRAC,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_DIRAC_MUXER
 AVOutputFormat dirac_muxer = {
     "dirac",
     NULL_IF_CONFIG_SMALL("raw Dirac"),
@@ -569,6 +604,7 @@ AVOutputFormat dirac_muxer = {
 };
 #endif
 
+#ifdef CONFIG_DTS_DEMUXER
 AVInputFormat dts_demuxer = {
     "dts",
     NULL_IF_CONFIG_SMALL("raw DTS"),
@@ -580,8 +616,9 @@ AVInputFormat dts_demuxer = {
     .extensions = "dts",
     .value = CODEC_ID_DTS,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_DTS_MUXER
 AVOutputFormat dts_muxer = {
     "dts",
     NULL_IF_CONFIG_SMALL("raw DTS"),
@@ -596,6 +633,7 @@ AVOutputFormat dts_muxer = {
 };
 #endif
 
+#ifdef CONFIG_FLAC_DEMUXER
 AVInputFormat flac_demuxer = {
     "flac",
     NULL_IF_CONFIG_SMALL("raw FLAC"),
@@ -607,8 +645,9 @@ AVInputFormat flac_demuxer = {
     .extensions = "flac",
     .value = CODEC_ID_FLAC,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_FLAC_MUXER
 AVOutputFormat flac_muxer = {
     "flac",
     NULL_IF_CONFIG_SMALL("raw FLAC"),
@@ -621,8 +660,9 @@ AVOutputFormat flac_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_GSM_DEMUXER
 AVInputFormat gsm_demuxer = {
     "gsm",
     NULL_IF_CONFIG_SMALL("GSM"),
@@ -634,7 +674,9 @@ AVInputFormat gsm_demuxer = {
     .extensions = "gsm",
     .value = CODEC_ID_GSM,
 };
+#endif
 
+#ifdef CONFIG_H261_DEMUXER
 AVInputFormat h261_demuxer = {
     "h261",
     NULL_IF_CONFIG_SMALL("raw H.261"),
@@ -646,8 +688,9 @@ AVInputFormat h261_demuxer = {
     .extensions = "h261",
     .value = CODEC_ID_H261,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_H261_MUXER
 AVOutputFormat h261_muxer = {
     "h261",
     NULL_IF_CONFIG_SMALL("raw H.261"),
@@ -660,8 +703,9 @@ AVOutputFormat h261_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_H263_DEMUXER
 AVInputFormat h263_demuxer = {
     "h263",
     NULL_IF_CONFIG_SMALL("raw H.263"),
@@ -673,8 +717,9 @@ AVInputFormat h263_demuxer = {
 //    .extensions = "h263", //FIXME remove after writing mpeg4_probe
     .value = CODEC_ID_H263,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_H263_MUXER
 AVOutputFormat h263_muxer = {
     "h263",
     NULL_IF_CONFIG_SMALL("raw H.263"),
@@ -687,8 +732,9 @@ AVOutputFormat h263_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_H264_DEMUXER
 AVInputFormat h264_demuxer = {
     "h264",
     NULL_IF_CONFIG_SMALL("raw H.264 video format"),
@@ -700,8 +746,9 @@ AVInputFormat h264_demuxer = {
     .extensions = "h26l,h264,264", //FIXME remove after writing mpeg4_probe
     .value = CODEC_ID_H264,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_H264_MUXER
 AVOutputFormat h264_muxer = {
     "h264",
     NULL_IF_CONFIG_SMALL("raw H.264 video format"),
@@ -714,8 +761,9 @@ AVOutputFormat h264_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_INGENIENT_DEMUXER
 AVInputFormat ingenient_demuxer = {
     "ingenient",
     NULL_IF_CONFIG_SMALL("Ingenient MJPEG"),
@@ -727,20 +775,23 @@ AVInputFormat ingenient_demuxer = {
     .extensions = "cgi", // FIXME
     .value = CODEC_ID_MJPEG,
 };
+#endif
 
+#ifdef CONFIG_M4V_DEMUXER
 AVInputFormat m4v_demuxer = {
     "m4v",
     NULL_IF_CONFIG_SMALL("raw MPEG-4 video format"),
     0,
-    mpeg4video_probe, /** probing for mpeg4 data */
+    mpeg4video_probe, /** probing for MPEG-4 data */
     video_read_header,
     raw_read_partial_packet,
     .flags= AVFMT_GENERIC_INDEX,
     .extensions = "m4v", //FIXME remove after writing mpeg4_probe
     .value = CODEC_ID_MPEG4,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_M4V_MUXER
 AVOutputFormat m4v_muxer = {
     "m4v",
     NULL_IF_CONFIG_SMALL("raw MPEG-4 video format"),
@@ -753,8 +804,9 @@ AVOutputFormat m4v_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_MJPEG_DEMUXER
 AVInputFormat mjpeg_demuxer = {
     "mjpeg",
     NULL_IF_CONFIG_SMALL("MJPEG video"),
@@ -766,8 +818,9 @@ AVInputFormat mjpeg_demuxer = {
     .extensions = "mjpg,mjpeg",
     .value = CODEC_ID_MJPEG,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_MJPEG_MUXER
 AVOutputFormat mjpeg_muxer = {
     "mjpeg",
     NULL_IF_CONFIG_SMALL("MJPEG video"),
@@ -780,8 +833,9 @@ AVOutputFormat mjpeg_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_MLP_DEMUXER
 AVInputFormat mlp_demuxer = {
     "mlp",
     NULL_IF_CONFIG_SMALL("raw MLP"),
@@ -793,8 +847,9 @@ AVInputFormat mlp_demuxer = {
     .extensions = "mlp",
     .value = CODEC_ID_MLP,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_MPEG1VIDEO_MUXER
 AVOutputFormat mpeg1video_muxer = {
     "mpeg1video",
     NULL_IF_CONFIG_SMALL("MPEG video"),
@@ -807,9 +862,9 @@ AVOutputFormat mpeg1video_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_MPEG2VIDEO_MUXER
 AVOutputFormat mpeg2video_muxer = {
     "mpeg2video",
     NULL_IF_CONFIG_SMALL("MPEG-2 video"),
@@ -822,8 +877,9 @@ AVOutputFormat mpeg2video_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_MPEGVIDEO_DEMUXER
 AVInputFormat mpegvideo_demuxer = {
     "mpegvideo",
     NULL_IF_CONFIG_SMALL("MPEG video"),
@@ -834,8 +890,9 @@ AVInputFormat mpegvideo_demuxer = {
     .flags= AVFMT_GENERIC_INDEX,
     .value = CODEC_ID_MPEG1VIDEO,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_NULL_MUXER
 AVOutputFormat null_muxer = {
     "null",
     NULL_IF_CONFIG_SMALL("null video format"),
@@ -852,8 +909,9 @@ AVOutputFormat null_muxer = {
     null_write_packet,
     .flags = AVFMT_NOFILE | AVFMT_RAWPICTURE | AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
+#ifdef CONFIG_RAWVIDEO_DEMUXER
 AVInputFormat rawvideo_demuxer = {
     "rawvideo",
     NULL_IF_CONFIG_SMALL("raw video format"),
@@ -865,8 +923,9 @@ AVInputFormat rawvideo_demuxer = {
     .extensions = "yuv,cif,qcif,rgb",
     .value = CODEC_ID_RAWVIDEO,
 };
+#endif
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_RAWVIDEO_MUXER
 AVOutputFormat rawvideo_muxer = {
     "rawvideo",
     NULL_IF_CONFIG_SMALL("raw video format"),
@@ -879,7 +938,7 @@ AVOutputFormat rawvideo_muxer = {
     raw_write_packet,
     .flags= AVFMT_NOTIMESTAMPS,
 };
-#endif //CONFIG_MUXERS
+#endif
 
 #ifdef CONFIG_ROQ_MUXER
 AVOutputFormat roq_muxer =
@@ -894,8 +953,9 @@ AVOutputFormat roq_muxer =
     roq_write_header,
     raw_write_packet,
 };
-#endif //CONFIG_ROQ_MUXER
+#endif
 
+#ifdef CONFIG_SHORTEN_DEMUXER
 AVInputFormat shorten_demuxer = {
     "shn",
     NULL_IF_CONFIG_SMALL("raw Shorten"),
@@ -907,7 +967,9 @@ AVInputFormat shorten_demuxer = {
     .extensions = "shn",
     .value = CODEC_ID_SHORTEN,
 };
+#endif
 
+#ifdef CONFIG_VC1_DEMUXER
 AVInputFormat vc1_demuxer = {
     "vc1",
     NULL_IF_CONFIG_SMALL("raw VC-1"),
@@ -918,8 +980,9 @@ AVInputFormat vc1_demuxer = {
     .extensions = "vc1",
     .value = CODEC_ID_VC1,
 };
+#endif
 
-/* pcm formats */
+/* PCM formats */
 
 #define PCMINPUTDEF(name, long_name, ext, codec) \
 AVInputFormat pcm_ ## name ## _demuxer = {\
@@ -973,6 +1036,29 @@ AVOutputFormat pcm_ ## name ## _muxer = {\
 #define LE_DEF(s) s
 #endif
 
+PCMDEF(f64be, "PCM 64 bit floating-point big-endian format",
+       NULL, CODEC_ID_PCM_F64BE)
+
+PCMDEF(f64le, "PCM 64 bit floating-point little-endian format",
+       NULL, CODEC_ID_PCM_F64LE)
+
+PCMDEF(f32be, "PCM 32 bit floating-point big-endian format",
+       NULL, CODEC_ID_PCM_F32BE)
+
+PCMDEF(f32le, "PCM 32 bit floating-point little-endian format",
+       NULL, CODEC_ID_PCM_F32LE)
+
+PCMDEF(s32be, "PCM signed 32 bit big-endian format",
+       NULL, CODEC_ID_PCM_S32BE)
+
+PCMDEF(s32le, "PCM signed 32 bit little-endian format",
+       NULL, CODEC_ID_PCM_S32LE)
+
+PCMDEF(s24be, "PCM signed 24 bit big-endian format",
+       NULL, CODEC_ID_PCM_S24BE)
+
+PCMDEF(s24le, "PCM signed 24 bit little-endian format",
+       NULL, CODEC_ID_PCM_S24LE)
 
 PCMDEF(s16be, "PCM signed 16 bit big-endian format",
        BE_DEF("sw"), CODEC_ID_PCM_S16BE)
@@ -982,6 +1068,18 @@ PCMDEF(s16le, "PCM signed 16 bit little-endian format",
 
 PCMDEF(s8, "PCM signed 8 bit format",
        "sb", CODEC_ID_PCM_S8)
+
+PCMDEF(u32be, "PCM unsigned 32 bit big-endian format",
+       NULL, CODEC_ID_PCM_U32BE)
+
+PCMDEF(u32le, "PCM unsigned 32 bit little-endian format",
+       NULL, CODEC_ID_PCM_U32LE)
+
+PCMDEF(u24be, "PCM unsigned 24 bit big-endian format",
+       NULL, CODEC_ID_PCM_U24BE)
+
+PCMDEF(u24le, "PCM unsigned 24 bit little-endian format",
+       NULL, CODEC_ID_PCM_U24LE)
 
 PCMDEF(u16be, "PCM unsigned 16 bit big-endian format",
        BE_DEF("uw"), CODEC_ID_PCM_U16BE)

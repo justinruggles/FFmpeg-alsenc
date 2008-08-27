@@ -593,11 +593,10 @@ static int mkv_write_tracks(AVFormatContext *s)
                 // XXX: interlace flag?
                 put_ebml_uint (pb, MATROSKA_ID_VIDEOPIXELWIDTH , codec->width);
                 put_ebml_uint (pb, MATROSKA_ID_VIDEOPIXELHEIGHT, codec->height);
-                if (codec->sample_aspect_ratio.num) {
-                    AVRational dar = av_mul_q(codec->sample_aspect_ratio,
-                                    (AVRational){codec->width, codec->height});
-                    put_ebml_uint(pb, MATROSKA_ID_VIDEODISPLAYWIDTH , dar.num);
-                    put_ebml_uint(pb, MATROSKA_ID_VIDEODISPLAYHEIGHT, dar.den);
+                if (st->sample_aspect_ratio.num) {
+                    int d_width = codec->width*av_q2d(st->sample_aspect_ratio);
+                    put_ebml_uint(pb, MATROSKA_ID_VIDEODISPLAYWIDTH , d_width);
+                    put_ebml_uint(pb, MATROSKA_ID_VIDEODISPLAYHEIGHT, codec->height);
                 }
                 end_ebml_master(pb, subinfo);
                 break;
@@ -847,7 +846,7 @@ AVOutputFormat matroska_muxer = {
     mkv_write_header,
     mkv_write_packet,
     mkv_write_trailer,
-    .codec_tag = (const AVCodecTag*[]){codec_bmp_tags, codec_wav_tags, 0},
+    .codec_tag = (const AVCodecTag* const []){codec_bmp_tags, codec_wav_tags, 0},
     .subtitle_codec = CODEC_ID_TEXT,
 };
 
@@ -862,5 +861,5 @@ AVOutputFormat matroska_audio_muxer = {
     mkv_write_header,
     mkv_write_packet,
     mkv_write_trailer,
-    .codec_tag = (const AVCodecTag*[]){codec_wav_tags, 0},
+    .codec_tag = (const AVCodecTag* const []){codec_wav_tags, 0},
 };

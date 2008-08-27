@@ -24,6 +24,7 @@
  * UDP protocol
  */
 
+#define _BSD_SOURCE     /* Needed for using struct ip_mreq with recent glibc */
 #include "avformat.h"
 #include <unistd.h>
 #include "network.h"
@@ -348,6 +349,9 @@ static int udp_open(URLContext *h, const char *uri, int flags)
 
     is_output = (flags & URL_WRONLY);
 
+    if(!ff_network_init())
+        return AVERROR(EIO);
+
     s = av_mallocz(sizeof(UDPContext));
     if (!s)
         return AVERROR(ENOMEM);
@@ -379,9 +383,6 @@ static int udp_open(URLContext *h, const char *uri, int flags)
     } else {
         udp_set_remote_url(h, uri);
     }
-
-    if(!ff_network_init())
-        return AVERROR(EIO);
 
     if (s->is_multicast && !(h->flags & URL_WRONLY))
         s->local_port = port;

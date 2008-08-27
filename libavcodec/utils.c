@@ -285,6 +285,8 @@ int avcodec_default_get_buffer(AVCodecContext *s, AVFrame *pic){
     }
     s->internal_buffer_count++;
 
+    pic->reordered_opaque= s->reordered_opaque;
+
     if(s->debug&FF_DEBUG_BUFFERS)
         av_log(s, AV_LOG_DEBUG, "default_get_buffer called on pic %p, %d buffers used\n", pic, s->internal_buffer_count);
 
@@ -762,7 +764,6 @@ void avcodec_get_context_defaults2(AVCodecContext *s, enum CodecType codec_type)
         flags= AV_OPT_FLAG_SUBTITLE_PARAM;
     av_opt_set_defaults2(s, flags, flags);
 
-    s->rc_eq= av_strdup("tex^qComp");
     s->time_base= (AVRational){0,1};
     s->get_buffer= avcodec_default_get_buffer;
     s->release_buffer= avcodec_default_release_buffer;
@@ -994,7 +995,6 @@ int avcodec_close(AVCodecContext *avctx)
         avctx->codec->close(avctx);
     avcodec_default_free_buffers(avctx);
     av_freep(&avctx->priv_data);
-    av_freep(&avctx->rc_eq);
     avctx->codec = NULL;
     entangled_thread_counter--;
     return 0;
@@ -1160,11 +1160,16 @@ void avcodec_string(char *buf, int buf_size, AVCodecContext *enc, int encode)
 
         /* for PCM codecs, compute bitrate directly */
         switch(enc->codec_id) {
+        case CODEC_ID_PCM_F64BE:
+        case CODEC_ID_PCM_F64LE:
+            bitrate = enc->sample_rate * enc->channels * 64;
+            break;
         case CODEC_ID_PCM_S32LE:
         case CODEC_ID_PCM_S32BE:
         case CODEC_ID_PCM_U32LE:
         case CODEC_ID_PCM_U32BE:
         case CODEC_ID_PCM_F32BE:
+        case CODEC_ID_PCM_F32LE:
             bitrate = enc->sample_rate * enc->channels * 32;
             break;
         case CODEC_ID_PCM_S24LE:
@@ -1314,7 +1319,11 @@ int av_get_bits_per_sample(enum CodecID codec_id){
     case CODEC_ID_PCM_U32BE:
     case CODEC_ID_PCM_U32LE:
     case CODEC_ID_PCM_F32BE:
+    case CODEC_ID_PCM_F32LE:
         return 32;
+    case CODEC_ID_PCM_F64BE:
+    case CODEC_ID_PCM_F64LE:
+        return 64;
     default:
         return 0;
     }
@@ -1331,6 +1340,8 @@ int av_get_bits_per_sample_format(enum SampleFormat sample_fmt) {
     case SAMPLE_FMT_S32:
     case SAMPLE_FMT_FLT:
         return 32;
+    case SAMPLE_FMT_DBL:
+        return 64;
     default:
         return 0;
     }

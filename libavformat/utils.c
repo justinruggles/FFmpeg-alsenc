@@ -352,14 +352,19 @@ static int set_codec_from_probe_data(AVStream *st, AVProbeData *pd, int score)
     fmt = av_probe_input_format2(pd, 1, &score);
 
     if (fmt) {
-        if (!strcmp(fmt->name, "mp3"))
+        if (!strcmp(fmt->name, "mp3")) {
             st->codec->codec_id = CODEC_ID_MP3;
-        else if (!strcmp(fmt->name, "ac3"))
+            st->codec->codec_type = CODEC_TYPE_AUDIO;
+        } else if (!strcmp(fmt->name, "ac3")) {
             st->codec->codec_id = CODEC_ID_AC3;
-        else if (!strcmp(fmt->name, "mpegvideo"))
+            st->codec->codec_type = CODEC_TYPE_AUDIO;
+        } else if (!strcmp(fmt->name, "mpegvideo")) {
             st->codec->codec_id = CODEC_ID_MPEG2VIDEO;
-        else if (!strcmp(fmt->name, "h264"))
+            st->codec->codec_type = CODEC_TYPE_VIDEO;
+        } else if (!strcmp(fmt->name, "h264")) {
             st->codec->codec_id = CODEC_ID_H264;
+            st->codec->codec_type = CODEC_TYPE_VIDEO;
+        }
     }
     return !!fmt;
 }
@@ -1552,7 +1557,6 @@ int av_seek_frame(AVFormatContext *s, int stream_index, int64_t timestamp, int f
        /* timestamp for default must be expressed in AV_TIME_BASE units */
         timestamp = av_rescale(timestamp, st->time_base.den, AV_TIME_BASE * (int64_t)st->time_base.num);
     }
-    st= s->streams[stream_index];
 
     /* first, we try the format specific seek */
     if (s->iformat->read_seek)
@@ -1965,7 +1969,7 @@ static void compute_chapters_end(AVFormatContext *s)
 #define MAX_STD_TIMEBASES (60*12+5)
 static int get_std_framerate(int i){
     if(i<60*12) return i*1001;
-    else        return ((int[]){24,30,60,12,15})[i-60*12]*1000*12;
+    else        return ((const int[]){24,30,60,12,15})[i-60*12]*1000*12;
 }
 
 /*
@@ -2330,6 +2334,8 @@ AVStream *av_new_stream(AVFormatContext *s, int id)
     st->last_IP_pts = AV_NOPTS_VALUE;
     for(i=0; i<MAX_REORDER_DELAY+1; i++)
         st->pts_buffer[i]= AV_NOPTS_VALUE;
+
+    st->sample_aspect_ratio = (AVRational){0,1};
 
     s->streams[s->nb_streams++] = st;
     return st;
@@ -2867,11 +2873,11 @@ int64_t parse_date(const char *datestr, int duration)
     int64_t t;
     struct tm dt;
     int i;
-    static const char *date_fmt[] = {
+    static const char * const date_fmt[] = {
         "%Y-%m-%d",
         "%Y%m%d",
     };
-    static const char *time_fmt[] = {
+    static const char * const time_fmt[] = {
         "%H:%M:%S",
         "%H%M%S",
     };

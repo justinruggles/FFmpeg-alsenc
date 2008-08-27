@@ -27,7 +27,7 @@ typedef struct {
     offset_t data_size;
 } MMFContext;
 
-static int mmf_rates[] = { 4000, 8000, 11025, 22050, 44100 };
+static const int mmf_rates[] = { 4000, 8000, 11025, 22050, 44100 };
 
 static int mmf_rate(int code)
 {
@@ -290,11 +290,6 @@ static int mmf_read_packet(AVFormatContext *s,
     return ret;
 }
 
-static int mmf_read_close(AVFormatContext *s)
-{
-    return 0;
-}
-
 #ifdef CONFIG_MMF_DEMUXER
 AVInputFormat mmf_demuxer = {
     "mmf",
@@ -303,7 +298,7 @@ AVInputFormat mmf_demuxer = {
     mmf_probe,
     mmf_read_header,
     mmf_read_packet,
-    mmf_read_close,
+    NULL,
     pcm_read_seek,
 };
 #endif

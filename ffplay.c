@@ -657,14 +657,15 @@ static void video_image_display(VideoState *is)
     vp = &is->pictq[is->pictq_rindex];
     if (vp->bmp) {
         /* XXX: use variable in the frame */
-        if (is->video_st->codec->sample_aspect_ratio.num == 0)
-            aspect_ratio = 0;
+        if (is->video_st->sample_aspect_ratio.num)
+            aspect_ratio = av_q2d(is->video_st->sample_aspect_ratio);
+        else if (is->video_st->codec->sample_aspect_ratio.num)
+            aspect_ratio = av_q2d(is->video_st->codec->sample_aspect_ratio);
         else
-            aspect_ratio = av_q2d(is->video_st->codec->sample_aspect_ratio)
-                * is->video_st->codec->width / is->video_st->codec->height;
+            aspect_ratio = 0;
         if (aspect_ratio <= 0.0)
-            aspect_ratio = (float)is->video_st->codec->width /
-                (float)is->video_st->codec->height;
+            aspect_ratio = 1.0;
+        aspect_ratio *= (float)is->video_st->codec->width / is->video_st->codec->height;
         /* if an active format is indicated, then it overrides the
            mpeg format */
 #if 0
@@ -915,6 +916,7 @@ static Uint32 sdl_refresh_timer_cb(Uint32 interval, void *opaque)
 /* schedule a video refresh in 'delay' ms */
 static void schedule_refresh(VideoState *is, int delay)
 {
+    if(!delay) delay=1; //SDL seems to be buggy when the delay is 0
     SDL_AddTimer(delay, sdl_refresh_timer_cb, is);
 }
 
@@ -1039,9 +1041,7 @@ static void video_refresh_timer(void *opaque)
                 /* skip or repeat frame. We take into account the
                    delay to compute the threshold. I still don't know
                    if it is the best guess */
-                sync_threshold = AV_SYNC_THRESHOLD;
-                if (delay > sync_threshold)
-                    sync_threshold = delay;
+                sync_threshold = FFMAX(AV_SYNC_THRESHOLD, delay);
                 if (fabs(diff) < AV_NOSYNC_THRESHOLD) {
                     if (diff <= -sync_threshold)
                         delay = 0;
@@ -1332,21 +1332,6 @@ static int output_picture2(VideoState *is, AVFrame *src_frame, double pts1)
     return queue_picture(is, src_frame, pts);
 }
 
-static uint64_t global_video_pkt_pts= AV_NOPTS_VALUE;
-
-static int my_get_buffer(struct AVCodecContext *c, AVFrame *pic){
-    int ret= avcodec_default_get_buffer(c, pic);
-    uint64_t *pts= av_malloc(sizeof(uint64_t));
-    *pts= global_video_pkt_pts;
-    pic->opaque= pts;
-    return ret;
-}
-
-static void my_release_buffer(struct AVCodecContext *c, AVFrame *pic){
-    if(pic) av_freep(&pic->opaque);
-    avcodec_default_release_buffer(c, pic);
-}
-
 static int video_thread(void *arg)
 {
     VideoState *is = arg;
@@ -1369,14 +1354,14 @@ static int video_thread(void *arg)
 
         /* NOTE: ipts is the PTS of the _first_ picture beginning in
            this packet, if any */
-        global_video_pkt_pts= pkt->pts;
+        is->video_st->codec->reordered_opaque= pkt->pts;
         len1 = avcodec_decode_video(is->video_st->codec,
                                     frame, &got_picture,
                                     pkt->data, pkt->size);
 
         if(   (decoder_reorder_pts || pkt->dts == AV_NOPTS_VALUE)
-           && frame->opaque && *(uint64_t*)frame->opaque != AV_NOPTS_VALUE)
-            pts= *(uint64_t*)frame->opaque;
+           && frame->reordered_opaque != AV_NOPTS_VALUE)
+            pts= frame->reordered_opaque;
         else if(pkt->dts != AV_NOPTS_VALUE)
             pts= pkt->dts;
         else
@@ -1775,6 +1760,7 @@ static int stream_component_open(VideoState *is, int stream_index)
     if(thread_count>1)
         avcodec_thread_init(enc, thread_count);
     enc->thread_count= thread_count;
+    ic->streams[stream_index]->discard = AVDISCARD_DEFAULT;
     switch(enc->codec_type) {
     case CODEC_TYPE_AUDIO:
         is->audio_stream = stream_index;
@@ -1803,9 +1789,6 @@ static int stream_component_open(VideoState *is, int stream_index)
 
         packet_queue_init(&is->videoq);
         is->video_tid = SDL_CreateThread(video_thread, is);
-
-        enc->    get_buffer=     my_get_buffer;
-        enc->release_buffer= my_release_buffer;
         break;
     case CODEC_TYPE_SUBTITLE:
         is->subtitle_stream = stream_index;
@@ -1871,6 +1854,7 @@ static void stream_component_close(VideoState *is, int stream_index)
         break;
     }
 
+    ic->streams[stream_index]->discard = AVDISCARD_ALL;
     avcodec_close(enc);
     switch(enc->codec_type) {
     case CODEC_TYPE_AUDIO:
@@ -1981,6 +1965,7 @@ static int decode_thread(void *arg)
 
     for(i = 0; i < ic->nb_streams; i++) {
         AVCodecContext *enc = ic->streams[i]->codec;
+        ic->streams[i]->discard = AVDISCARD_ALL;
         switch(enc->codec_type) {
         case CODEC_TYPE_AUDIO:
             if ((audio_index < 0 || wanted_audio_stream-- > 0) && !audio_disable)

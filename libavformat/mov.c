@@ -565,6 +565,12 @@ static int mov_read_enda(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
         case CODEC_ID_PCM_S32BE:
             st->codec->codec_id = CODEC_ID_PCM_S32LE;
             break;
+        case CODEC_ID_PCM_F32BE:
+            st->codec->codec_id = CODEC_ID_PCM_F32LE;
+            break;
+        case CODEC_ID_PCM_F64BE:
+            st->codec->codec_id = CODEC_ID_PCM_F64LE;
+            break;
         default:
             break;
         }
@@ -674,10 +680,10 @@ static int mov_get_lpcm_codec_id(int bps, int flags)
     if (flags & 1) { // floating point
         if (flags & 2) { // big endian
             if      (bps == 32) return CODEC_ID_PCM_F32BE;
-          //else if (bps == 64) return CODEC_ID_PCM_F64BE;
+            else if (bps == 64) return CODEC_ID_PCM_F64BE;
         } else {
-          //if      (bps == 32) return CODEC_ID_PCM_F32LE;
-          //else if (bps == 64) return CODEC_ID_PCM_F64LE;
+            if      (bps == 32) return CODEC_ID_PCM_F32LE;
+            else if (bps == 64) return CODEC_ID_PCM_F64LE;
         }
     } else {
         if (flags & 2) {
@@ -1472,7 +1478,7 @@ static int mov_read_tkhd(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
                 ((int64_t) display_matrix[2][i] << 16);
 
         //sample aspect ratio is new width/height divided by old width/height
-        st->codec->sample_aspect_ratio = av_d2q(
+        st->sample_aspect_ratio = av_d2q(
             ((double) disp_transform[0] * height) /
             ((double) disp_transform[1] * width), INT_MAX);
     }

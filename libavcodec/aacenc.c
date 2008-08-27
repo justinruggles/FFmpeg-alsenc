@@ -27,8 +27,8 @@
 /***********************************
  *              TODOs:
  * psy model selection with some option
- * change greedy codebook search into something more optimal, like Viterbi algorithm
- * determine run lengths along with codebook
+ * add sane pulse detection
+ * add temporal noise shaping
  ***********************************/
 
 #include "avcodec.h"
@@ -119,15 +119,59 @@ static const uint8_t *swb_size_128[] = {
     swb_size_128_16, swb_size_128_16, swb_size_128_8
 };
 
+/** bits needed to code codebook run value for long windows */
+static const uint8_t run_value_bits_long[64] = {
+     5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,
+     5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5,  5, 10,
+    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 15
+};
+
+/** bits needed to code codebook run value for short windows */
+static const uint8_t run_value_bits_short[16] = {
+    3, 3, 3, 3, 3, 3, 3, 6, 6, 6, 6, 6, 6, 6, 6, 9
+};
+
+static const uint8_t* run_value_bits[2] = {
+    run_value_bits_long, run_value_bits_short
+};
+
 /** default channel configurations */
 static const uint8_t aac_chan_configs[6][5] = {
- {1, ID_SCE},                         // 1 channel  - single channel element
- {1, ID_CPE},                         // 2 channels - channel pair
- {2, ID_SCE, ID_CPE},                 // 3 channels - center + stereo
- {3, ID_SCE, ID_CPE, ID_SCE},         // 4 channels - front center + stereo + back center
- {3, ID_SCE, ID_CPE, ID_CPE},         // 5 channels - front center + stereo + back stereo
- {4, ID_SCE, ID_CPE, ID_CPE, ID_LFE}, // 6 channels - front center + stereo + back stereo + LFE
+ {1, TYPE_SCE},                               // 1 channel  - single channel element
+ {1, TYPE_CPE},                               // 2 channels - channel pair
+ {2, TYPE_SCE, TYPE_CPE},                     // 3 channels - center + stereo
+ {3, TYPE_SCE, TYPE_CPE, TYPE_SCE},           // 4 channels - front center + stereo + back center
+ {3, TYPE_SCE, TYPE_CPE, TYPE_CPE},           // 5 channels - front center + stereo + back stereo
+ {4, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_LFE}, // 6 channels - front center + stereo + back stereo + LFE
 };
+
+/**
+ * structure used in optimal codebook search
+ */
+typedef struct BandCodingPath {
+    int prev_idx; ///< pointer to the previous path point
+    int codebook; ///< codebook for coding band run
+    int bits;     ///< number of bit needed to code given number of bands
+} BandCodingPath;
+
+/**
+ * AAC encoder context
+ */
+typedef struct {
+    PutBitContext pb;
+    MDCTContext mdct1024;                        ///< long (1024 samples) frame transform context
+    MDCTContext mdct128;                         ///< short (128 samples) frame transform context
+    DSPContext  dsp;
+    DECLARE_ALIGNED_16(FFTSample, output[2048]); ///< temporary buffer for MDCT input coefficients
+    int16_t* samples;                            ///< saved preprocessed input
+
+    int samplerate_index;                        ///< MPEG-4 samplerate index
+
+    ChannelElement *cpe;                         ///< channel elements
+    AACPsyContext psy;                           ///< psychoacoustic model context
+    int last_frame;
+} AACEncContext;
 
 /**
  * Make AAC audio config object.
@@ -168,18 +212,21 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
         return -1;
     }
     s->samplerate_index = i;
-    s->swb_sizes1024 = swb_size_1024[i];
-    s->swb_num1024   = ff_aac_num_swb_1024[i];
-    s->swb_sizes128  = swb_size_128[i];
-    s->swb_num128    = ff_aac_num_swb_128[i];
 
     dsputil_init(&s->dsp, avctx);
     ff_mdct_init(&s->mdct1024, 11, 0);
     ff_mdct_init(&s->mdct128,   8, 0);
+    // window init
+    ff_kbd_window_init(ff_aac_kbd_long_1024, 4.0, 1024);
+    ff_kbd_window_init(ff_aac_kbd_short_128, 6.0, 128);
+    ff_sine_window_init(ff_sine_1024, 1024);
+    ff_sine_window_init(ff_sine_128, 128);
 
     s->samples = av_malloc(2 * 1024 * avctx->channels * sizeof(s->samples[0]));
     s->cpe = av_mallocz(sizeof(ChannelElement) * aac_chan_configs[avctx->channels-1][0]);
-    if(ff_aac_psy_init(&s->psy, avctx, AAC_PSY_3GPP, aac_chan_configs[avctx->channels-1][0], 0, s->swb_sizes1024, s->swb_num1024, s->swb_sizes128, s->swb_num128) < 0){
+    if(ff_aac_psy_init(&s->psy, avctx, AAC_PSY_3GPP,
+                       aac_chan_configs[avctx->channels-1][0], 0,
+                       swb_size_1024[i], ff_aac_num_swb_1024[i], swb_size_128[i], ff_aac_num_swb_128[i]) < 0){
         av_log(avctx, AV_LOG_ERROR, "Cannot initialize selected model.\n");
         return -1;
     }
@@ -193,9 +240,8 @@ static av_cold int aac_encode_init(AVCodecContext *avctx)
  * Encode ics_info element.
  * @see Table 4.6 (syntax of ics_info)
  */
-static void put_ics_info(AVCodecContext *avctx, IndividualChannelStream *info)
+static void put_ics_info(AACEncContext *s, IndividualChannelStream *info)
 {
-    AACEncContext *s = avctx->priv_data;
     int i;
 
     put_bits(&s->pb, 1, 0);                // ics_reserved bit
@@ -212,6 +258,68 @@ static void put_ics_info(AVCodecContext *avctx, IndividualChannelStream *info)
 }
 
 /**
+ * Calculate the number of bits needed to code all coefficient signs in current band.
+ */
+static int calculate_band_sign_bits(AACEncContext *s, SingleChannelElement *sce,
+                                    int group_len, int start, int size)
+{
+    int bits = 0;
+    int i, w;
+    for(w = 0; w < group_len; w++){
+        for(i = 0; i < size; i++){
+            if(sce->icoefs[start + i])
+                bits++;
+        }
+        start += 128;
+    }
+    return bits;
+}
+
+/**
+ * Encode pulse data.
+ */
+static void encode_pulses(AACEncContext *s, Pulse *pulse)
+{
+    int i;
+
+    put_bits(&s->pb, 1, !!pulse->num_pulse);
+    if(!pulse->num_pulse) return;
+
+    put_bits(&s->pb, 2, pulse->num_pulse - 1);
+    put_bits(&s->pb, 6, pulse->start);
+    for(i = 0; i < pulse->num_pulse; i++){
+        put_bits(&s->pb, 5, pulse->pos[i]);
+        put_bits(&s->pb, 4, pulse->amp[i]);
+    }
+}
+
+/**
+ * Encode spectral coefficients processed by psychoacoustic model.
+ */
+static void encode_spectral_coeffs(AACEncContext *s, SingleChannelElement *sce)
+{
+    int start, i, w, w2, wg;
+
+    w = 0;
+    for(wg = 0; wg < sce->ics.num_window_groups; wg++){
+        start = 0;
+        for(i = 0; i < sce->ics.max_sfb; i++){
+            if(sce->zeroes[w*16 + i]){
+                start += sce->ics.swb_sizes[i];
+                continue;
+            }
+            for(w2 = w; w2 < w + sce->ics.group_len[wg]; w2++){
+                encode_band_coeffs(s, sce, start + w2*128,
+                                   sce->ics.swb_sizes[i],
+                                   sce->band_type[w*16 + i]);
+            }
+            start += sce->ics.swb_sizes[i];
+        }
+        w += sce->ics.group_len[wg];
+    }
+}
+
+/**
  * Write some auxiliary information about the created AAC file.
  */
 static void put_bitstream_info(AVCodecContext *avctx, AACEncContext *s, const char *name)
@@ -219,7 +327,7 @@ static void put_bitstream_info(AVCodecContext *avctx, AACEncContext *s, const ch
     int i, namelen, padbits;
 
     namelen = strlen(name) + 2;
-    put_bits(&s->pb, 3, ID_FIL);
+    put_bits(&s->pb, 3, TYPE_FIL);
     put_bits(&s->pb, 4, FFMIN(namelen, 15));
     if(namelen >= 15)
         put_bits(&s->pb, 8, namelen - 16);

@@ -45,6 +45,9 @@
 #define MAX_CHANNELS 64
 #define MAX_ELEM_ID 16
 
+#define TNS_MAX_ORDER 20
+#define PNS_MEAN_ENERGY 3719550720.0f // sqrt(3.0) * 1<<31
+
 enum AudioObjectType {
     AOT_NULL,
                                // Support?                Name
@@ -146,6 +149,18 @@ typedef struct {
 } IndividualChannelStream;
 
 /**
+ * Temporal Noise Shaping
+ */
+typedef struct {
+    int present;
+    int n_filt[8];
+    int length[8][4];
+    int direction[8][4];
+    int order[8][4];
+    float coef[8][4][TNS_MAX_ORDER];
+} TemporalNoiseShaping;
+
+/**
  * Dynamic Range Control - decoded from the bitstream but not processed further.
  */
 typedef struct {
@@ -191,7 +206,7 @@ typedef struct {
     int band_type_run_end[120];               ///< band type run end points
     float sf[120];                            ///< scalefactors
     DECLARE_ALIGNED_16(float, coeffs[1024]);  ///< coefficients for IMDCT
-    DECLARE_ALIGNED_16(float, saved[1024]);   ///< overlap
+    DECLARE_ALIGNED_16(float, saved[512]);    ///< overlap
     DECLARE_ALIGNED_16(float, ret[1024]);     ///< PCM output
 } SingleChannelElement;
 
@@ -226,6 +241,13 @@ typedef struct {
                                                    *   first index as the first 4 raw data block types
                                                    */
     ChannelElement * che[4][MAX_ELEM_ID];
+    /** @} */
+
+    /**
+     * @defgroup temporary aligned temporary buffers (We do not want to have these on the stack.)
+     * @{
+     */
+    DECLARE_ALIGNED_16(float, buf_mdct[1024]);
     /** @} */
 
     /**

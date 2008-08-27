@@ -449,8 +449,8 @@ do_audio_enc_dec mov u8 pcm_s8
 do_audio_enc_dec wav u8 pcm_u8
 do_audio_enc_dec mov s16 pcm_s16be
 do_audio_enc_dec wav s16 pcm_s16le
-do_audio_enc_dec mkv s16 pcm_u16be
-do_audio_enc_dec mkv s16 pcm_u16le
+do_audio_enc_dec mkv s16 pcm_s16be
+do_audio_enc_dec mkv s16 pcm_s16le
 do_audio_enc_dec mov s32 pcm_s24be
 do_audio_enc_dec wav s32 pcm_s24le
 #do_audio_enc_dec ??? s32 pcm_u24be #no compatible muxer or demuxer
@@ -460,6 +460,9 @@ do_audio_enc_dec wav s32 pcm_s32le
 #do_audio_enc_dec ??? s32 pcm_u32be #no compatible muxer or demuxer
 #do_audio_enc_dec ??? s32 pcm_u32le #no compatible muxer or demuxer
 do_audio_enc_dec au  flt pcm_f32be
+do_audio_enc_dec wav flt pcm_f32le
+do_audio_enc_dec au  dbl pcm_f64be
+do_audio_enc_dec wav dbl pcm_f64le
 do_audio_enc_dec wav s16 pcm_zork
 do_audio_enc_dec 302 s16 pcm_s24daud "-ac 6 -ar 96000"
 fi

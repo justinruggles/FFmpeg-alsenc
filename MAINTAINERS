@@ -106,8 +106,11 @@ Generic Parts:
 Codecs:
   4xm.c                                 Michael Niedermayer
   8bps.c                                Roberto Togni
+  8svx.c                                Jaikrishnan Menon
   aasc.c                                Kostya Shishkov
+  aac.[ch], aactab.[ch], aacdectab.h    Robert Swain
   ac3*                                  Justin Ruggles
+  alacenc.c                             Jaikrishnan Menon
   apedec.c                              Kostya Shishkov
   asv*                                  Michael Niedermayer
   atrac3*                               Benjamin Larsson
@@ -241,6 +244,7 @@ Muxers/Demuxers:
   gxfenc.c                              Baptiste Coudurier
   idcin.c                               Mike Melanson
   idroq.c                               Mike Melanson
+  iff.c                                 Jaikrishnan Menon
   ipmovie.c                             Mike Melanson
   img2.c                                Michael Niedermayer
   libnut.c                              Oded Shimon
@@ -250,10 +254,12 @@ Muxers/Demuxers:
   mov.c                                 Michael Niedermayer, Baptiste Coudurier
   movenc.c                              Michael Niedermayer, Baptiste Coudurier
   mpc.c                                 Kostya Shishkov
+  mpeg.c                                Michael Niedermayer
+  mpegenc.c                             Michael Niedermayer
   mpegts*                               Mans Rullgard
   msnwc_tcp.c                           Ramiro Polla
   mtv.c                                 Reynaldo H. Verdejo Pinochet
-  mxf.c                                 Baptiste Coudurier
+  mxf*                                  Baptiste Coudurier
   nsvdec.c                              Francois Revol
   nut.c                                 Michael Niedermayer
   nuv.c                                 Reimar Doeffinger

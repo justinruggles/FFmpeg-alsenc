@@ -429,10 +429,10 @@ typedef struct DSPContext {
 #define EDGE_WIDTH 16
 
     /* h264 functions */
-    void (*h264_idct_add)(uint8_t *dst, DCTELEM *block, int stride);
-    void (*h264_idct8_add)(uint8_t *dst, DCTELEM *block, int stride);
-    void (*h264_idct_dc_add)(uint8_t *dst, DCTELEM *block, int stride);
-    void (*h264_idct8_dc_add)(uint8_t *dst, DCTELEM *block, int stride);
+    void (*h264_idct_add)(uint8_t *dst/*align 4*/, DCTELEM *block/*align 16*/, int stride);
+    void (*h264_idct8_add)(uint8_t *dst/*align 8*/, DCTELEM *block/*align 16*/, int stride);
+    void (*h264_idct_dc_add)(uint8_t *dst/*align 4*/, DCTELEM *block/*align 16*/, int stride);
+    void (*h264_idct8_dc_add)(uint8_t *dst/*align 8*/, DCTELEM *block/*align 16*/, int stride);
     void (*h264_dct)(DCTELEM block[4][4]);
 
     /* snow wavelet */
@@ -590,6 +590,11 @@ void dsputil_init_pix_mmx(DSPContext* c, AVCodecContext *avctx);
 #define MM_IWMMXT    0x0100 /* XScale IWMMXT */
 
 extern int mm_flags;
+
+#ifdef HAVE_NEON
+#   define DECLARE_ALIGNED_8(t, v) DECLARE_ALIGNED(16, t, v)
+#   define STRIDE_ALIGN 16
+#endif
 
 #elif defined(ARCH_POWERPC)
 

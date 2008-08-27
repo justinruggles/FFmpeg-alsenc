@@ -30,7 +30,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 51
-#define LIBAVCODEC_VERSION_MINOR 64
+#define LIBAVCODEC_VERSION_MINOR 69
 #define LIBAVCODEC_VERSION_MICRO  0
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
@@ -212,6 +212,9 @@ enum CodecID {
     CODEC_ID_PCM_S16LE_PLANAR,
     CODEC_ID_PCM_DVD,
     CODEC_ID_PCM_F32BE,
+    CODEC_ID_PCM_F32LE,
+    CODEC_ID_PCM_F64BE,
+    CODEC_ID_PCM_F64LE,
 
     /* various ADPCM codecs */
     CODEC_ID_ADPCM_IMA_QT= 0x11000,
@@ -345,9 +348,10 @@ enum SampleFormat {
     SAMPLE_FMT_NONE = -1,
     SAMPLE_FMT_U8,              ///< unsigned 8 bits
     SAMPLE_FMT_S16,             ///< signed 16 bits
-    SAMPLE_FMT_S24,             ///< signed 24 bits
+    SAMPLE_FMT_S24,             ///< signed 24 bits @deprecated Deprecated in favor of SAMPLE_FMT_S32
     SAMPLE_FMT_S32,             ///< signed 32 bits
     SAMPLE_FMT_FLT,             ///< float
+    SAMPLE_FMT_DBL,             ///< double
     SAMPLE_FMT_NB               ///< Number of sample formats. DO NOT USE if dynamically linking to libavcodec
 };
 
@@ -763,7 +767,16 @@ typedef struct AVPanScan{
      * - encoding: Set by user.\
      * - decoding: Set by libavcodec.\
      */\
-    int8_t *ref_index[2];
+    int8_t *ref_index[2];\
+\
+    /**\
+     * reordered opaque 64bit number (generally a PTS) from AVCodecContext.reordered_opaque\
+     * output in AVFrame.reordered_opaque\
+     * - encoding: unused\
+     * - decoding: Read by user.\
+     */\
+    int64_t reordered_opaque;\
+
 
 #define FF_QSCALE_TYPE_MPEG1 0
 #define FF_QSCALE_TYPE_MPEG2 1
@@ -2226,6 +2239,14 @@ typedef struct AVCodecContext {
      * - decoding: Set by user.
      */
     float drc_scale;
+
+    /**
+     * opaque 64bit number (generally a PTS) that will be reordered and
+     * output in AVFrame.reordered_opaque
+     * - encoding: unused
+     * - decoding: Set by user.
+     */
+    int64_t reordered_opaque;
 } AVCodecContext;
 
 /**

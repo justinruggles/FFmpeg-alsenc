@@ -39,7 +39,10 @@ static const AVCodecTag codec_au_tags[] = {
     { CODEC_ID_PCM_MULAW, 1 },
     { CODEC_ID_PCM_S8, 2 },
     { CODEC_ID_PCM_S16BE, 3 },
+    { CODEC_ID_PCM_S24BE, 4 },
+    { CODEC_ID_PCM_S32BE, 5 },
     { CODEC_ID_PCM_F32BE, 6 },
+    { CODEC_ID_PCM_F64BE, 7 },
     { CODEC_ID_PCM_ALAW, 27 },
     { 0, 0 },
 };
@@ -183,7 +186,7 @@ AVInputFormat au_demuxer = {
     au_read_packet,
     NULL,
     pcm_read_seek,
-    .codec_tag= (const AVCodecTag*[]){codec_au_tags, 0},
+    .codec_tag= (const AVCodecTag* const []){codec_au_tags, 0},
 };
 #endif
 
@@ -199,6 +202,6 @@ AVOutputFormat au_muxer = {
     au_write_header,
     au_write_packet,
     au_write_trailer,
-    .codec_tag= (const AVCodecTag*[]){codec_au_tags, 0},
+    .codec_tag= (const AVCodecTag* const []){codec_au_tags, 0},
 };
 #endif //CONFIG_AU_MUXER
