@@ -690,17 +690,8 @@ static void output_block(AlsEncodeContext *s, int ch)
         const int8_t *offset = parcor_rice_table[s->parcor_table_number][0];
         const int8_t *rp  = parcor_rice_table[s->parcor_table_number][1];
         for (order = 0; order < blk->lpc_order; order++) {
-            int c = blk->q_parcor_coeffs[order+1];
-            if (order <= 19) {
-                set_sr_golomb_als(pb, c - offset[order], rp[order]);
-            } else if (order <= 126) {
-                if (!(order & 1))
-                    set_sr_golomb_als(pb, c - offset[20], rp[20]);
-                else
-                    set_sr_golomb_als(pb, c - offset[21], rp[21]);
-            } else {
-                set_sr_golomb_als(pb, c - offset[22], rp[22]);
-            }
+            i = (order <= 19) ? order : 20 + (order & 1) + (order > 126);
+            set_sr_golomb_als(pb, blk->q_parcor_coeffs[order+1]-offset[i], rp[i]);
         }
     }
 
