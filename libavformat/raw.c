@@ -42,6 +42,23 @@ static int flac_write_header(struct AVFormatContext *s)
     }
     return 0;
 }
+
+static int flac_write_trailer(struct AVFormatContext *s)
+{
+    ByteIOContext *pb = s->pb;
+    uint8_t *streaminfo = s->streams[0]->codec->extradata;
+    int len = s->streams[0]->codec->extradata_size;
+    offset_t file_size;
+
+    if (streaminfo && len > 0 && !url_is_streamed(s->pb)) {
+        file_size = url_ftell(pb);
+        url_fseek(pb, 8, SEEK_SET);
+        put_buffer(pb, streaminfo, len);
+        url_fseek(pb, file_size, SEEK_SET);
+        put_flush_packet(pb);
+    }
+    return 0;
+}
 #endif
 
 #ifdef CONFIG_ROQ_MUXER
@@ -487,13 +504,14 @@ static int dirac_probe(AVProbeData *p)
 }
 #endif
 
-#ifdef CONFIG_AC3_DEMUXER
-static int ac3_probe(AVProbeData *p)
+#if defined(CONFIG_AC3_DEMUXER) || defined(CONFIG_EAC3_DEMUXER)
+static int ac3_eac3_probe(AVProbeData *p, enum CodecID expected_codec_id)
 {
     int max_frames, first_frames = 0, frames;
     uint8_t *buf, *buf2, *end;
     AC3HeaderInfo hdr;
     GetBitContext gbc;
+    enum CodecID codec_id = CODEC_ID_AC3;
 
     max_frames = 0;
     buf = p->buf;
@@ -509,16 +527,33 @@ static int ac3_probe(AVProbeData *p)
             if(buf2 + hdr.frame_size > end ||
                av_crc(av_crc_get_table(AV_CRC_16_ANSI), 0, buf2 + 2, hdr.frame_size - 2))
                 break;
+            if (hdr.bitstream_id > 10)
+                codec_id = CODEC_ID_EAC3;
             buf2 += hdr.frame_size;
         }
         max_frames = FFMAX(max_frames, frames);
         if(buf == p->buf)
             first_frames = frames;
     }
+    if(codec_id != expected_codec_id) return 0;
     if   (first_frames>=3) return AVPROBE_SCORE_MAX * 3 / 4;
     else if(max_frames>=3) return AVPROBE_SCORE_MAX / 2;
     else if(max_frames>=1) return 1;
     else                   return 0;
+}
+#endif
+
+#ifdef CONFIG_AC3_DEMUXER
+static int ac3_probe(AVProbeData *p)
+{
+    return ac3_eac3_probe(p, CODEC_ID_AC3);
+}
+#endif
+
+#ifdef CONFIG_EAC3_DEMUXER
+static int eac3_probe(AVProbeData *p)
+{
+    return ac3_eac3_probe(p, CODEC_ID_EAC3);
 }
 #endif
 
@@ -633,6 +668,35 @@ AVOutputFormat dts_muxer = {
 };
 #endif
 
+#ifdef CONFIG_EAC3_DEMUXER
+AVInputFormat eac3_demuxer = {
+    "eac3",
+    NULL_IF_CONFIG_SMALL("raw E-AC-3"),
+    0,
+    eac3_probe,
+    audio_read_header,
+    raw_read_partial_packet,
+    .flags= AVFMT_GENERIC_INDEX,
+    .extensions = "eac3",
+    .value = CODEC_ID_EAC3,
+};
+#endif
+
+#ifdef CONFIG_EAC3_MUXER
+AVOutputFormat eac3_muxer = {
+    "eac3",
+    NULL_IF_CONFIG_SMALL("raw E-AC-3"),
+    "audio/x-eac3",
+    "eac3",
+    0,
+    CODEC_ID_EAC3,
+    CODEC_ID_NONE,
+    NULL,
+    raw_write_packet,
+    .flags= AVFMT_NOTIMESTAMPS,
+};
+#endif
+
 #ifdef CONFIG_FLAC_DEMUXER
 AVInputFormat flac_demuxer = {
     "flac",
@@ -658,6 +722,7 @@ AVOutputFormat flac_muxer = {
     CODEC_ID_NONE,
     flac_write_header,
     raw_write_packet,
+    flac_write_trailer,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif

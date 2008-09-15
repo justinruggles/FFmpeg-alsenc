@@ -55,7 +55,7 @@ typedef struct FLVContext {
 } FLVContext;
 
 static int get_audio_flags(AVCodecContext *enc){
-    int flags = (enc->bits_per_sample == 16) ? FLV_SAMPLESSIZE_16BIT : FLV_SAMPLESSIZE_8BIT;
+    int flags = (enc->bits_per_coded_sample == 16) ? FLV_SAMPLESSIZE_16BIT : FLV_SAMPLESSIZE_8BIT;
 
     if (enc->codec_id == CODEC_ID_AAC) // specs force these parameters
         return FLV_CODECID_AAC | FLV_SAMPLERATE_44100HZ | FLV_SAMPLESSIZE_16BIT | FLV_STEREO;
@@ -344,14 +344,14 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
         assert(pkt->size);
         size = pkt->size;
         /* cast needed to get negative value */
-        if (!flv->delay && (int32_t)pkt->dts < 0)
-            flv->delay = -(int32_t)pkt->dts;
+        if (!flv->delay && pkt->dts < 0)
+            flv->delay = -pkt->dts;
     }
 
     ts = pkt->dts + flv->delay; // add delay to force positive dts
     put_be24(pb,size + flags_size);
     put_be24(pb,ts);
-    put_byte(pb,ts >> 24);
+    put_byte(pb,(ts >> 24) & 0x7F); // timestamps are 32bits _signed_
     put_be24(pb,flv->reserved);
     put_byte(pb,flags);
     if (enc->codec_id == CODEC_ID_VP6)
@@ -362,7 +362,7 @@ static int flv_write_packet(AVFormatContext *s, AVPacket *pkt)
         put_byte(pb,1); // AAC raw
     else if (enc->codec_id == CODEC_ID_H264) {
         put_byte(pb,1); // AVC NALU
-        put_be24(pb,pkt->pts - (int32_t)pkt->dts);
+        put_be24(pb,pkt->pts - pkt->dts);
     }
     put_buffer(pb, pkt->data, size);
     put_be32(pb,size+flags_size+11); // previous tag size

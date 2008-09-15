@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef FFMPEG_RM_H
-#define FFMPEG_RM_H
+#ifndef AVFORMAT_RM_H
+#define AVFORMAT_RM_H
 
 #include "avformat.h"
 
@@ -63,6 +63,9 @@ typedef struct {
     int sub_packet_lengths[16]; /// Length of each aac subpacket
 } RMContext;
 
+/*< input format for Realmedia-style RTSP streams */
+extern AVInputFormat rdt_demuxer;
+
 /**
  * Read the MDPR chunk, which contains stream-specific codec initialization
  * parameters.
@@ -70,9 +73,10 @@ typedef struct {
  * @param s context containing RMContext and ByteIOContext for stream reading
  * @param st the stream that the MDPR chunk belongs to and where to store the
  *           parameters read from the chunk into
+ * @param codec_data_size size of the MDPR chunk
  * @return 0 on success, errno codes on error
  */
-int ff_rm_read_mdpr_codecdata (AVFormatContext *s, AVStream *st);
+int ff_rm_read_mdpr_codecdata (AVFormatContext *s, AVStream *st, int codec_data_size);
 
 /**
  * Parse one rm-stream packet from the input bytestream.
@@ -105,4 +109,4 @@ int ff_rm_parse_packet (AVFormatContext *s, AVStream *st, int len,
  */
 void ff_rm_retrieve_cache (AVFormatContext *s, AVStream *st, AVPacket *pkt);
 
-#endif /* FFMPEG_RM_H */
+#endif /* AVFORMAT_RM_H */

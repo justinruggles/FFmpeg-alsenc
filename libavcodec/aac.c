@@ -79,6 +79,7 @@
 #include "avcodec.h"
 #include "bitstream.h"
 #include "dsputil.h"
+#include "lpc.h"
 
 #include "aac.h"
 #include "aactab.h"
@@ -596,7 +597,8 @@ static int decode_scalefactors(AACContext * ac, float sf[120], GetBitContext * g
 static void decode_pulses(Pulse * pulse, GetBitContext * gb, const uint16_t * swb_offset) {
     int i;
     pulse->num_pulse = get_bits(gb, 2) + 1;
-    pulse->pos[0]    = get_bits(gb, 5) + swb_offset[get_bits(gb, 6)];
+    pulse->pos[0]    = swb_offset[get_bits(gb, 6)];
+    pulse->pos[0]   += get_bits(gb, 5);
     pulse->amp[0]    = get_bits(gb, 4);
     for (i = 1; i < pulse->num_pulse; i++) {
         pulse->pos[i] = get_bits(gb, 5) + pulse->pos[i-1];
@@ -628,13 +630,15 @@ static int decode_tns(AACContext * ac, TemporalNoiseShaping * tns,
                     tns->order[w][filt] = 0;
                     return -1;
                 }
-                tns->direction[w][filt] = get_bits1(gb);
-                coef_compress = get_bits1(gb);
-                coef_len = coef_res + 3 - coef_compress;
-                tmp2_idx = 2*coef_compress + coef_res;
+                if (tns->order[w][filt]) {
+                    tns->direction[w][filt] = get_bits1(gb);
+                    coef_compress = get_bits1(gb);
+                    coef_len = coef_res + 3 - coef_compress;
+                    tmp2_idx = 2*coef_compress + coef_res;
 
-                for (i = 0; i < tns->order[w][filt]; i++)
-                    tns->coef[w][filt][i] = tns_tmp2_map[tmp2_idx][get_bits(gb, coef_len)];
+                    for (i = 0; i < tns->order[w][filt]; i++)
+                        tns->coef[w][filt][i] = tns_tmp2_map[tmp2_idx][get_bits(gb, coef_len)];
+                }
             }
         }
     }
@@ -750,10 +754,19 @@ static int decode_spectrum_and_dequant(AACContext * ac, float coef[1024], GetBit
     }
 
     if (pulse_present) {
+        idx = 0;
         for(i = 0; i < pulse->num_pulse; i++){
             float co  = coef_base[ pulse->pos[i] ];
-            float ico = co / sqrtf(sqrtf(fabsf(co))) + pulse->amp[i];
-            coef_base[ pulse->pos[i] ] = cbrtf(fabsf(ico)) * ico;
+            while(offsets[idx + 1] <= pulse->pos[i])
+                idx++;
+            if (band_type[idx] != NOISE_BT && sf[idx]) {
+                float ico = -pulse->amp[i];
+                if (co) {
+                    co /= sf[idx];
+                    ico = co / sqrtf(sqrtf(fabsf(co))) + (co > 0 ? -ico : ico);
+                }
+                coef_base[ pulse->pos[i] ] = cbrtf(fabsf(ico)) * ico * sf[idx];
+            }
         }
     }
     return 0;
@@ -1124,20 +1137,8 @@ static void apply_tns(float coef[1024], TemporalNoiseShaping * tns, IndividualCh
             if (order == 0)
                 continue;
 
-            /* tns_decode_coef
-             * FIXME: This duplicates the functionality of some double code in lpc.c.
-             */
-            for (m = 0; m < order; m++) {
-                float tmp;
-                lpc[m] = tns->coef[w][filt][m];
-                for (i = 0; i < m/2; i++) {
-                    tmp = lpc[i];
-                    lpc[i]     += lpc[m] * lpc[m-1-i];
-                    lpc[m-1-i] += lpc[m] * tmp;
-                }
-                if(m & 1)
-                    lpc[i]     += lpc[m] * lpc[i];
-            }
+            // tns_decode_coef
+            compute_lpc_coefs(tns->coef[w][filt], order, lpc, 0, 0, 0);
 
             start = ics->swb_offset[FFMIN(bottom, mmm)];
             end   = ics->swb_offset[FFMIN(   top, mmm)];
@@ -1348,7 +1349,7 @@ static int aac_decode_frame(AVCodecContext * avccontext, void * data, int * data
             ac->che[TYPE_SCE][elem_id] = ac->che[TYPE_LFE][0];
             ac->che[TYPE_LFE][0] = NULL;
         }
-        if(elem_type && elem_type < TYPE_DSE) {
+        if(elem_type < TYPE_DSE) {
             if(!ac->che[elem_type][elem_id])
                 return -1;
             if(elem_type != TYPE_CCE)
@@ -1366,7 +1367,7 @@ static int aac_decode_frame(AVCodecContext * avccontext, void * data, int * data
             break;
 
         case TYPE_CCE:
-            err = decode_cce(ac, &gb, ac->che[TYPE_SCE][elem_id]);
+            err = decode_cce(ac, &gb, ac->che[TYPE_CCE][elem_id]);
             break;
 
         case TYPE_LFE:

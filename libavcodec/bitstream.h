@@ -23,8 +23,8 @@
  * bitstream api header.
  */
 
-#ifndef FFMPEG_BITSTREAM_H
-#define FFMPEG_BITSTREAM_H
+#ifndef AVCODEC_BITSTREAM_H
+#define AVCODEC_BITSTREAM_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -364,7 +364,7 @@ static inline void set_put_bits_buffer_size(PutBitContext *s, int size){
 
 /* Bitstream reader API docs:
 name
-    abritary name which is used as prefix for the internal variables
+    arbitrary name which is used as prefix for the internal variables
 
 gb
     getbitcontext
@@ -954,4 +954,4 @@ static inline int decode210(GetBitContext *gb){
         return 2 - get_bits1(gb);
 }
 
-#endif /* FFMPEG_BITSTREAM_H */
+#endif /* AVCODEC_BITSTREAM_H */

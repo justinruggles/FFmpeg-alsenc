@@ -24,16 +24,14 @@
  * Context Adaptive Binary Arithmetic Coder.
  */
 
-#ifndef FFMPEG_CABAC_H
-#define FFMPEG_CABAC_H
+#ifndef AVCODEC_CABAC_H
+#define AVCODEC_CABAC_H
 
 #include "bitstream.h"
 
 //#undef NDEBUG
 #include <assert.h>
-#ifdef ARCH_X86
 #include "libavutil/x86_cpu.h"
-#endif
 
 #define CABAC_BITS 16
 #define CABAC_MASK ((1<<CABAC_BITS)-1)
@@ -582,15 +580,15 @@ static av_always_inline int get_cabac_inline(CABACContext *c, uint8_t * const st
     return bit;
 }
 
-static int av_noinline get_cabac_noinline(CABACContext *c, uint8_t * const state){
+static int av_noinline av_unused get_cabac_noinline(CABACContext *c, uint8_t * const state){
     return get_cabac_inline(c,state);
 }
 
-static int get_cabac(CABACContext *c, uint8_t * const state){
+static int av_unused get_cabac(CABACContext *c, uint8_t * const state){
     return get_cabac_inline(c,state);
 }
 
-static int get_cabac_bypass(CABACContext *c){
+static int av_unused get_cabac_bypass(CABACContext *c){
 #if 0 //not faster
     int bit;
     asm volatile(
@@ -689,7 +687,7 @@ static av_always_inline int get_cabac_bypass_sign(CABACContext *c, int val){
  *
  * @return the number of bytes read or 0 if no end
  */
-static int get_cabac_terminate(CABACContext *c){
+static int av_unused get_cabac_terminate(CABACContext *c){
     c->range -= 2;
     if(c->low < c->range<<(CABAC_BITS+1)){
         renorm_cabac_decoder_once(c);
@@ -757,4 +755,4 @@ static int get_cabac_ueg(CABACContext *c, uint8_t * state, int max, int is_signe
 }
 #endif /* 0 */
 
-#endif /* FFMPEG_CABAC_H */
+#endif /* AVCODEC_CABAC_H */

@@ -19,6 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include "avformat.h"
+#include "internal.h"
 #include "libavcodec/opt.h"
 #include "libavutil/avstring.h"
 #include "riff.h"
@@ -250,6 +251,7 @@ void av_init_packet(AVPacket *pkt)
     pkt->dts   = AV_NOPTS_VALUE;
     pkt->pos   = -1;
     pkt->duration = 0;
+    pkt->convergence_duration = 0;
     pkt->flags = 0;
     pkt->stream_index = 0;
     pkt->destruct= av_destruct_packet_nofree;
@@ -360,6 +362,9 @@ static int set_codec_from_probe_data(AVStream *st, AVProbeData *pd, int score)
             st->codec->codec_type = CODEC_TYPE_AUDIO;
         } else if (!strcmp(fmt->name, "mpegvideo")) {
             st->codec->codec_id = CODEC_ID_MPEG2VIDEO;
+            st->codec->codec_type = CODEC_TYPE_VIDEO;
+        } else if (!strcmp(fmt->name, "m4v")) {
+            st->codec->codec_id = CODEC_ID_MPEG4;
             st->codec->codec_type = CODEC_TYPE_VIDEO;
         } else if (!strcmp(fmt->name, "h264")) {
             st->codec->codec_id = CODEC_ID_H264;
@@ -1841,7 +1846,7 @@ static int has_codec_parameters(AVCodecContext *enc)
     int val;
     switch(enc->codec_type) {
     case CODEC_TYPE_AUDIO:
-        val = enc->sample_rate && enc->channels;
+        val = enc->sample_rate && enc->channels && enc->sample_fmt != SAMPLE_FMT_NONE;
         if(!enc->frame_size &&
            (enc->codec_id == CODEC_ID_VORBIS ||
             enc->codec_id == CODEC_ID_AAC))
@@ -2161,7 +2166,7 @@ int av_find_stream_info(AVFormatContext *ic)
     for(i=0;i<ic->nb_streams;i++) {
         st = ic->streams[i];
         if (st->codec->codec_type == CODEC_TYPE_VIDEO) {
-            if(st->codec->codec_id == CODEC_ID_RAWVIDEO && !st->codec->codec_tag && !st->codec->bits_per_sample)
+            if(st->codec->codec_id == CODEC_ID_RAWVIDEO && !st->codec->codec_tag && !st->codec->bits_per_coded_sample)
                 st->codec->codec_tag= avcodec_pix_fmt_to_codec_tag(st->codec->pix_fmt);
 
             if(duration_count[i]
@@ -2193,8 +2198,8 @@ int av_find_stream_info(AVFormatContext *ic)
                 }
             }
         }else if(st->codec->codec_type == CODEC_TYPE_AUDIO) {
-            if(!st->codec->bits_per_sample)
-                st->codec->bits_per_sample= av_get_bits_per_sample(st->codec->codec_id);
+            if(!st->codec->bits_per_coded_sample)
+                st->codec->bits_per_coded_sample= av_get_bits_per_sample(st->codec->codec_id);
         }
     }
 
@@ -2439,6 +2444,9 @@ int av_write_header(AVFormatContext *s)
                 av_log(s, AV_LOG_ERROR, "sample rate not set\n");
                 return -1;
             }
+            if(!st->codec->block_align)
+                st->codec->block_align = st->codec->channels *
+                    av_get_bits_per_sample(st->codec->codec_id) >> 3;
             break;
         case CODEC_TYPE_VIDEO:
             if(st->codec->time_base.num<=0 || st->codec->time_base.den<=0){ //FIXME audio too?
@@ -2573,26 +2581,12 @@ static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
     return 0;
 }
 
-static void truncate_ts(AVStream *st, AVPacket *pkt){
-    int64_t pts_mask = (2LL << (st->pts_wrap_bits-1)) - 1;
-
-//    if(pkt->dts < 0)
-//        pkt->dts= 0;  //this happens for low_delay=0 and B-frames, FIXME, needs further investigation about what we should do here
-
-    if (pkt->pts != AV_NOPTS_VALUE)
-        pkt->pts &= pts_mask;
-    if (pkt->dts != AV_NOPTS_VALUE)
-        pkt->dts &= pts_mask;
-}
-
 int av_write_frame(AVFormatContext *s, AVPacket *pkt)
 {
     int ret = compute_pkt_fields2(s->streams[pkt->stream_index], pkt);
 
     if(ret<0 && !(s->oformat->flags & AVFMT_NOTIMESTAMPS))
         return ret;
-
-    truncate_ts(s->streams[pkt->stream_index], pkt);
 
     ret= s->oformat->write_packet(s, pkt);
     if(!ret)
@@ -2689,7 +2683,6 @@ int av_interleaved_write_frame(AVFormatContext *s, AVPacket *pkt){
         if(ret<=0) //FIXME cleanup needed for ret<0 ?
             return ret;
 
-        truncate_ts(s->streams[opkt.stream_index], &opkt);
         ret= s->oformat->write_packet(s, &opkt);
 
         av_free_packet(&opkt);
@@ -2714,7 +2707,6 @@ int av_write_trailer(AVFormatContext *s)
         if(!ret)
             break;
 
-        truncate_ts(s->streams[pkt.stream_index], &pkt);
         ret= s->oformat->write_packet(s, &pkt);
 
         av_free_packet(&pkt);
@@ -3210,6 +3202,22 @@ void url_split(char *proto, int proto_size,
             av_strlcpy(hostname, p,
                        FFMIN(ls + 1 - p, hostname_size));
     }
+}
+
+char *ff_data_to_hex(char *buff, const uint8_t *src, int s)
+{
+    int i;
+    static const char hex_table[16] = { '0', '1', '2', '3',
+                                        '4', '5', '6', '7',
+                                        '8', '9', 'A', 'B',
+                                        'C', 'D', 'E', 'F' };
+
+    for(i = 0; i < s; i++) {
+        buff[i * 2]     = hex_table[src[i] >> 4];
+        buff[i * 2 + 1] = hex_table[src[i] & 0xF];
+    }
+
+    return buff;
 }
 
 void av_set_pts_info(AVStream *s, int pts_wrap_bits,

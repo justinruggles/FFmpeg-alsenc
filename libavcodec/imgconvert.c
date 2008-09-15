@@ -772,7 +772,7 @@ static int avg_bits_per_pixel(int pix_fmt)
     return bits;
 }
 
-static int avcodec_find_best_pix_fmt1(int pix_fmt_mask,
+static int avcodec_find_best_pix_fmt1(int64_t pix_fmt_mask,
                                       int src_pix_fmt,
                                       int has_alpha,
                                       int loss_mask)
@@ -797,7 +797,7 @@ static int avcodec_find_best_pix_fmt1(int pix_fmt_mask,
     return dst_pix_fmt;
 }
 
-int avcodec_find_best_pix_fmt(int pix_fmt_mask, int src_pix_fmt,
+int avcodec_find_best_pix_fmt(int64_t pix_fmt_mask, int src_pix_fmt,
                               int has_alpha, int *loss_ptr)
 {
     int dst_pix_fmt, loss_mask, i;
@@ -2086,27 +2086,6 @@ int av_picture_pad(AVPicture *dst, const AVPicture *src, int height, int width,
     }
     return 0;
 }
-
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-void img_copy(AVPicture *dst, const AVPicture *src,
-              int pix_fmt, int width, int height)
-{
-    av_picture_copy(dst, src, pix_fmt, width, height);
-}
-
-int img_crop(AVPicture *dst, const AVPicture *src,
-              int pix_fmt, int top_band, int left_band)
-{
-    return av_picture_crop(dst, src, pix_fmt, top_band, left_band);
-}
-
-int img_pad(AVPicture *dst, const AVPicture *src, int height, int width,
-            int pix_fmt, int padtop, int padbottom, int padleft, int padright,
-            int *color)
-{
-    return av_picture_pad(dst, src, height, width, pix_fmt, padtop, padbottom, padleft, padright, color);
-}
-#endif
 
 #ifndef CONFIG_SWSCALE
 static uint8_t y_ccir_to_jpeg[256];

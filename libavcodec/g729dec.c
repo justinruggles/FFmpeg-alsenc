@@ -71,6 +71,39 @@ static inline uint16_t g729_random(uint16_t value)
     return 31821 * value + 13849;
 }
 
+/**
+ * Get parity bit of bit 2..7
+ */
+static inline int g729_get_parity(uint8_t value)
+{
+   return (0x6996966996696996ULL >> (value >> 2)) & 1;
+}
+
+        ff_acelp_weighted_vector_sum(
+                fc + pitch_delay_int[i],
+                fc + pitch_delay_int[i],
+                fc,
+                1 << 14,
+                av_clip(ctx->gain_pitch, SHARP_MIN, SHARP_MAX),
+                0,
+                14,
+                ctx->subframe_size - pitch_delay_int[i]);
+
+            ctx->gain_pitch  = cb_gain_1st_8k[parm->gc_1st_index[i]][0] +
+                               cb_gain_2nd_8k[parm->gc_2nd_index[i]][0];
+            gain_corr_factor = cb_gain_1st_8k[parm->gc_1st_index[i]][1] +
+                               cb_gain_2nd_8k[parm->gc_2nd_index[i]][1];
+
+        ff_acelp_weighted_vector_sum(
+                ctx->exc + i * ctx->subframe_size,
+                ctx->exc + i * ctx->subframe_size,
+                fc,
+                (!voicing && ctx->frame_erasure) ? 0 : ctx->gain_pitch,
+                ( voicing && ctx->frame_erasure) ? 0 : ctx->gain_code,
+                1<<13,
+                14,
+                ctx->subframe_size);
+
 AVCodec g729_decoder =
 {
     "g729",

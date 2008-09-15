@@ -367,11 +367,8 @@ following image formats are supported:
 @item DV audio               @tab     @tab  X
 @item Electronic Arts ADPCM  @tab     @tab  X
     @tab Used in various EA titles.
-@item Sonic                  @tab  X  @tab  X
-    @tab experimental codec
-@item Sonic lossless         @tab  X  @tab  X
-    @tab experimental codec
-@item FLAC lossless audio    @tab  X  @tab  X
+@item Enhanced AC-3          @tab     @tab  X
+@item FLAC lossless audio    @tab IX  @tab  X
 @item G.726  ADPCM           @tab  X  @tab  X
 @item id RoQ DPCM            @tab  X  @tab  X
     @tab Used in Quake III, Jedi Knight 2, other computer games.
@@ -391,7 +388,7 @@ following image formats are supported:
 @item MS IMA ADPCM           @tab  X  @tab  X
 @item Musepack               @tab     @tab  X
     @tab SV7 and SV8 are supported.
-@item Nellymoser ASAO        @tab     @tab  X
+@item Nellymoser ASAO        @tab  X  @tab  X
 @item Qdesign QDM2           @tab     @tab  X
     @tab There are still some distortions.
 @item QT IMA ADPCM           @tab  X  @tab  X
@@ -399,8 +396,8 @@ following image formats are supported:
     @tab Real 14400 bit/s codec
 @item RA288                  @tab     @tab  X
     @tab Real 28800 bit/s codec
-@item RADnet                 @tab  X  @tab IX
-    @tab real low bitrate AC-3 codec
+@item RADnet                 @tab IX  @tab IX
+    @tab Real low bitrate AC-3 codec
 @item Real COOK              @tab     @tab  X
     @tab All versions except 5.1 are supported.
 @item Shorten                @tab     @tab  X
@@ -409,6 +406,10 @@ following image formats are supported:
 @item Smacker audio          @tab     @tab  X
 @item SMJPEG IMA ADPCM       @tab     @tab  X
     @tab Used in certain Loki game ports.
+@item Sonic                  @tab  X  @tab  X
+    @tab experimental codec
+@item Sonic lossless         @tab  X  @tab  X
+    @tab experimental codec
 @item THP ADPCM              @tab     @tab  X
     @tab Used on the Nintendo GameCube.
 @item True Audio (TTA)       @tab     @tab  X
@@ -437,7 +438,7 @@ BSD make will not build FFmpeg, you need to install and use GNU Make
 
 To get help and instructions for building FFmpeg under Windows, check out
 the FFmpeg Windows Help Forum at
-@url{http://arrozcru.no-ip.org/ffmpeg/}.
+@url{http://ffmpeg.arrozcru.org/}.
 
 @subsection Native Windows compilation
 

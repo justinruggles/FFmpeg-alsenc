@@ -20,8 +20,8 @@
  */
 
 // this is a bit of a misnomer, because rtp & rtsp internal structures and prototypes are in here.
-#ifndef FFMPEG_RTP_INTERNAL_H
-#define FFMPEG_RTP_INTERNAL_H
+#ifndef AVFORMAT_RTP_INTERNAL_H
+#define AVFORMAT_RTP_INTERNAL_H
 
 #include <stdint.h>
 #include "libavcodec/avcodec.h"
@@ -118,6 +118,7 @@ struct RTPDemuxContext {
 };
 
 extern RTPDynamicProtocolHandler *RTPFirstDynamicPayloadHandler;
+void ff_register_dynamic_payload_handler(RTPDynamicProtocolHandler *handler);
 
 int rtsp_next_attr_and_value(const char **p, char *attr, int attr_size, char *value, int value_size); ///< from rtsp.c, but used by rtp dynamic protocol handlers.
 
@@ -127,5 +128,5 @@ enum CodecID ff_rtp_codec_id(const char *buf, enum CodecType codec_type);
 
 void av_register_rtp_dynamic_payload_handlers(void);
 
-#endif /* FFMPEG_RTP_INTERNAL_H */
+#endif /* AVFORMAT_RTP_INTERNAL_H */
 

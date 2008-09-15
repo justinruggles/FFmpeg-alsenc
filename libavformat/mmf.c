@@ -36,7 +36,7 @@ static int mmf_rate(int code)
     return mmf_rates[code];
 }
 
-#ifdef CONFIG_MUXERS
+#ifdef CONFIG_MMF_MUXER
 static int mmf_rate_code(int rate)
 {
     int i;
@@ -163,7 +163,7 @@ static int mmf_write_trailer(AVFormatContext *s)
     }
     return 0;
 }
-#endif //CONFIG_MUXERS
+#endif /* CONFIG_MMF_MUXER */
 
 static int mmf_probe(AVProbeData *p)
 {
@@ -248,8 +248,8 @@ static int mmf_read_header(AVFormatContext *s,
     st->codec->codec_id = CODEC_ID_ADPCM_YAMAHA;
     st->codec->sample_rate = rate;
     st->codec->channels = 1;
-    st->codec->bits_per_sample = 4;
-    st->codec->bit_rate = st->codec->sample_rate * st->codec->bits_per_sample;
+    st->codec->bits_per_coded_sample = 4;
+    st->codec->bit_rate = st->codec->sample_rate * st->codec->bits_per_coded_sample;
 
     av_set_pts_info(st, 64, 1, st->codec->sample_rate);
 

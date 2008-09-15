@@ -1267,7 +1267,9 @@ static int mpeg_decode_postinit(AVCodecContext *avctx){
                 1<<30);
         //MPEG-2 aspect
             if(s->aspect_ratio_info > 1){
-                if( (s1->pan_scan.width == 0 )||(s1->pan_scan.height == 0) ){
+                //we ignore the spec here as reality does not match the spec, see for example
+                // res_change_ffmpeg_aspect.ts and sequence-display-aspect.mpg
+                if( (s1->pan_scan.width == 0 )||(s1->pan_scan.height == 0) || 1){
                     s->avctx->sample_aspect_ratio=
                         av_div_q(
                          ff_mpeg2_aspect[s->aspect_ratio_info],
@@ -1342,7 +1344,7 @@ static int mpeg1_decode_picture(AVCodecContext *avctx,
     if (s->pict_type == FF_P_TYPE || s->pict_type == FF_B_TYPE) {
         s->full_pel[0] = get_bits1(&s->gb);
         f_code = get_bits(&s->gb, 3);
-        if (f_code == 0 && avctx->error_resilience >= FF_ER_COMPLIANT)
+        if (f_code == 0 && avctx->error_recognition >= FF_ER_COMPLIANT)
             return -1;
         s->mpeg_f_code[0][0] = f_code;
         s->mpeg_f_code[0][1] = f_code;
@@ -1350,7 +1352,7 @@ static int mpeg1_decode_picture(AVCodecContext *avctx,
     if (s->pict_type == FF_B_TYPE) {
         s->full_pel[1] = get_bits1(&s->gb);
         f_code = get_bits(&s->gb, 3);
-        if (f_code == 0 && avctx->error_resilience >= FF_ER_COMPLIANT)
+        if (f_code == 0 && avctx->error_recognition >= FF_ER_COMPLIANT)
             return -1;
         s->mpeg_f_code[1][0] = f_code;
         s->mpeg_f_code[1][1] = f_code;
@@ -1774,7 +1776,7 @@ static int mpeg_decode_slice(Mpeg1Context *s1, int mb_y,
                             && s->progressive_frame == 0 /* vbv_delay == 0xBBB || 0xE10*/;
 
                 if(left < 0 || (left && show_bits(&s->gb, FFMIN(left, 23)) && !is_d10)
-                   || (avctx->error_resilience >= FF_ER_AGGRESSIVE && left>8)){
+                   || (avctx->error_recognition >= FF_ER_AGGRESSIVE && left>8)){
                     av_log(avctx, AV_LOG_ERROR, "end mismatch left=%d %0X\n", left, show_bits(&s->gb, FFMIN(left, 23)));
                     return -1;
                 }else
@@ -1945,7 +1947,7 @@ static int mpeg1_decode_sequence(AVCodecContext *avctx,
     s->aspect_ratio_info= get_bits(&s->gb, 4);
     if (s->aspect_ratio_info == 0) {
         av_log(avctx, AV_LOG_ERROR, "aspect ratio has forbidden 0 value\n");
-        if (avctx->error_resilience >= FF_ER_COMPLIANT)
+        if (avctx->error_recognition >= FF_ER_COMPLIANT)
             return -1;
     }
     s->frame_rate_index = get_bits(&s->gb, 4);

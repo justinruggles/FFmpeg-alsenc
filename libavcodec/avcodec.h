@@ -18,8 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef FFMPEG_AVCODEC_H
-#define FFMPEG_AVCODEC_H
+#ifndef AVCODEC_AVCODEC_H
+#define AVCODEC_AVCODEC_H
 
 /**
  * @file avcodec.h
@@ -29,8 +29,8 @@
 
 #include "libavutil/avutil.h"
 
-#define LIBAVCODEC_VERSION_MAJOR 51
-#define LIBAVCODEC_VERSION_MINOR 69
+#define LIBAVCODEC_VERSION_MAJOR 52
+#define LIBAVCODEC_VERSION_MINOR  0
 #define LIBAVCODEC_VERSION_MICRO  0
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
@@ -263,9 +263,6 @@ enum CodecID {
     CODEC_ID_MP2= 0x15000,
     CODEC_ID_MP3, ///< preferred ID for decoding MPEG audio layer 1, 2 or 3
     CODEC_ID_AAC,
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-    CODEC_ID_MPEG4AAC,
-#endif
     CODEC_ID_AC3,
     CODEC_ID_DTS,
     CODEC_ID_VORBIS,
@@ -306,6 +303,7 @@ enum CodecID {
     CODEC_ID_WMAPRO,
     CODEC_ID_WMALOSSLESS,
     CODEC_ID_ATRAC3P,
+    CODEC_ID_EAC3,
 
     /* subtitle codecs */
     CODEC_ID_DVD_SUBTITLE= 0x17000,
@@ -324,12 +322,6 @@ enum CodecID {
                                 * stream (only used by libavformat) */
 };
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-/* CODEC_ID_MP3LAME is obsolete */
-#define CODEC_ID_MP3LAME CODEC_ID_MP3
-#define CODEC_ID_MPEG4AAC CODEC_ID_AAC
-#endif
-
 enum CodecType {
     CODEC_TYPE_UNKNOWN = -1,
     CODEC_TYPE_VIDEO,
@@ -341,14 +333,12 @@ enum CodecType {
 };
 
 /**
- * Currently unused, may be used if 24/32 bits samples are ever supported.
  * all in native-endian format
  */
 enum SampleFormat {
     SAMPLE_FMT_NONE = -1,
     SAMPLE_FMT_U8,              ///< unsigned 8 bits
     SAMPLE_FMT_S16,             ///< signed 16 bits
-    SAMPLE_FMT_S24,             ///< signed 24 bits @deprecated Deprecated in favor of SAMPLE_FMT_S32
     SAMPLE_FMT_S32,             ///< signed 32 bits
     SAMPLE_FMT_FLT,             ///< float
     SAMPLE_FMT_DBL,             ///< double
@@ -438,15 +428,9 @@ typedef struct RcOverride{
 #define CODEC_FLAG_INTERLACED_DCT 0x00040000 ///< Use interlaced DCT.
 #define CODEC_FLAG_LOW_DELAY      0x00080000 ///< Force low delay.
 #define CODEC_FLAG_ALT_SCAN       0x00100000 ///< Use alternate scan.
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-#define CODEC_FLAG_TRELLIS_QUANT  0x00200000 ///< Use trellis quantization.
-#endif
 #define CODEC_FLAG_GLOBAL_HEADER  0x00400000 ///< Place global headers in extradata instead of every keyframe.
 #define CODEC_FLAG_BITEXACT       0x00800000 ///< Use only bitexact stuff (except (I)DCT).
 /* Fx : Flag for h263+ extra options */
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-#define CODEC_FLAG_H263P_AIC      0x01000000 ///< H.263 advanced intra coding / MPEG-4 AC prediction (remove this)
-#endif
 #define CODEC_FLAG_AC_PRED        0x01000000 ///< H.263 advanced intra coding / MPEG-4 AC prediction
 #define CODEC_FLAG_H263P_UMV      0x02000000 ///< unlimited motion vector
 #define CODEC_FLAG_CBP_RD         0x04000000 ///< Use rate distortion optimization for cbp.
@@ -814,8 +798,6 @@ typedef struct AVFrame {
     FF_COMMON_FRAME
 } AVFrame;
 
-#define DEFAULT_FRAME_RATE_BASE 1001000
-
 /**
  * main external API structure.
  * New fields can be added to the end with minor version bumps.
@@ -1031,11 +1013,6 @@ typedef struct AVCodecContext {
 
     void *priv_data;
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-    /* unused, FIXME remove*/
-    int rtp_mode;
-#endif
-
     int rtp_payload_size;   /* The size of the RTP payload: the coder will  */
                             /* do its best to deliver a chunk with size     */
                             /* below rtp_payload_size, the chunk will start */
@@ -1159,12 +1136,12 @@ typedef struct AVCodecContext {
     float b_quant_offset;
 
     /**
-     * Error resilience; higher values will detect more errors but may
+     * Error recognization; higher values will detect more errors but may
      * misdetect some more or less valid parts as errors.
      * - encoding: unused
      * - decoding: Set by user.
      */
-    int error_resilience;
+    int error_recognition;
 #define FF_ER_CAREFUL         1
 #define FF_ER_COMPLIANT       2
 #define FF_ER_AGGRESSIVE      3
@@ -1348,12 +1325,6 @@ typedef struct AVCodecContext {
      */
     float dark_masking;
 
-
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-    /* for binary compatibility */
-    int unused;
-#endif
-
     /**
      * IDCT algorithm, see FF_IDCT_* below.
      * - encoding: Set by user.
@@ -1430,7 +1401,7 @@ typedef struct AVCodecContext {
      * - encoding: Set by libavcodec.
      * - decoding: Set by user.
      */
-     int bits_per_sample;
+     int bits_per_coded_sample;
 
     /**
      * prediction method (needed for huffyuv)
@@ -1444,6 +1415,7 @@ typedef struct AVCodecContext {
 
     /**
      * sample aspect ratio (0 if unknown)
+     * That is the width of a pixel divided by the height of the pixel.
      * Numerator and denominator must be relatively prime and smaller than 256 for some video standards.
      * - encoding: Set by user.
      * - decoding: Set by libavcodec.
@@ -2247,6 +2219,14 @@ typedef struct AVCodecContext {
      * - decoding: Set by user.
      */
     int64_t reordered_opaque;
+
+    /**
+     * Bits per sample/pixel of internal libavcodec pixel/sample format.
+     * This field is applicable only when sample_fmt is SAMPLE_FMT_S32.
+     * - encoding: set by user.
+     * - decoding: set by libavcodec.
+     */
+    int bits_per_raw_sample;
 } AVCodecContext;
 
 /**
@@ -2360,43 +2340,6 @@ int av_resample(struct AVResampleContext *c, short *dst, short *src, int *consum
 void av_resample_compensate(struct AVResampleContext *c, int sample_delta, int compensation_distance);
 void av_resample_close(struct AVResampleContext *c);
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-/* YUV420 format is assumed ! */
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-typedef struct ImgReSampleContext ImgReSampleContext attribute_deprecated;
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated ImgReSampleContext *img_resample_init(int output_width, int output_height,
-                                      int input_width, int input_height);
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated ImgReSampleContext *img_resample_full_init(int owidth, int oheight,
-                                      int iwidth, int iheight,
-                                      int topBand, int bottomBand,
-                                      int leftBand, int rightBand,
-                                      int padtop, int padbottom,
-                                      int padleft, int padright);
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated void img_resample(struct ImgReSampleContext *s,
-                  AVPicture *output, const AVPicture *input);
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated void img_resample_close(struct ImgReSampleContext *s);
-
-#endif
-
 /**
  * Allocate memory for a picture.  Call avpicture_free to free it.
  *
@@ -2501,7 +2444,7 @@ int avcodec_get_pix_fmt_loss(int dst_pix_fmt, int src_pix_fmt,
  * @param[out] loss_ptr Combination of flags informing you what kind of losses will occur.
  * @return The best pixel format to convert to or -1 if none was found.
  */
-int avcodec_find_best_pix_fmt(int pix_fmt_mask, int src_pix_fmt,
+int avcodec_find_best_pix_fmt(int64_t pix_fmt_mask, int src_pix_fmt,
                               int has_alpha, int *loss_ptr);
 
 
@@ -2527,16 +2470,6 @@ void avcodec_pix_fmt_string (char *buf, int buf_size, int pix_fmt);
 int img_get_alpha_info(const AVPicture *src,
                        int pix_fmt, int width, int height);
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-/**
- * convert among pixel formats
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated int img_convert(AVPicture *dst, int dst_pix_fmt,
-                const AVPicture *src, int pix_fmt,
-                int width, int height);
-#endif
-
 /* deinterlace a picture */
 /* deinterlace - if not supported return -1 */
 int avpicture_deinterlace(AVPicture *dst, const AVPicture *src,
@@ -2544,20 +2477,12 @@ int avpicture_deinterlace(AVPicture *dst, const AVPicture *src,
 
 /* external high level API */
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-extern AVCodec *first_avcodec;
-#endif
 AVCodec *av_codec_next(AVCodec *c);
 
 /**
  * Returns the LIBAVCODEC_VERSION_INT constant.
  */
 unsigned avcodec_version(void);
-
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-/* returns LIBAVCODEC_BUILD constant */
-attribute_deprecated unsigned avcodec_build(void);
-#endif
 
 /**
  * Initializes libavcodec.
@@ -2692,13 +2617,6 @@ int avcodec_default_execute(AVCodecContext *c, int (*func)(AVCodecContext *c2, v
  * @see avcodec_alloc_context, avcodec_find_decoder, avcodec_find_encoder
  */
 int avcodec_open(AVCodecContext *avctx, AVCodec *codec);
-
-/**
- * @deprecated Use avcodec_decode_audio2() instead.
- */
-attribute_deprecated int avcodec_decode_audio(AVCodecContext *avctx, int16_t *samples,
-                         int *frame_size_ptr,
-                         const uint8_t *buf, int buf_size);
 
 /**
  * Decodes an audio frame from \p buf into \p samples.
@@ -2910,9 +2828,6 @@ typedef struct AVCodecParser {
     struct AVCodecParser *next;
 } AVCodecParser;
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-extern AVCodecParser *av_first_parser;
-#endif
 AVCodecParser *av_parser_next(AVCodecParser *c);
 
 void av_register_codec_parser(AVCodecParser *parser);
@@ -2986,26 +2901,6 @@ int av_picture_crop(AVPicture *dst, const AVPicture *src,
 int av_picture_pad(AVPicture *dst, const AVPicture *src, int height, int width, int pix_fmt,
             int padtop, int padbottom, int padleft, int padright, int *color);
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated void img_copy(AVPicture *dst, const AVPicture *src,
-              int pix_fmt, int width, int height);
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated int img_crop(AVPicture *dst, const AVPicture *src,
-             int pix_fmt, int top_band, int left_band);
-
-/**
- * @deprecated Use the software scaler (swscale) instead.
- */
-attribute_deprecated int img_pad(AVPicture *dst, const AVPicture *src, int height, int width, int pix_fmt,
-            int padtop, int padbottom, int padleft, int padright, int *color);
-#endif
-
 extern unsigned int av_xiphlacing(unsigned char *s, unsigned int v);
 
 /**
@@ -3063,4 +2958,4 @@ void av_log_missing_feature(void *avc, const char *feature, int want_sample);
 #define AVERROR_NOENT       AVERROR(ENOENT)  /**< No such file or directory. */
 #define AVERROR_PATCHWELCOME    -MKTAG('P','A','W','E') /**< Not yet implemented in FFmpeg. Patches welcome. */
 
-#endif /* FFMPEG_AVCODEC_H */
+#endif /* AVCODEC_AVCODEC_H */

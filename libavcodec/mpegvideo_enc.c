@@ -332,11 +332,6 @@ av_cold int MPV_encode_init(AVCodecContext *avctx)
     s->intra_vlc_format= !!(s->flags2 & CODEC_FLAG2_INTRA_VLC);
     s->q_scale_type= !!(s->flags2 & CODEC_FLAG2_NON_LINEAR_QUANT);
 
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-    if (s->flags & CODEC_FLAG_TRELLIS_QUANT)
-        avctx->trellis = 1;
-#endif
-
     if(avctx->rc_max_rate && !avctx->rc_buffer_size){
         av_log(avctx, AV_LOG_ERROR, "a vbv buffer size is needed, for encoding with a maximum bitrate\n");
         return -1;
@@ -2775,7 +2770,8 @@ static int encode_picture(MpegEncContext *s, int picture_number)
         ff_update_duplicate_context(s->thread_context[i], s);
     }
 
-    ff_init_me(s);
+    if(ff_init_me(s)<0)
+        return -1;
 
     /* Estimate motion for every MB */
     if(s->pict_type != FF_I_TYPE){

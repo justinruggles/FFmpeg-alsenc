@@ -189,6 +189,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (COOK, cook);
     REGISTER_DECODER (DCA, dca);
     REGISTER_DECODER (DSICINAUDIO, dsicinaudio);
+    REGISTER_DECODER (EAC3, eac3);
     REGISTER_ENCDEC  (FLAC, flac);
     REGISTER_DECODER (IMC, imc);
     REGISTER_DECODER (MACE3, mace3);
@@ -200,7 +201,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (MP3ON4, mp3on4);
     REGISTER_DECODER (MPC7, mpc7);
     REGISTER_DECODER (MPC8, mpc8);
-    REGISTER_DECODER (NELLYMOSER, nellymoser);
+    REGISTER_ENCDEC  (NELLYMOSER, nellymoser);
     REGISTER_DECODER (QDM2, qdm2);
     REGISTER_DECODER (RA_144, ra_144);
     REGISTER_DECODER (RA_288, ra_288);
@@ -297,9 +298,6 @@ void avcodec_register_all(void)
     REGISTER_ENCODER (LIBVORBIS, libvorbis);
     REGISTER_ENCODER (LIBX264, libx264);
     REGISTER_ENCODER (LIBXVID, libxvid);
-#if LIBAVCODEC_VERSION_INT < ((52<<16)+(0<<8)+0)
-    REGISTER_DECODER (MPEG4AAC, mpeg4aac);
-#endif
 
     /* parsers */
     REGISTER_PARSER  (AAC, aac);

@@ -28,28 +28,31 @@
 /* http://www.mp4ra.org */
 /* ordered by muxing preference */
 const AVCodecTag ff_mp4_obj_type[] = {
-    { CODEC_ID_MPEG4     ,  32 },
-    { CODEC_ID_H264      ,  33 },
-    { CODEC_ID_AAC       ,  64 },
-    { CODEC_ID_MPEG2VIDEO,  97 }, /* MPEG2 Main */
-    { CODEC_ID_MPEG2VIDEO,  96 }, /* MPEG2 Simple */
-    { CODEC_ID_MPEG2VIDEO,  98 }, /* MPEG2 SNR */
-    { CODEC_ID_MPEG2VIDEO,  99 }, /* MPEG2 Spatial */
-    { CODEC_ID_MPEG2VIDEO, 100 }, /* MPEG2 High */
-    { CODEC_ID_MPEG2VIDEO, 101 }, /* MPEG2 422 */
-    { CODEC_ID_AAC       , 102 }, /* MPEG2 AAC Main */
-    { CODEC_ID_AAC       , 103 }, /* MPEG2 AAC Low */
-    { CODEC_ID_AAC       , 104 }, /* MPEG2 AAC SSR */
-    { CODEC_ID_MP3       , 107 }, /* 11172-3 */
-    { CODEC_ID_MP3       , 105 }, /* 13818-3 */
-    { CODEC_ID_MPEG1VIDEO, 106 }, /* 11172-2 */
-    { CODEC_ID_MJPEG     , 108 }, /* 10918-1 */
-    { CODEC_ID_PNG       , 109 },
-    { CODEC_ID_JPEG2000  , 110 }, /* 15444-1 */
-    { CODEC_ID_VC1       , 163 },
-    { CODEC_ID_VORBIS    , 221 }, /* non standard, gpac uses it */
-    { CODEC_ID_DVD_SUBTITLE, 224 }, /* non standard, see unsupported-embedded-subs-2.mp4 */
-    { CODEC_ID_QCELP     , 225 },
+    { CODEC_ID_MPEG4     , 0x20 },
+    { CODEC_ID_H264      , 0x21 },
+    { CODEC_ID_AAC       , 0x40 },
+    { CODEC_ID_MPEG2VIDEO, 0x61 }, /* MPEG2 Main */
+    { CODEC_ID_MPEG2VIDEO, 0x60 }, /* MPEG2 Simple */
+    { CODEC_ID_MPEG2VIDEO, 0x62 }, /* MPEG2 SNR */
+    { CODEC_ID_MPEG2VIDEO, 0x63 }, /* MPEG2 Spatial */
+    { CODEC_ID_MPEG2VIDEO, 0x64 }, /* MPEG2 High */
+    { CODEC_ID_MPEG2VIDEO, 0x65 }, /* MPEG2 422 */
+    { CODEC_ID_AAC       , 0x66 }, /* MPEG2 AAC Main */
+    { CODEC_ID_AAC       , 0x67 }, /* MPEG2 AAC Low */
+    { CODEC_ID_AAC       , 0x68 }, /* MPEG2 AAC SSR */
+    { CODEC_ID_MP3       , 0x69 }, /* 13818-3 */
+    { CODEC_ID_MP2       , 0x69 }, /* 11172-3 */
+    { CODEC_ID_MPEG1VIDEO, 0x6A }, /* 11172-2 */
+    { CODEC_ID_MP3       , 0x6B }, /* 11172-3 */
+    { CODEC_ID_MJPEG     , 0x6C }, /* 10918-1 */
+    { CODEC_ID_PNG       , 0x6D },
+    { CODEC_ID_JPEG2000  , 0x6E }, /* 15444-1 */
+    { CODEC_ID_VC1       , 0xA3 },
+    { CODEC_ID_DIRAC     , 0xA4 },
+    { CODEC_ID_AC3       , 0xA5 },
+    { CODEC_ID_VORBIS    , 0xDD }, /* non standard, gpac uses it */
+    { CODEC_ID_DVD_SUBTITLE, 0xE0 }, /* non standard, see unsupported-embedded-subs-2.mp4 */
+    { CODEC_ID_QCELP     , 0xE1 },
     { 0, 0 },
 };
 
@@ -87,8 +90,12 @@ const AVCodecTag codec_movvideo_tags[] = {
     { CODEC_ID_DVVIDEO, MKTAG('d', 'v', '5', 'p') }, /* DVCPRO50 PAL produced by FCP */
     { CODEC_ID_DVVIDEO, MKTAG('d', 'v', '5', 'n') }, /* DVCPRO50 NTSC produced by FCP */
     { CODEC_ID_DVVIDEO, MKTAG('A', 'V', 'd', 'v') }, /* AVID DV */
-  //{ CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', '5') }, /* DVCPRO HD 50i produced by FCP */
-  //{ CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', '6') }, /* DVCPRO HD 60i produced by FCP */
+    { CODEC_ID_DVVIDEO, MKTAG('A', 'V', 'd', '1') }, /* AVID DV100 */
+    { CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', 'q') }, /* DVCPRO HD 720p50 */
+    { CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', 'p') }, /* DVCPRO HD 720p60 */
+    { CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', '5') }, /* DVCPRO HD 50i produced by FCP */
+    { CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', '6') }, /* DVCPRO HD 60i produced by FCP */
+    { CODEC_ID_DVVIDEO, MKTAG('d', 'v', 'h', '3') }, /* DVCPRO HD 30p produced by FCP */
 
     { CODEC_ID_VP3,     MKTAG('V', 'P', '3', '1') }, /* On2 VP3 */
     { CODEC_ID_RPZA,    MKTAG('r', 'p', 'z', 'a') }, /* Apple Video (RPZA) */
@@ -149,6 +156,7 @@ const AVCodecTag codec_movvideo_tags[] = {
     { CODEC_ID_VC1, MKTAG('v', 'c', '-', '1') }, /* SMPTE RP 2025 */
     { CODEC_ID_CAVS, MKTAG('a', 'v', 's', '2') },
 
+    { CODEC_ID_DIRAC, MKTAG('d', 'r', 'a', 'c') },
     { CODEC_ID_DNXHD, MKTAG('A', 'V', 'd', 'n') }, /* AVID DNxHD */
     { CODEC_ID_SGI,   MKTAG('s', 'g', 'i', ' ') }, /* SGI  */
 
@@ -182,6 +190,7 @@ const AVCodecTag codec_movaudio_tags[] = {
 /*  { CODEC_ID_OGG_VORBIS, MKTAG('O', 'g', 'g', 'S') }, *//* sample files at http://heroinewarrior.com/xmovie.php3 use this tag */
 
     { CODEC_ID_AAC, MKTAG('m', 'p', '4', 'a') }, /* MPEG-4 AAC */
+    { CODEC_ID_AC3, MKTAG('a', 'c', '-', '3') }, /* ETSI TS 102 366 Annex F */
 
     { CODEC_ID_AMR_NB, MKTAG('s', 'a', 'm', 'r') }, /* AMR-NB 3gp */
     { CODEC_ID_AMR_WB, MKTAG('s', 'a', 'w', 'b') }, /* AMR-WB 3gp */

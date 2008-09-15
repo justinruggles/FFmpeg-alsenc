@@ -18,12 +18,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef FFMPEG_AVFORMAT_H
-#define FFMPEG_AVFORMAT_H
+#ifndef AVFORMAT_AVFORMAT_H
+#define AVFORMAT_AVFORMAT_H
 
 #define LIBAVFORMAT_VERSION_MAJOR 52
-#define LIBAVFORMAT_VERSION_MINOR 21
-#define LIBAVFORMAT_VERSION_MICRO  0
+#define LIBAVFORMAT_VERSION_MINOR 22
+#define LIBAVFORMAT_VERSION_MICRO  1
 
 #define LIBAVFORMAT_VERSION_INT AV_VERSION_INT(LIBAVFORMAT_VERSION_MAJOR, \
                                                LIBAVFORMAT_VERSION_MINOR, \
@@ -70,10 +70,31 @@ typedef struct AVPacket {
     int   size;
     int   stream_index;
     int   flags;
-    int   duration;                         ///< presentation duration in time_base units (0 if not available)
+    /**
+     * Duration of this packet in time_base units, 0 if unknown.
+     * Equals next_pts - this_pts in presentation order.
+     */
+    int   duration;
     void  (*destruct)(struct AVPacket *);
     void  *priv;
     int64_t pos;                            ///< byte position in stream, -1 if unknown
+
+    /**
+     * This is the time difference in stream timebase units from the pts of this
+     * packet to the point at which the output from the decoder has converged
+     * independent from the availability
+     * of previous frames (that is the frames are virtually identical no matter
+     * if decoding started from the very first frame or from this keyframe).
+     * is AV_NOPTS_VALUE if unknown.
+     * This field is not the display duration of the current packet.
+     *
+     * The purpose of this field is to allow seeking in streams that have no
+     * keyframes in the conventional sense. It corresponds to the
+     * recovery point SEI in H.264 and match_time_delta in nut. It also is
+     * essential for some types of subtitle streams to ensure that all
+     * subtitles are correctly displayed after seeking.
+     */
+    int64_t convergence_duration;
 } AVPacket;
 #define PKT_FLAG_KEY   0x0001
 
@@ -961,6 +982,8 @@ int av_interleave_packet_per_dts(AVFormatContext *s, AVPacket *out, AVPacket *pk
  * @brief Write the stream trailer to an output media file and
  *        free the file private data.
  *
+ * May only be called after a successful call to av_write_header.
+ *
  * @param s media file handle
  * @return 0 if OK. AVERROR_xxx if error.
  */
@@ -1104,4 +1127,4 @@ int match_ext(const char *filename, const char *extensions);
 
 #endif /* HAVE_AV_CONFIG_H */
 
-#endif /* FFMPEG_AVFORMAT_H */
+#endif /* AVFORMAT_AVFORMAT_H */

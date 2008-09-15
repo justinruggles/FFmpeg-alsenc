@@ -20,6 +20,7 @@
  */
 #include "avformat.h"
 #include "rtp_internal.h"
+#include "rdt.h"
 
 #define REGISTER_MUXER(X,x) { \
           extern AVOutputFormat x##_muxer; \
@@ -76,6 +77,7 @@ void av_register_all(void)
     REGISTER_DEMUXER  (DXA, dxa);
     REGISTER_DEMUXER  (EA, ea);
     REGISTER_DEMUXER  (EA_CDATA, ea_cdata);
+    REGISTER_MUXDEMUX (EAC3, eac3);
     REGISTER_MUXDEMUX (FFM, ffm);
     REGISTER_MUXDEMUX (FLAC, flac);
     REGISTER_DEMUXER  (FLIC, flic);
@@ -164,6 +166,7 @@ void av_register_all(void)
     REGISTER_DEMUXER  (SDP, sdp);
 #ifdef CONFIG_SDP_DEMUXER
     av_register_rtp_dynamic_payload_handlers();
+    av_register_rdt_dynamic_payload_handlers();
 #endif
     REGISTER_DEMUXER  (SEGAFILM, segafilm);
     REGISTER_DEMUXER  (SHORTEN, shorten);

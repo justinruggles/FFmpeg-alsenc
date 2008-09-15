@@ -21,8 +21,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef FFMPEG_FLV_H
-#define FFMPEG_FLV_H
+#ifndef AVFORMAT_FLV_H
+#define AVFORMAT_FLV_H
 
 /* offsets for packed values */
 #define FLV_AUDIO_SAMPLESSIZE_OFFSET 1
@@ -78,6 +78,7 @@ enum {
     FLV_CODECID_NELLYMOSER_8HZ_MONO = 5 << FLV_AUDIO_CODECID_OFFSET,
     FLV_CODECID_NELLYMOSER          = 6 << FLV_AUDIO_CODECID_OFFSET,
     FLV_CODECID_AAC                 = 10<< FLV_AUDIO_CODECID_OFFSET,
+    FLV_CODECID_SPEEX               = 11<< FLV_AUDIO_CODECID_OFFSET,
 };
 
 enum {
@@ -109,4 +110,4 @@ typedef enum {
     AMF_DATA_TYPE_UNSUPPORTED = 0x0d,
 } AMFDataType;
 
-#endif /* FFMPEG_FLV_H */
+#endif /* AVFORMAT_FLV_H */

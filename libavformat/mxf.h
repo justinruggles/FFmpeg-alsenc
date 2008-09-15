@@ -18,8 +18,8 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
-#ifndef FFMPEG_MXF_H
-#define FFMPEG_MXF_H
+#ifndef AVFORMAT_MXF_H
+#define AVFORMAT_MXF_H
 
 #include "avformat.h"
 #include "libavcodec/bytestream.h"
@@ -63,7 +63,6 @@ typedef struct {
 
 extern const MXFDataDefinitionUL ff_mxf_data_definition_uls[];
 extern const MXFCodecUL ff_mxf_codec_uls[];
-extern const MXFCodecUL ff_mxf_essence_container_uls[6];
 
 #ifdef DEBUG
 #define PRINT_KEY(pc, s, x) dprintf(pc, "%s %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n", s, \
@@ -72,4 +71,4 @@ extern const MXFCodecUL ff_mxf_essence_container_uls[6];
 #define PRINT_KEY(pc, s, x)
 #endif
 
-#endif /* FFMPEG_MXF_H */
+#endif /* AVFORMAT_MXF_H */

@@ -23,8 +23,8 @@
  * common internal api header.
  */
 
-#ifndef FFMPEG_INTERNAL_H
-#define FFMPEG_INTERNAL_H
+#ifndef AVUTIL_INTERNAL_H
+#define AVUTIL_INTERNAL_H
 
 #if !defined(DEBUG) && !defined(NDEBUG)
 #    define NDEBUG
@@ -242,7 +242,7 @@ if((y)<(x)){\
 #define strcat strcat_is_forbidden_due_to_security_issues_use_av_strlcat
 #undef  exit
 #define exit exit_is_forbidden
-#if !(defined(LIBAVFORMAT_BUILD) || defined(FFMPEG_FRAMEHOOK_H))
+#ifndef LIBAVFORMAT_BUILD
 #undef  printf
 #define printf please_use_av_log
 #undef  fprintf
@@ -297,4 +297,4 @@ static av_always_inline av_const float roundf(float x)
 }
 #endif /* HAVE_ROUNDF */
 
-#endif /* FFMPEG_INTERNAL_H */
+#endif /* AVUTIL_INTERNAL_H */

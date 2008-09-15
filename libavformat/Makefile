@@ -44,6 +44,8 @@ OBJS-$(CONFIG_DV_MUXER)                  += dvenc.o
 OBJS-$(CONFIG_DXA_DEMUXER)               += dxa.o riff.o
 OBJS-$(CONFIG_EA_CDATA_DEMUXER)          += eacdata.o
 OBJS-$(CONFIG_EA_DEMUXER)                += electronicarts.o
+OBJS-$(CONFIG_EAC3_DEMUXER)              += raw.o
+OBJS-$(CONFIG_EAC3_MUXER)                += raw.o
 OBJS-$(CONFIG_FFM_DEMUXER)               += ffmdec.o
 OBJS-$(CONFIG_FFM_MUXER)                 += ffmenc.o
 OBJS-$(CONFIG_FLAC_DEMUXER)              += raw.o
@@ -157,7 +159,7 @@ OBJS-$(CONFIG_RTP_MUXER)                 += rtp.o         \
                                             rtp_aac.o     \
                                             rtpenc_h264.o \
                                             avc.o
-OBJS-$(CONFIG_RTSP_DEMUXER)              += rtsp.o
+OBJS-$(CONFIG_RTSP_DEMUXER)              += rdt.o rtsp.o
 OBJS-$(CONFIG_SDP_DEMUXER)               += rtsp.o rtp.o rtpdec.o rtp_h264.o
 OBJS-$(CONFIG_SEGAFILM_DEMUXER)          += segafilm.o
 OBJS-$(CONFIG_SHORTEN_DEMUXER)           += raw.o
