@@ -368,6 +368,7 @@ static const AVCodecTag mp4_audio_types[] = {
     { CODEC_ID_MP3ON4, 32 }, /* layer 1 */
     { CODEC_ID_MP3ON4, 33 }, /* layer 2 */
     { CODEC_ID_MP3ON4, 34 }, /* layer 3 */
+    { CODEC_ID_ALS,    36 }, /* audio lossless coding (als) */
     { CODEC_ID_NONE,    0 },
 };
 
@@ -411,6 +412,12 @@ static int mov_read_esds(MOVContext *c, ByteIOContext *pb, MOV_atom_t atom)
                 if (cfg.chan_config > 7)
                     return -1;
                 st->codec->channels = ff_mpeg4audio_channels[cfg.chan_config];
+                if (!cfg.chan_config && cfg.object_type == 36) {
+                    /* get number of channels from ALSSpecificConfig */
+                    if(len < 20)
+                        return -1;
+                    st->codec->channels = AV_RB16(&st->codec->extradata[18]) + 1;
+                }
                 if (cfg.object_type == 29 && cfg.sampling_index < 3) // old mp3on4
                     st->codec->sample_rate = ff_mpa_freq_tab[cfg.sampling_index];
                 else

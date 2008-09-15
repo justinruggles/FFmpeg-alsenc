@@ -55,6 +55,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX (AC3, ac3);
     REGISTER_MUXER    (ADTS, adts);
     REGISTER_MUXDEMUX (AIFF, aiff);
+    REGISTER_MUXER    (ALS, als);
     REGISTER_MUXDEMUX (AMR, amr);
     REGISTER_DEMUXER  (APC, apc);
     REGISTER_DEMUXER  (APE, ape);
