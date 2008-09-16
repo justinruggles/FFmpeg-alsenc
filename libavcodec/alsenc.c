@@ -220,10 +220,9 @@ static av_cold int als_encode_init(AVCodecContext *avctx)
     s->adapt_lpc_order = ADAPT_METHOD_LOG_SEARCH;
     s->parcor_table_number = 0;
     if (s->adapt_lpc_order) {
-        int n3 = s->full_frame_length >> 3;
-        int log_order = av_log2(s->max_lpc_order+s->max_lpc_order-1);
-        int log_n = av_log2(n3+n3-1);
-        s->order_bits = FFMIN(log_order, FFMAX(log_n, 1));
+        int log_order = av_log2((s->max_lpc_order     << 1) - 1);
+        int log_n     = av_log2((s->full_frame_length >> 2) - 1);
+        s->order_bits = av_clip(log_n, 1, log_order);
     }
 
     s->ec_part = 1;
