@@ -363,7 +363,7 @@ static void quantize_parcor_coeffs(const double *parcor, int *q_parcor,
 static int encode_residual(AlsBlock *blk, int n, int ra)
 {
     int64_t p;
-    int i, j, i2, order, start;
+    int i, j, order, start;
 
     memset(blk->lpc_coeffs, 0, sizeof(blk->lpc_coeffs));
     order = ra ? FFMIN(n, blk->lpc_order) : blk->lpc_order;
@@ -376,8 +376,7 @@ static int encode_residual(AlsBlock *blk, int n, int ra)
         }
         /* convert parcor coeffs to lpc coeffs */
         p = blk->parcor_coeffs[i];
-        i2 = i >> 1;
-        for (j = 1; j <= i2; j++) {
+        for (j = 1; j <= (i >> 1); j++) {
             int tmp = blk->lpc_coeffs[j] +  (((p * blk->lpc_coeffs[i-j]) + (1 << 19)) >> 20);
             blk->lpc_coeffs[i-j]         += (((p * blk->lpc_coeffs[j  ]) + (1 << 19)) >> 20);
             blk->lpc_coeffs[j] = tmp;
