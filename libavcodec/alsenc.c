@@ -324,8 +324,8 @@ static void compute_parcor_coeffs(const double *autoc, int max_order,
         parcor[i] = lpc[i][i];
 }
 
-static void quantize_parcor_coeffs(const double *parcor, int *q_parcor,
-                                   int *r_parcor, int order)
+static void quantize_parcor_coeffs(const double *parcor, int order,
+                                   int *q_parcor, int *r_parcor)
 {
     int i;
 
