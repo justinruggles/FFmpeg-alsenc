@@ -316,7 +316,7 @@ static int compute_rice_params(AlsBlock *blk, int n, int ec_part)
 static void compute_parcor_coeffs(const double *autoc, int max_order,
                                   double *parcor)
 {
-    int i, j;
+    int i;
     double lpc[MAX_LPC_ORDER][MAX_LPC_ORDER];
 
     compute_lpc_coefs(autoc, max_order, (double *)lpc, MAX_LPC_ORDER, 0, 1);
