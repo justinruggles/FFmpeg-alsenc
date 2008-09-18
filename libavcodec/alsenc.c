@@ -329,16 +329,16 @@ static void quantize_parcor_coeffs(const double *parcor, int *q_parcor,
 {
     int i;
 
-    q_parcor[1] = 64.0 * (M_SQRT2 * sqrt(parcor[0]+1.0) - 1.0);
+    q_parcor[1] = lrint(64.0 * (M_SQRT2 * sqrt(parcor[0]+1.0) - 1.0));
     q_parcor[1] = av_clip(q_parcor[1], -64, 63);
     r_parcor[1] = 32 + ((q_parcor[1]+64)*(q_parcor[1]+65) << 7) - (1 << 20);
     if (order > 1) {
-        q_parcor[2] = 64.0 * (M_SQRT2 * sqrt(1.0-parcor[1]) - 1.0);
+        q_parcor[2] = lrint(64.0 * (M_SQRT2 * sqrt(1.0-parcor[1]) - 1.0));
         q_parcor[2] = av_clip(q_parcor[2], -64, 63);
         r_parcor[2] = -32 - ((q_parcor[2]+64)*(q_parcor[2]+65) << 7) + (1 << 20);
     }
     for (i = 3; i <= order; i++) {
-        q_parcor[i] = 64.0 * parcor[i-1];
+        q_parcor[i] = lrint(64.0 * parcor[i-1]);
         q_parcor[i] = av_clip(q_parcor[i], -64, 63);
         r_parcor[i] = (q_parcor[i] << 14) + (1 << 13);
     }
