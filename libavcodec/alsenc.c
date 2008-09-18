@@ -311,8 +311,7 @@ static int compute_rice_params(AlsBlock *blk, int n, int ec_part)
 }
 
 /**
- * Calculating the parcor coefficients from autocorrelation data by using Schur
- * recursion.
+ * Calculate the parcor coefficients from autocorrelation data.
  */
 static void compute_parcor_coeffs(const double *autoc, int max_order,
                                   double *parcor)
