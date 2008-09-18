@@ -324,6 +324,12 @@ static void compute_parcor_coeffs(const double *autoc, int max_order,
         parcor[i] = lpc[i][i];
 }
 
+/**
+ * Quantize PARCOR coefficients.
+ * The specification defines how PARCOR quantization and reconstruction should
+ * be done. Some liberties can be taken with the quantization, but the
+ * reconstruction must bit-exact since it is mirrored in the decoder.
+ */
 static void quantize_parcor_coeffs(const double *parcor, int order,
                                    int *q_parcor, int *r_parcor)
 {
