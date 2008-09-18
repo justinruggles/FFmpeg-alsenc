@@ -346,7 +346,6 @@ static void quantize_parcor_coeffs(const double *parcor, int *q_parcor,
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
-    int j;\
     int64_t y = 1 << 19;\
     for (j = 1; j <= order; j++)\
         y += (int64_t)lpc[j] * (smp_ptr)[-j];\
