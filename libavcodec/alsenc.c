@@ -319,7 +319,7 @@ static void compute_parcor_coeffs(const double *autoc, int max_order,
     int i, j;
     double lpc[MAX_LPC_ORDER][MAX_LPC_ORDER];
 
-    compute_lpc_coefs(autoc, max_order, lpc, MAX_LPC_ORDER, 0, 1);
+    compute_lpc_coefs(autoc, max_order, (double *)lpc, MAX_LPC_ORDER, 0, 1);
     for (i = 0; i < max_order; i++)
         parcor[i] = lpc[i][i];
 }
