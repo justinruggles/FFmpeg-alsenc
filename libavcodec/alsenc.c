@@ -468,8 +468,8 @@ static int encode_residual_single_order(AlsBlock *blk, int n, int ra,
     if (encode_residual(blk, n, ra)) {
         /* prediction overflow, recalculate without prediction */
         memset(parcor, 0, sizeof(parcor));
-        quantize_parcor_coeffs(parcor, blk->q_parcor_coeffs,
-                               blk->parcor_coeffs, blk->lpc_order);
+        quantize_parcor_coeffs(parcor, blk->lpc_order, blk->q_parcor_coeffs,
+                               blk->parcor_coeffs);
         if (encode_residual(blk, n, ra))
             return -1;
     }
@@ -575,8 +575,8 @@ static int encode_frame(AlsEncodeContext *s)
                                              autoc);
             }
             compute_parcor_coeffs(autoc, s->max_lpc_order, parcor);
-            quantize_parcor_coeffs(parcor, blk->q_parcor_coeffs,
-                                   blk->parcor_coeffs, s->max_lpc_order);
+            quantize_parcor_coeffs(parcor, s->max_lpc_order,
+                                   blk->q_parcor_coeffs, blk->parcor_coeffs);
             if (encode_residual_adaptive_lpc(blk, s->max_lpc_order, n,
                     s->random_access, s->ec_part, s->adapt_lpc_order)) {
                 return -1;
