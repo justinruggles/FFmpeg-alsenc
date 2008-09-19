@@ -994,8 +994,8 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
     }
     /* estimate bit counts */
     for(i=0; i<4; i++) {
-        k = find_optimal_param(2*sum[i], n);
-        sum[i] = rice_encode_count(2*sum[i], n, k);
+        k = find_optimal_param(sum[i], n);
+        sum[i] = rice_encode_count(sum[i], n, k);
     }
 
     /* calculate score for each mode */
