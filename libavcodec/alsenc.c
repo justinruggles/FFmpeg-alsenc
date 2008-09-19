@@ -29,6 +29,7 @@
 #include "avcodec.h"
 #include "dsputil.h"
 #include "bitstream.h"
+#include "flacenc.h"
 #include "golomb.h"
 #include "mpeg4audio.h"
 #include "alsdata.h"
@@ -45,12 +46,6 @@
 #define ALS_OBJECT_TYPE 36
 #define ALS_SPECIFIC_CFG_SIZE  30
 #define ALS_EXTRADATA_MAX_SIZE (6 + ALS_SPECIFIC_CFG_SIZE)
-
-enum {
-    JOINT_MODE_LEFT_RIGHT,
-    JOINT_MODE_LEFT_SIDE,
-    JOINT_MODE_RIGHT_SIDE,
-};
 
 enum {
     ADAPT_METHOD_NONE,
@@ -395,50 +390,6 @@ static int encode_residual(AlsBlock *blk, int n, int ra)
     return 0;
 }
 
-static int estimate_stereo_mode(int32_t *left_ch, int32_t *right_ch, int n)
-{
-    int i, best;
-    int32_t lt, rt;
-    uint64_t sum[3];
-    uint64_t score[3];
-    int k;
-
-    /* calculate sum of 2nd order residual for each channel */
-    sum[0] = sum[1] = sum[2] = 0;
-    for (i = 2; i < n; i++) {
-        lt =  left_ch[i] - 2* left_ch[i-1] +  left_ch[i-2];
-        rt = right_ch[i] - 2*right_ch[i-1] + right_ch[i-2];
-        sum[0] += FFABS(lt);
-        sum[1] += FFABS(rt);
-        sum[2] += FFABS(rt - lt);
-    }
-    /* estimate bit counts */
-    for (i = 0; i < 3; i++) {
-        k = find_optimal_param(sum[i], n, 15);
-        sum[i] = rice_encode_count(sum[i], n, k);
-    }
-
-    /* calculate score for each mode */
-    score[0] = sum[0] + sum[1];
-    score[1] = sum[0] + sum[2];
-    score[2] = sum[2] + sum[1];
-
-    /* return mode with lowest score */
-    best = 0;
-    for (i = 1; i < 3; i++) {
-        if (score[i] < score[best]) {
-            best = i;
-        }
-    }
-    if (best == 0) {
-        return JOINT_MODE_LEFT_RIGHT;
-    } else if (best == 1) {
-        return JOINT_MODE_LEFT_SIDE;
-    } else {
-        return JOINT_MODE_RIGHT_SIDE;
-    }
-}
-
 static void encode_joint_stereo(AlsEncodeContext *s)
 {
     int32_t *left, *right;
@@ -448,13 +399,13 @@ static void encode_joint_stereo(AlsEncodeContext *s)
     right = s->frame.blocks[1].samples;
     n = s->frame.frame_length;
 
-    mode = estimate_stereo_mode(left, right, n);
+    mode = ff_flac_estimate_stereo_mode(left, right, n, 0x7);
 
-    s->frame.blocks[0].js_block = (mode == JOINT_MODE_RIGHT_SIDE);
-    s->frame.blocks[1].js_block = (mode == JOINT_MODE_LEFT_SIDE);
+    s->frame.blocks[0].js_block = (mode == FLAC_CHMODE_RIGHT_SIDE);
+    s->frame.blocks[1].js_block = (mode == FLAC_CHMODE_LEFT_SIDE);
 
-    if (mode != JOINT_MODE_LEFT_RIGHT) {
-        int32_t *dest = (mode == JOINT_MODE_LEFT_SIDE) ? right : left;
+    if (mode != FLAC_CHMODE_LEFT_RIGHT) {
+        int32_t *dest = (mode == FLAC_CHMODE_LEFT_SIDE) ? right : left;
         for (i = -MAX_LPC_ORDER; i < n; i++)
             dest[i] = right[i] - left[i];
     }
