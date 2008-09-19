@@ -253,9 +253,9 @@ static int compute_rice_params(AlsBlock *blk, int n, int ec_part)
     if (!ec_part || (n == 4) || (n & 3)) {
         bits = ff_flac_calc_rice_params(&rc, 0, 0, blk->residual, n, 0);
     } else {
-        bits = ff_flac_calc_rice_params(&rc, 0, 2, blk->residual, n, 0);
-        if (rc.porder == 1)
-            bits = ff_flac_calc_rice_params(&rc, 2, 2, blk->residual, n, 0);
+        bits = ff_flac_calc_rice_params(&rc, 2, 2, blk->residual, n, 0);
+        if (rc.params[0] == rc.params[1] == rc.params[2] == rc.params[3])
+            rc.porder = 0;
         if (rc.porder == 2)
             blk->ec.ec_blocks = 4;
     }
