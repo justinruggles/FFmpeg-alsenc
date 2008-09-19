@@ -1009,11 +1009,10 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
         score[3] = sum[2] + sum[3];
 
     /* return mode with lowest score */
-    best = (mode_mask & 1) ? 0 : (mode_mask & 2) ? 1 : (mode_mask & 4) ? 2 : 3;
-    for(i=best+1; i<4; i++) {
-        if((mode_mask & (1<<i)) && score[i] < score[best]) {
+    best = -1;
+    for(i=0; i<4; i++) {
+        if ((mode_mask & (1<<i)) && (best < 0 || score[i] < score[best]))
             best = i;
-        }
     }
 
     return best;
