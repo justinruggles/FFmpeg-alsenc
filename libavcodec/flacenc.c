@@ -28,6 +28,8 @@
 #include "golomb.h"
 #include "lpc.h"
 
+#include "flacenc.h"
+
 #define FLAC_MAX_CH  8
 #define FLAC_MIN_BLOCKSIZE  16
 #define FLAC_MAX_BLOCKSIZE  65535
@@ -36,12 +38,6 @@
 #define FLAC_SUBFRAME_VERBATIM  1
 #define FLAC_SUBFRAME_FIXED     8
 #define FLAC_SUBFRAME_LPC      32
-
-#define FLAC_CHMODE_NOT_STEREO      0
-#define FLAC_CHMODE_LEFT_RIGHT      1
-#define FLAC_CHMODE_LEFT_SIDE       8
-#define FLAC_CHMODE_RIGHT_SIDE      9
-#define FLAC_CHMODE_MID_SIDE       10
 
 #define FLAC_STREAMINFO_SIZE  34
 
@@ -122,6 +118,8 @@ static const int flac_blocksizes[16] = {
     0, 0,
     256, 512, 1024, 2048, 4096, 8192, 16384, 32768
 };
+
+static const int channel_mode_code[5] = { 1, 8, 9, 10, 0 };
 
 /**
  * Writes streaminfo metadata block to byte array
@@ -973,8 +971,8 @@ static int encode_residual_v(FlacEncodeContext *ctx, int ch)
     return sub->obits * n;
 }
 
-static int estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch,
-                                int n)
+int ff_flac_estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch,
+                                 int n, int mode_mask)
 {
     int i, best;
     int32_t lt, rt;
@@ -987,6 +985,7 @@ static int estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch,
     for(i=2; i<n; i++) {
         lt = left_ch[i] - 2*left_ch[i-1] + left_ch[i-2];
         rt = right_ch[i] - 2*right_ch[i-1] + right_ch[i-2];
+        if (mode_mask & 8)
         sum[2] += FFABS((lt + rt) >> 1);
         sum[3] += FFABS(lt - rt);
         sum[0] += FFABS(lt);
@@ -994,32 +993,31 @@ static int estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch,
     }
     /* estimate bit counts */
     for(i=0; i<4; i++) {
+        if (mode_mask & (1<<i)) {
         k = find_optimal_param(2*sum[i], n);
         sum[i] = rice_encode_count(2*sum[i], n, k);
+        }
     }
 
     /* calculate score for each mode */
+    if (mode_mask & 1)
     score[0] = sum[0] + sum[1];
+    if (mode_mask & 2)
     score[1] = sum[0] + sum[3];
+    if (mode_mask & 4)
     score[2] = sum[1] + sum[3];
+    if (mode_mask & 8)
     score[3] = sum[2] + sum[3];
 
     /* return mode with lowest score */
-    best = 0;
-    for(i=1; i<4; i++) {
-        if(score[i] < score[best]) {
+    best = (mode_mask & 1) ? 0 : (mode_mask & 2) ? 1 : (mode_mask & 4) ? 2 : 3;
+    for(i=best+1; i<4; i++) {
+        if((mode_mask & (1<<i)) && score[i] < score[best]) {
             best = i;
         }
     }
-    if(best == 0) {
-        return FLAC_CHMODE_LEFT_RIGHT;
-    } else if(best == 1) {
-        return FLAC_CHMODE_LEFT_SIDE;
-    } else if(best == 2) {
-        return FLAC_CHMODE_RIGHT_SIDE;
-    } else {
-        return FLAC_CHMODE_MID_SIDE;
-    }
+
+    return best;
 }
 
 /**
@@ -1041,7 +1039,7 @@ static void channel_decorrelation(FlacEncodeContext *ctx)
         return;
     }
 
-    frame->ch_mode = estimate_stereo_mode(left, right, n);
+    frame->ch_mode = ff_flac_estimate_stereo_mode(left, right, n, 0xF);
 
     /* perform decorrelation and adjust bits-per-sample */
     if(frame->ch_mode == FLAC_CHMODE_LEFT_RIGHT) {
@@ -1087,7 +1085,7 @@ static void output_frame_header(FlacEncodeContext *s)
     if(frame->ch_mode == FLAC_CHMODE_NOT_STEREO) {
         put_bits(&s->pb, 4, s->ch_code);
     } else {
-        put_bits(&s->pb, 4, frame->ch_mode);
+        put_bits(&s->pb, 4, channel_mode_code[frame->ch_mode]);
     }
     put_bits(&s->pb, 3, 4); /* bits-per-sample code */
     put_bits(&s->pb, 1, 0);
