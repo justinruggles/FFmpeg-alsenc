@@ -244,62 +244,23 @@ static av_cold int als_encode_init(AVCodecContext *avctx)
     return 0;
 }
 
-#define rice_encode_count(sum, n, k) (((n)*((k)+1))+((sum-(n>>1))>>(k)))
-
-/**
- * Solve for d/dk(rice_encode_count) = n-((sum-(n>>1))>>(k+1)) = 0
- */
-static int find_optimal_param(uint32_t sum, int n, int k_max)
-{
-    int k;
-    uint32_t sum2;
-
-    if (sum <= n>>1)
-        return 0;
-    sum2 = sum-(n>>1);
-    k = av_log2(n<256 ? FASTDIV(sum2,n) : sum2/n);
-    return FFMIN(k, k_max);
-}
-
-static int calc_rice_param(int *k, int32_t *data, int n, int bps)
-{
-    uint64_t sum;
-    int i, k_max;
-
-    sum = 0;
-    for (i = 0; i < n; i++) {
-        uint32_t uval = (2*data[i]) ^ (data[i]>>31);
-        sum += uval;
-    }
-
-    k_max = bps <= 16 ? 15 : 31;
-    if ((sum / n) > (1 << k_max))
-        *k = k_max;
-    else
-        *k = find_optimal_param(sum, n, k_max);
-
-    return rice_encode_count(sum, n, *k);
-}
-
 static int compute_rice_params(AlsBlock *blk, int n, int ec_part)
 {
-    int b, k, k0;
-    int bits;
+    FlacRiceContext rc;
+    int i, bits=0;
 
-    bits = 0;
     blk->ec.ec_blocks = 1;
     if (!ec_part || (n == 4) || (n & 3)) {
-        bits += calc_rice_param(&blk->ec.rice_params[0], blk->residual, n, 16);
+        bits = ff_flac_calc_rice_params(&rc, 0, 0, blk->residual, n, 0);
     } else {
-        n >>= 2;
-        bits += calc_rice_param(&blk->ec.rice_params[0], blk->residual, n, 16);
-        k0 = blk->ec.rice_params[0];
-        for (b = 1; b < 4; b++) {
-            bits += calc_rice_param(&blk->ec.rice_params[b], &blk->residual[b*n], n, 16);
-            k = blk->ec.rice_params[b];
-            if (k != k0)
-                blk->ec.ec_blocks = 4;
-        }
+        bits = ff_flac_calc_rice_params(&rc, 0, 2, blk->residual, n, 0);
+        if (rc.porder == 1)
+            bits = ff_flac_calc_rice_params(&rc, 2, 2, blk->residual, n, 0);
+        if (rc.porder == 2)
+            blk->ec.ec_blocks = 4;
+    }
+    for (i = 0; i < blk->ec.ec_blocks; i++) {
+        blk->ec.rice_params[i] = rc.params[i];
     }
 
     return bits;

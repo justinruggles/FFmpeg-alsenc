@@ -22,6 +22,8 @@
 #ifndef AVCODEC_FLACENC_H
 #define AVCODEC_FLACENC_H
 
+#include <stdint.h>
+
 enum {
     FLAC_CHMODE_LEFT_RIGHT=0,
     FLAC_CHMODE_LEFT_SIDE,
@@ -33,6 +35,14 @@ enum {
 int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
                                  const int32_t *right_ch,
                                  int n, int max_k, int mode_mask);
+
+typedef struct FlacRiceContext {
+    int porder;
+    int params[256];
+} FlacRiceContext;
+
+uint32_t ff_flac_calc_rice_params(FlacRiceContext *rc, int pmin, int pmax,
+                                  int32_t *data, int n, int pred_order);
 
 #endif /* AVCODEC_FLACENC_H */
 
