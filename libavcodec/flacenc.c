@@ -973,7 +973,7 @@ static int encode_residual_v(FlacEncodeContext *ctx, int ch)
     return sub->obits * n;
 }
 
-static int estimate_stereo_mode(int32_t *left_ch, int32_t *right_ch, int n)
+static int estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch, int n)
 {
     int i, best;
     int32_t lt, rt;
