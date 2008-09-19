@@ -1037,7 +1037,8 @@ static void channel_decorrelation(FlacEncodeContext *ctx)
         return;
     }
 
-    frame->ch_mode = ff_flac_estimate_stereo_mode(left, right, n, MAX_RICE_PARAM, 0xF);
+    frame->ch_mode = ff_flac_estimate_stereo_mode(left, right, n,
+                                                  MAX_RICE_PARAM, 0xF);
 
     /* perform decorrelation and adjust bits-per-sample */
     if(frame->ch_mode == FLAC_CHMODE_LEFT_RIGHT) {
