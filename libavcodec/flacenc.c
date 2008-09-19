@@ -971,7 +971,8 @@ static int encode_residual_v(FlacEncodeContext *ctx, int ch)
     return sub->obits * n;
 }
 
-int ff_flac_estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch,
+int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
+                                 const int32_t *right_ch,
                                  int n, int mode_mask)
 {
     int i, best;
@@ -986,7 +987,7 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch
         lt = left_ch[i] - 2*left_ch[i-1] + left_ch[i-2];
         rt = right_ch[i] - 2*right_ch[i-1] + right_ch[i-2];
         if (mode_mask & 8)
-        sum[2] += FFABS((lt + rt) >> 1);
+            sum[2] += FFABS((lt + rt) >> 1);
         sum[3] += FFABS(lt - rt);
         sum[0] += FFABS(lt);
         sum[1] += FFABS(rt);
@@ -994,20 +995,20 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch, const int32_t *right_ch
     /* estimate bit counts */
     for(i=0; i<4; i++) {
         if (mode_mask & (1<<i)) {
-        k = find_optimal_param(2*sum[i], n);
-        sum[i] = rice_encode_count(2*sum[i], n, k);
+            k = find_optimal_param(2*sum[i], n);
+            sum[i] = rice_encode_count(2*sum[i], n, k);
         }
     }
 
     /* calculate score for each mode */
     if (mode_mask & 1)
-    score[0] = sum[0] + sum[1];
+        score[0] = sum[0] + sum[1];
     if (mode_mask & 2)
-    score[1] = sum[0] + sum[3];
+        score[1] = sum[0] + sum[3];
     if (mode_mask & 4)
-    score[2] = sum[1] + sum[3];
+        score[2] = sum[1] + sum[3];
     if (mode_mask & 8)
-    score[3] = sum[2] + sum[3];
+        score[3] = sum[2] + sum[3];
 
     /* return mode with lowest score */
     best = (mode_mask & 1) ? 0 : (mode_mask & 2) ? 1 : (mode_mask & 4) ? 2 : 3;
