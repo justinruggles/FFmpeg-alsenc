@@ -32,7 +32,7 @@ enum {
 
 int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
                                  const int32_t *right_ch,
-                                 int n, int mode_mask);
+                                 int n, int max_k, int mode_mask);
 
 #endif /* AVCODEC_FLACENC_H */
 

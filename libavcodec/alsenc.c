@@ -393,13 +393,14 @@ static int encode_residual(AlsBlock *blk, int n, int ra)
 static void encode_joint_stereo(AlsEncodeContext *s)
 {
     int32_t *left, *right;
-    int i, mode, n;
+    int i, mode, n, max_k;
 
     left  = s->frame.blocks[0].samples;
     right = s->frame.blocks[1].samples;
     n = s->frame.frame_length;
+    max_k = s->bps <= 16 ? 15 : 31;
 
-    mode = ff_flac_estimate_stereo_mode(left, right, n, 0x7);
+    mode = ff_flac_estimate_stereo_mode(left, right, n, max_k, 0x7);
 
     s->frame.blocks[0].js_block = (mode == FLAC_CHMODE_RIGHT_SIDE);
     s->frame.blocks[1].js_block = (mode == FLAC_CHMODE_LEFT_SIDE);

@@ -449,7 +449,7 @@ static void copy_samples(FlacEncodeContext *s, int16_t *samples)
 /**
  * Solve for d/dk(rice_encode_count) = n-((sum-(n>>1))>>(k+1)) = 0
  */
-static int find_optimal_param(uint32_t sum, int n)
+static int find_optimal_param(uint32_t sum, int n, int max_k)
 {
     int k;
     uint32_t sum2;
@@ -458,7 +458,7 @@ static int find_optimal_param(uint32_t sum, int n)
         return 0;
     sum2 = sum-(n>>1);
     k = av_log2(n<256 ? FASTDIV(sum2,n) : sum2/n);
-    return FFMIN(k, MAX_RICE_PARAM);
+    return FFMIN(k, max_k);
 }
 
 static uint32_t calc_optimal_rice_params(RiceContext *rc, int porder,
@@ -473,7 +473,7 @@ static uint32_t calc_optimal_rice_params(RiceContext *rc, int porder,
 
     cnt = (n >> porder) - pred_order;
     for(i=0; i<part; i++) {
-        k = find_optimal_param(sums[i], cnt);
+        k = find_optimal_param(sums[i], cnt, MAX_RICE_PARAM);
         rc->params[i] = k;
         all_bits += rice_encode_count(sums[i], cnt, k);
         cnt = n >> porder;
@@ -973,7 +973,7 @@ static int encode_residual_v(FlacEncodeContext *ctx, int ch)
 
 int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
                                  const int32_t *right_ch,
-                                 int n, int mode_mask)
+                                 int n, int max_k, int mode_mask)
 {
     int i, best;
     int32_t lt, rt;
@@ -994,7 +994,7 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
     }
     /* estimate bit counts */
     for(i=0; i<4; i++) {
-        k = find_optimal_param(sum[i], n);
+        k = find_optimal_param(sum[i], n, max_k);
         sum[i] = rice_encode_count(sum[i], n, k);
     }
 
@@ -1037,7 +1037,7 @@ static void channel_decorrelation(FlacEncodeContext *ctx)
         return;
     }
 
-    frame->ch_mode = ff_flac_estimate_stereo_mode(left, right, n, 0xF);
+    frame->ch_mode = ff_flac_estimate_stereo_mode(left, right, n, MAX_RICE_PARAM, 0xF);
 
     /* perform decorrelation and adjust bits-per-sample */
     if(frame->ch_mode == FLAC_CHMODE_LEFT_RIGHT) {
