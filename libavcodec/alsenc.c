@@ -28,7 +28,7 @@
 
 #include "avcodec.h"
 #include "dsputil.h"
-#include "bitstream.h"
+#include "put_bits.h"
 #include "flacenc.h"
 #include "golomb.h"
 #include "mpeg4audio.h"
@@ -254,8 +254,10 @@ static int compute_rice_params(AlsBlock *blk, int n, int ec_part)
         bits = ff_flac_calc_rice_params(&rc, 0, 0, blk->residual, n, 0);
     } else {
         bits = ff_flac_calc_rice_params(&rc, 2, 2, blk->residual, n, 0);
-        if (rc.params[0] == rc.params[1] == rc.params[2] == rc.params[3])
+        if (rc.params[0] == rc.params[1] && rc.params[1] == rc.params[2] &&
+            rc.params[2] == rc.params[3]) {
             rc.porder = 0;
+        }
         if (rc.porder == 2)
             blk->ec.ec_blocks = 4;
     }
@@ -353,6 +355,9 @@ static int encode_residual(AlsBlock *blk, int n, int ra)
 
 static void encode_joint_stereo(AlsEncodeContext *s)
 {
+    s->frame.blocks[0].js_block = 0;
+    s->frame.blocks[1].js_block = 0;
+#if 0
     int32_t *left, *right;
     int i, mode, n, max_k;
 
@@ -361,16 +366,17 @@ static void encode_joint_stereo(AlsEncodeContext *s)
     n = s->frame.frame_length;
     max_k = s->bps <= 16 ? 15 : 31;
 
-    mode = ff_flac_estimate_stereo_mode(left, right, n, max_k, 0x7);
+    mode = FLAC_CHMODE_INDEPENDENT;
 
     s->frame.blocks[0].js_block = (mode == FLAC_CHMODE_RIGHT_SIDE);
     s->frame.blocks[1].js_block = (mode == FLAC_CHMODE_LEFT_SIDE);
 
-    if (mode != FLAC_CHMODE_LEFT_RIGHT) {
+    if (mode != FLAC_CHMODE_INDEPENDENT) {
         int32_t *dest = (mode == FLAC_CHMODE_LEFT_SIDE) ? right : left;
         for (i = -MAX_LPC_ORDER; i < n; i++)
             dest[i] = right[i] - left[i];
     }
+#endif
 }
 
 static int encode_residual_single_order(AlsBlock *blk, int n, int ra,
@@ -538,7 +544,7 @@ static void shift_sample_buffer(AlsEncodeContext *s)
 
 static inline int put_bits_check_overflow(PutBitContext *pb)
 {
-    if (pbBufPtr(pb) > pb->buf_end-4)
+    if (put_bits_ptr(pb) > pb->buf_end-4)
         return 1;
     return 0;
 }
@@ -779,7 +785,7 @@ static av_cold int als_encode_close(AVCodecContext *avctx)
 AVCodec als_encoder = {
     "als",
     CODEC_TYPE_AUDIO,
-    CODEC_ID_ALS,
+    CODEC_ID_MP4ALS,
     sizeof(AlsEncodeContext),
     als_encode_init,
     als_encode_frame,

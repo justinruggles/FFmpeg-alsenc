@@ -24,17 +24,7 @@
 
 #include <stdint.h>
 
-enum {
-    FLAC_CHMODE_LEFT_RIGHT=0,
-    FLAC_CHMODE_LEFT_SIDE,
-    FLAC_CHMODE_RIGHT_SIDE,
-    FLAC_CHMODE_MID_SIDE,
-    FLAC_CHMODE_NOT_STEREO
-};
-
-int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
-                                 const int32_t *right_ch,
-                                 int n, int max_k, int mode_mask);
+#include "flac.h"
 
 typedef struct FlacRiceContext {
     int porder;

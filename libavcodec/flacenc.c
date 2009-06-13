@@ -26,9 +26,7 @@
 #include "dsputil.h"
 #include "golomb.h"
 #include "lpc.h"
-
 #include "flacenc.h"
-#include "flac.h"
 #include "flacdata.h"
 
 #define FLAC_SUBFRAME_CONSTANT  0
@@ -419,7 +417,7 @@ static void copy_samples(FlacEncodeContext *s, int16_t *samples)
 /**
  * Solve for d/dk(rice_encode_count) = n-((sum-(n>>1))>>(k+1)) = 0
  */
-static int find_optimal_param(uint32_t sum, int n, int max_k)
+static int find_optimal_param(uint32_t sum, int n)
 {
     int k;
     uint32_t sum2;
@@ -428,7 +426,7 @@ static int find_optimal_param(uint32_t sum, int n, int max_k)
         return 0;
     sum2 = sum-(n>>1);
     k = av_log2(n<256 ? FASTDIV(sum2,n) : sum2/n);
-    return FFMIN(k, max_k);
+    return FFMIN(k, MAX_RICE_PARAM);
 }
 
 static uint32_t calc_optimal_rice_params(FlacRiceContext *rc, int porder,
@@ -443,7 +441,7 @@ static uint32_t calc_optimal_rice_params(FlacRiceContext *rc, int porder,
 
     cnt = (n >> porder) - pred_order;
     for(i=0; i<part; i++) {
-        k = find_optimal_param(sums[i], cnt, MAX_RICE_PARAM);
+        k = find_optimal_param(sums[i], cnt);
         rc->params[i] = k;
         all_bits += rice_encode_count(sums[i], cnt, k);
         cnt = n >> porder;
@@ -483,7 +481,7 @@ static void calc_sums(int pmin, int pmax, uint32_t *data, int n, int pred_order,
 }
 
 uint32_t ff_flac_calc_rice_params(FlacRiceContext *rc, int pmin, int pmax,
-                                 int32_t *data, int n, int pred_order)
+                                  int32_t *data, int n, int pred_order)
 {
     int i;
     uint32_t bits[MAX_PARTITION_ORDER+1];
@@ -941,9 +939,7 @@ static int encode_residual_v(FlacEncodeContext *ctx, int ch)
     return sub->obits * n;
 }
 
-int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
-                                 const int32_t *right_ch,
-                                 int n, int max_k, int mode_mask)
+static int estimate_stereo_mode(int32_t *left_ch, int32_t *right_ch, int n)
 {
     int i, best;
     int32_t lt, rt;
@@ -956,33 +952,29 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
     for(i=2; i<n; i++) {
         lt = left_ch[i] - 2*left_ch[i-1] + left_ch[i-2];
         rt = right_ch[i] - 2*right_ch[i-1] + right_ch[i-2];
-        if (mode_mask & 8)
-            sum[2] += FFABS((lt + rt) >> 1);
+        sum[2] += FFABS((lt + rt) >> 1);
         sum[3] += FFABS(lt - rt);
         sum[0] += FFABS(lt);
         sum[1] += FFABS(rt);
     }
     /* estimate bit counts */
     for(i=0; i<4; i++) {
-        k = find_optimal_param(sum[i], n, max_k);
-        sum[i] = rice_encode_count(sum[i], n, k);
+        k = find_optimal_param(2*sum[i], n);
+        sum[i] = rice_encode_count(2*sum[i], n, k);
     }
 
     /* calculate score for each mode */
-    if (mode_mask & 1)
-        score[0] = sum[0] + sum[1];
-    if (mode_mask & 2)
-        score[1] = sum[0] + sum[3];
-    if (mode_mask & 4)
-        score[2] = sum[1] + sum[3];
-    if (mode_mask & 8)
-        score[3] = sum[2] + sum[3];
+    score[0] = sum[0] + sum[1];
+    score[1] = sum[0] + sum[3];
+    score[2] = sum[1] + sum[3];
+    score[3] = sum[2] + sum[3];
 
     /* return mode with lowest score */
-    best = -1;
-    for(i=0; i<4; i++) {
-        if ((mode_mask & (1<<i)) && (best < 0 || score[i] < score[best]))
+    best = 0;
+    for(i=1; i<4; i++) {
+        if(score[i] < score[best]) {
             best = i;
+        }
     }
     if(best == 0) {
         return FLAC_CHMODE_INDEPENDENT;
@@ -993,8 +985,6 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
     } else {
         return FLAC_CHMODE_MID_SIDE;
     }
-
-    return best;
 }
 
 /**
@@ -1016,8 +1006,7 @@ static void channel_decorrelation(FlacEncodeContext *ctx)
         return;
     }
 
-    frame->ch_mode = ff_flac_estimate_stereo_mode(left, right, n,
-                                                  MAX_RICE_PARAM, 0xF);
+    frame->ch_mode = estimate_stereo_mode(left, right, n);
 
     /* perform decorrelation and adjust bits-per-sample */
     if(frame->ch_mode == FLAC_CHMODE_INDEPENDENT) {
@@ -1063,7 +1052,7 @@ static void output_frame_header(FlacEncodeContext *s)
     if(frame->ch_mode == FLAC_CHMODE_INDEPENDENT) {
         put_bits(&s->pb, 4, s->channels-1);
     } else {
-        put_bits(&s->pb, 4, channel_mode_code[frame->ch_mode]);
+        put_bits(&s->pb, 4, frame->ch_mode);
     }
     put_bits(&s->pb, 3, 4); /* bits-per-sample code */
     put_bits(&s->pb, 1, 0);

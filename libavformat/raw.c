@@ -52,7 +52,7 @@ static int als_write_header(AVFormatContext *s)
 
 static int als_write_trailer(AVFormatContext *s)
 {
-    offset_t file_size = url_ftell(s->pb);
+    int64_t file_size = url_ftell(s->pb);
 
     if(!url_is_streamed(s->pb) && url_fseek(s->pb, 0, SEEK_SET) >= 0) {
         als_write_header(s);
@@ -711,11 +711,11 @@ AVOutputFormat ac3_muxer = {
 #if CONFIG_ALS_MUXER
 AVOutputFormat als_muxer = {
     "als",
-    "raw als",
-    "audio/x-als",
+    NULL_IF_CONFIG_SMALL("raw ALS"),
+    NULL,
     "als",
     0,
-    CODEC_ID_ALS,
+    CODEC_ID_MP4ALS,
     0,
     als_write_header,
     raw_write_packet,
