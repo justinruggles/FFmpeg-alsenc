@@ -24,6 +24,10 @@
 #include <errno.h>
 #include <math.h>
 
+/* Include only the enabled headers since some compilers (namely, Sun
+   Studio) will not omit unused inline functions and create undefined
+   references to libraries that are not being built. */
+
 #include "config.h"
 #include "libavformat/avformat.h"
 #include "libavfilter/avfilter.h"
@@ -31,14 +35,22 @@
 #include "libswscale/swscale.h"
 #include "libpostproc/postprocess.h"
 #include "libavutil/avstring.h"
+#include "libavcodec/opt.h"
 #include "cmdutils.h"
 #include "version.h"
-#ifdef CONFIG_NETWORK
+#if CONFIG_NETWORK
 #include "libavformat/network.h"
 #endif
 
 #undef exit
 
+const char **opt_names;
+static int opt_name_count;
+AVCodecContext *avcodec_opts[CODEC_TYPE_NB];
+AVFormatContext *avformat_opts;
+struct SwsContext *sws_opts;
+
+const int this_year = 2009;
 
 double parse_number_or_die(const char *context, const char *numstr, int type, double min, double max)
 {
@@ -113,10 +125,10 @@ void parse_options(int argc, char **argv, const OptionDef *options,
         opt = argv[optindex++];
 
         if (handleoptions && opt[0] == '-' && opt[1] != '\0') {
-          if (opt[1] == '-' && opt[2] == '\0') {
-            handleoptions = 0;
-            continue;
-          }
+            if (opt[1] == '-' && opt[2] == '\0') {
+                handleoptions = 0;
+                continue;
+            }
             po= find_option(options, opt + 1);
             if (!po->name)
                 po= find_option(options, "default");
@@ -160,6 +172,60 @@ unknown_opt:
     }
 }
 
+int opt_default(const char *opt, const char *arg){
+    int type;
+    int ret= 0;
+    const AVOption *o= NULL;
+    int opt_types[]={AV_OPT_FLAG_VIDEO_PARAM, AV_OPT_FLAG_AUDIO_PARAM, 0, AV_OPT_FLAG_SUBTITLE_PARAM, 0};
+
+    for(type=0; type<CODEC_TYPE_NB && ret>= 0; type++){
+        const AVOption *o2 = av_find_opt(avcodec_opts[0], opt, NULL, opt_types[type], opt_types[type]);
+        if(o2)
+            ret = av_set_string3(avcodec_opts[type], opt, arg, 1, &o);
+    }
+    if(!o)
+        ret = av_set_string3(avformat_opts, opt, arg, 1, &o);
+    if(!o)
+        ret = av_set_string3(sws_opts, opt, arg, 1, &o);
+    if(!o){
+        if(opt[0] == 'a')
+            ret = av_set_string3(avcodec_opts[CODEC_TYPE_AUDIO], opt+1, arg, 1, &o);
+        else if(opt[0] == 'v')
+            ret = av_set_string3(avcodec_opts[CODEC_TYPE_VIDEO], opt+1, arg, 1, &o);
+        else if(opt[0] == 's')
+            ret = av_set_string3(avcodec_opts[CODEC_TYPE_SUBTITLE], opt+1, arg, 1, &o);
+    }
+    if (o && ret < 0) {
+        fprintf(stderr, "Invalid value '%s' for option '%s'\n", arg, opt);
+        exit(1);
+    }
+    if(!o)
+        return -1;
+
+//    av_log(NULL, AV_LOG_ERROR, "%s:%s: %f 0x%0X\n", opt, arg, av_get_double(avcodec_opts, opt, NULL), (int)av_get_int(avcodec_opts, opt, NULL));
+
+    //FIXME we should always use avcodec_opts, ... for storing options so there will not be any need to keep track of what i set over this
+    opt_names= av_realloc(opt_names, sizeof(void*)*(opt_name_count+1));
+    opt_names[opt_name_count++]= o->name;
+
+    if(avcodec_opts[0]->debug || avformat_opts->debug)
+        av_log_set_level(AV_LOG_DEBUG);
+    return 0;
+}
+
+void set_context_opts(void *ctx, void *opts_ctx, int flags)
+{
+    int i;
+    for(i=0; i<opt_name_count; i++){
+        char buf[256];
+        const AVOption *opt;
+        const char *str= av_get_string(opts_ctx, opt_names[i], &opt, buf, sizeof(buf));
+        /* if an option with name opt_names[i] is present in opts_ctx then str is non-NULL */
+        if(str && ((opt->flags & flags) == flags))
+            av_set_string3(ctx, opt_names[i], str, 1, NULL);
+    }
+}
+
 void print_error(const char *filename, int err)
 {
     switch(err) {
@@ -187,7 +253,7 @@ void print_error(const char *filename, int err)
     case AVERROR(ENOENT):
         fprintf(stderr, "%s: no such file or directory\n", filename);
         break;
-#ifdef CONFIG_NETWORK
+#if CONFIG_NETWORK
     case AVERROR(FF_NETERROR(EPROTONOSUPPORT)):
         fprintf(stderr, "%s: Unsupported network protocol\n", filename);
         break;
@@ -204,28 +270,26 @@ void print_error(const char *filename, int err)
             LIB##LIBNAME##_VERSION_MAJOR, LIB##LIBNAME##_VERSION_MINOR, LIB##LIBNAME##_VERSION_MICRO, \
             version >> 16, version >> 8 & 0xff, version & 0xff);
 
-void print_all_lib_versions(FILE* outstream, int indent)
+static void print_all_lib_versions(FILE* outstream, int indent)
 {
     unsigned int version;
     PRINT_LIB_VERSION(outstream, avutil,   AVUTIL,   indent);
     PRINT_LIB_VERSION(outstream, avcodec,  AVCODEC,  indent);
     PRINT_LIB_VERSION(outstream, avformat, AVFORMAT, indent);
     PRINT_LIB_VERSION(outstream, avdevice, AVDEVICE, indent);
-#if ENABLE_AVFILTER
+#if CONFIG_AVFILTER
     PRINT_LIB_VERSION(outstream, avfilter, AVFILTER, indent);
 #endif
-#if ENABLE_SWSCALE
     PRINT_LIB_VERSION(outstream, swscale,  SWSCALE,  indent);
-#endif
-#if ENABLE_POSTPROC
+#if CONFIG_POSTPROC
     PRINT_LIB_VERSION(outstream, postproc, POSTPROC, indent);
 #endif
 }
 
 void show_banner(void)
 {
-    fprintf(stderr, "%s version " FFMPEG_VERSION ", Copyright (c) %d-2008 Fabrice Bellard, et al.\n",
-            program_name, program_birth_year);
+    fprintf(stderr, "%s version " FFMPEG_VERSION ", Copyright (c) %d-%d Fabrice Bellard, et al.\n",
+            program_name, program_birth_year, this_year);
     fprintf(stderr, "  configuration: " FFMPEG_CONFIGURATION "\n");
     print_all_lib_versions(stderr, 1);
     fprintf(stderr, "  built on " __DATE__ " " __TIME__);
@@ -243,14 +307,26 @@ void show_version(void) {
 
 void show_license(void)
 {
-#ifdef CONFIG_NONFREE
     printf(
+#if CONFIG_NONFREE
     "This version of %s has nonfree parts compiled in.\n"
     "Therefore it is not legally redistributable.\n",
     program_name
-    );
+#elif CONFIG_GPLV3
+    "%s is free software; you can redistribute it and/or modify\n"
+    "it under the terms of the GNU General Public License as published by\n"
+    "the Free Software Foundation; either version 3 of the License, or\n"
+    "(at your option) any later version.\n"
+    "\n"
+    "%s is distributed in the hope that it will be useful,\n"
+    "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
+    "GNU General Public License for more details.\n"
+    "\n"
+    "You should have received a copy of the GNU General Public License\n"
+    "along with %s.  If not, see <http://www.gnu.org/licenses/>.\n",
+    program_name, program_name, program_name
 #elif CONFIG_GPL
-    printf(
     "%s is free software; you can redistribute it and/or modify\n"
     "it under the terms of the GNU General Public License as published by\n"
     "the Free Software Foundation; either version 2 of the License, or\n"
@@ -265,9 +341,21 @@ void show_license(void)
     "along with %s; if not, write to the Free Software\n"
     "Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n",
     program_name, program_name, program_name
-    );
+#elif CONFIG_LGPLV3
+    "%s is free software; you can redistribute it and/or modify\n"
+    "it under the terms of the GNU Lesser General Public License as published by\n"
+    "the Free Software Foundation; either version 3 of the License, or\n"
+    "(at your option) any later version.\n"
+    "\n"
+    "%s is distributed in the hope that it will be useful,\n"
+    "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
+    "GNU Lesser General Public License for more details.\n"
+    "\n"
+    "You should have received a copy of the GNU Lesser General Public License\n"
+    "along with %s.  If not, see <http://www.gnu.org/licenses/>.\n",
+    program_name, program_name, program_name
 #else
-    printf(
     "%s is free software; you can redistribute it and/or\n"
     "modify it under the terms of the GNU Lesser General Public\n"
     "License as published by the Free Software Foundation; either\n"
@@ -282,8 +370,8 @@ void show_license(void)
     "License along with %s; if not, write to the Free Software\n"
     "Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n",
     program_name, program_name, program_name
-    );
 #endif
+    );
 }
 
 void show_formats(void)
@@ -407,4 +495,15 @@ void show_formats(void)
 "even though both encoding and decoding are supported. For example, the h263\n"
 "decoder corresponds to the h263 and h263p encoders, for file formats it is even\n"
 "worse.\n");
+}
+
+int read_yesno(void)
+{
+    int c = getchar();
+    int yesno = (toupper(c) == 'Y');
+
+    while (c != '\n' && c != EOF)
+        c = getchar();
+
+    return yesno;
 }

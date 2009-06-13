@@ -20,26 +20,21 @@
  */
 
 #include "libavutil/crc.h"
-#include "libavutil/lls.h"
 #include "libavutil/md5.h"
 #include "avcodec.h"
-#include "bitstream.h"
+#include "get_bits.h"
 #include "dsputil.h"
 #include "golomb.h"
 #include "lpc.h"
 
 #include "flacenc.h"
-
-#define FLAC_MAX_CH  8
-#define FLAC_MIN_BLOCKSIZE  16
-#define FLAC_MAX_BLOCKSIZE  65535
+#include "flac.h"
+#include "flacdata.h"
 
 #define FLAC_SUBFRAME_CONSTANT  0
 #define FLAC_SUBFRAME_VERBATIM  1
 #define FLAC_SUBFRAME_FIXED     8
 #define FLAC_SUBFRAME_LPC      32
-
-#define FLAC_STREAMINFO_SIZE  34
 
 #define MAX_FIXED_ORDER     4
 #define MAX_PARTITION_ORDER 8
@@ -73,7 +68,7 @@ typedef struct FlacSubframe {
 } FlacSubframe;
 
 typedef struct FlacFrame {
-    FlacSubframe subframes[FLAC_MAX_CH];
+    FlacSubframe subframes[FLAC_MAX_CHANNELS];
     int blocksize;
     int bs_code[2];
     uint8_t crc8;
@@ -83,11 +78,10 @@ typedef struct FlacFrame {
 typedef struct FlacEncodeContext {
     PutBitContext pb;
     int channels;
-    int ch_code;
     int samplerate;
     int sr_code[2];
+    int max_blocksize;
     int min_framesize;
-    int min_encoded_framesize;
     int max_framesize;
     int max_encoded_framesize;
     uint32_t frame_count;
@@ -100,22 +94,6 @@ typedef struct FlacEncodeContext {
     struct AVMD5 *md5ctx;
 } FlacEncodeContext;
 
-static const int flac_samplerates[16] = {
-    0, 0, 0, 0,
-    8000, 16000, 22050, 24000, 32000, 44100, 48000, 96000,
-    0, 0, 0, 0
-};
-
-static const int flac_blocksizes[16] = {
-    0,
-    192,
-    576, 1152, 2304, 4608,
-    0, 0,
-    256, 512, 1024, 2048, 4096, 8192, 16384, 32768
-};
-
-static const int channel_mode_code[5] = { 1, 8, 9, 10, 0 };
-
 /**
  * Writes streaminfo metadata block to byte array
  */
@@ -127,8 +105,8 @@ static void write_streaminfo(FlacEncodeContext *s, uint8_t *header)
     init_put_bits(&pb, header, FLAC_STREAMINFO_SIZE);
 
     /* streaminfo metadata block */
-    put_bits(&pb, 16, s->avctx->frame_size);
-    put_bits(&pb, 16, s->avctx->frame_size);
+    put_bits(&pb, 16, s->max_blocksize);
+    put_bits(&pb, 16, s->max_blocksize);
     put_bits(&pb, 24, s->min_framesize);
     put_bits(&pb, 24, s->max_framesize);
     put_bits(&pb, 20, s->samplerate);
@@ -152,11 +130,11 @@ static int select_blocksize(int samplerate, int block_time_ms)
     int blocksize;
 
     assert(samplerate > 0);
-    blocksize = flac_blocksizes[1];
+    blocksize = ff_flac_blocksize_table[1];
     target = (samplerate * block_time_ms) / 1000;
     for(i=0; i<16; i++) {
-        if(target >= flac_blocksizes[i] && flac_blocksizes[i] > blocksize) {
-            blocksize = flac_blocksizes[i];
+        if(target >= ff_flac_blocksize_table[i] && ff_flac_blocksize_table[i] > blocksize) {
+            blocksize = ff_flac_blocksize_table[i];
         }
     }
     return blocksize;
@@ -178,18 +156,17 @@ static av_cold int flac_encode_init(AVCodecContext *avctx)
         return -1;
     }
 
-    if(channels < 1 || channels > FLAC_MAX_CH) {
+    if(channels < 1 || channels > FLAC_MAX_CHANNELS) {
         return -1;
     }
     s->channels = channels;
-    s->ch_code = s->channels-1;
 
     /* find samplerate in table */
     if(freq < 1)
         return -1;
     for(i=4; i<12; i++) {
-        if(freq == flac_samplerates[i]) {
-            s->samplerate = flac_samplerates[i];
+        if(freq == ff_flac_sample_rate_table[i]) {
+            s->samplerate = ff_flac_sample_rate_table[i];
             s->sr_code[0] = i;
             s->sr_code[1] = 0;
             break;
@@ -347,6 +324,7 @@ static av_cold int flac_encode_init(AVCodecContext *avctx)
     } else {
         s->avctx->frame_size = select_blocksize(s->samplerate, s->options.block_time_ms);
     }
+    s->max_blocksize = s->avctx->frame_size;
     av_log(avctx, AV_LOG_DEBUG, " block size: %d\n", s->avctx->frame_size);
 
     /* set LPC precision */
@@ -365,12 +343,8 @@ static av_cold int flac_encode_init(AVCodecContext *avctx)
            s->options.lpc_coeff_precision);
 
     /* set maximum encoded frame size in verbatim mode */
-    if(s->channels == 2) {
-        s->max_framesize = 14 + ((s->avctx->frame_size * 33 + 7) >> 3);
-    } else {
-        s->max_framesize = 14 + (s->avctx->frame_size * s->channels * 2);
-    }
-    s->min_encoded_framesize = 0xFFFFFF;
+    s->max_framesize = ff_flac_get_max_frame_size(s->avctx->frame_size,
+                                                  s->channels, 16);
 
     /* initialize MD5 context */
     s->md5ctx = av_malloc(av_md5_size);
@@ -384,6 +358,7 @@ static av_cold int flac_encode_init(AVCodecContext *avctx)
     avctx->extradata_size = FLAC_STREAMINFO_SIZE;
 
     s->frame_count = 0;
+    s->min_framesize = s->max_framesize;
 
     avctx->coded_frame = avcodec_alloc_frame();
     avctx->coded_frame->key_frame = 1;
@@ -399,8 +374,8 @@ static void init_frame(FlacEncodeContext *s)
     frame = &s->frame;
 
     for(i=0; i<16; i++) {
-        if(s->avctx->frame_size == flac_blocksizes[i]) {
-            frame->blocksize = flac_blocksizes[i];
+        if(s->avctx->frame_size == ff_flac_blocksize_table[i]) {
+            frame->blocksize = ff_flac_blocksize_table[i];
             frame->bs_code[0] = i;
             frame->bs_code[1] = 0;
             break;
@@ -618,7 +593,7 @@ void ff_flac_compute_autocorr(const int32_t *data, int len, int lag,
 
     for(j=0; j<lag; j+=2){
         double sum0 = 1.0, sum1 = 1.0;
-        for(i=0; i<len; i++){
+        for(i=j; i<len; i++){
             sum0 += data1[i] * data1[i-j];
             sum1 += data1[i] * data1[i-j-1];
         }
@@ -628,7 +603,7 @@ void ff_flac_compute_autocorr(const int32_t *data, int len, int lag,
 
     if(j==lag){
         double sum = 1.0;
-        for(i=0; i<len; i+=2){
+        for(i=j-1; i<len; i+=2){
             sum += data1[i  ] * data1[i-j  ]
                  + data1[i+1] * data1[i-j+1];
         }
@@ -768,7 +743,7 @@ static void encode_residual_lpc(int32_t *res, const int32_t *smp, int n,
     for(i=0; i<order; i++) {
         res[i] = smp[i];
     }
-#ifdef CONFIG_SMALL
+#if CONFIG_SMALL
     for(i=order; i<n; i+=2) {
         int j;
         int s = smp[i];
@@ -1009,6 +984,15 @@ int ff_flac_estimate_stereo_mode(const int32_t *left_ch,
         if ((mode_mask & (1<<i)) && (best < 0 || score[i] < score[best]))
             best = i;
     }
+    if(best == 0) {
+        return FLAC_CHMODE_INDEPENDENT;
+    } else if(best == 1) {
+        return FLAC_CHMODE_LEFT_SIDE;
+    } else if(best == 2) {
+        return FLAC_CHMODE_RIGHT_SIDE;
+    } else {
+        return FLAC_CHMODE_MID_SIDE;
+    }
 
     return best;
 }
@@ -1028,7 +1012,7 @@ static void channel_decorrelation(FlacEncodeContext *ctx)
     right = frame->subframes[1].samples;
 
     if(ctx->channels != 2) {
-        frame->ch_mode = FLAC_CHMODE_NOT_STEREO;
+        frame->ch_mode = FLAC_CHMODE_INDEPENDENT;
         return;
     }
 
@@ -1036,7 +1020,7 @@ static void channel_decorrelation(FlacEncodeContext *ctx)
                                                   MAX_RICE_PARAM, 0xF);
 
     /* perform decorrelation and adjust bits-per-sample */
-    if(frame->ch_mode == FLAC_CHMODE_LEFT_RIGHT) {
+    if(frame->ch_mode == FLAC_CHMODE_INDEPENDENT) {
         return;
     }
     if(frame->ch_mode == FLAC_CHMODE_MID_SIDE) {
@@ -1076,8 +1060,8 @@ static void output_frame_header(FlacEncodeContext *s)
     put_bits(&s->pb, 16, 0xFFF8);
     put_bits(&s->pb, 4, frame->bs_code[0]);
     put_bits(&s->pb, 4, s->sr_code[0]);
-    if(frame->ch_mode == FLAC_CHMODE_NOT_STEREO) {
-        put_bits(&s->pb, 4, s->ch_code);
+    if(frame->ch_mode == FLAC_CHMODE_INDEPENDENT) {
+        put_bits(&s->pb, 4, s->channels-1);
     } else {
         put_bits(&s->pb, 4, channel_mode_code[frame->ch_mode]);
     }
@@ -1275,7 +1259,6 @@ static int flac_encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     /* when the last block is reached, update the header in extradata */
     if (!data) {
-        s->min_framesize = s->min_encoded_framesize;
         s->max_framesize = s->max_encoded_framesize;
         av_md5_final(s->md5ctx, s->md5sum);
         write_streaminfo(s, avctx->extradata);
@@ -1319,8 +1302,8 @@ write_frame:
     update_md5_sum(s, samples);
     if (out_bytes > s->max_encoded_framesize)
         s->max_encoded_framesize = out_bytes;
-    if (out_bytes < s->min_encoded_framesize)
-        s->min_encoded_framesize = out_bytes;
+    if (out_bytes < s->min_framesize)
+        s->min_framesize = out_bytes;
 
     return out_bytes;
 }

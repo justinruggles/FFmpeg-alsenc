@@ -21,9 +21,11 @@
 
 #include "avcodec.h"
 #define ALT_BITSTREAM_READER_LE
-#include "bitstream.h"
+#include "get_bits.h"
 #include "ra288.h"
 #include "lpc.h"
+#include "celp_math.h"
+#include "celp_filters.h"
 
 typedef struct {
     float sp_lpc[36];      ///< LPC coefficients for speech data (spec: A)
@@ -48,19 +50,8 @@ typedef struct {
 
 static av_cold int ra288_decode_init(AVCodecContext *avctx)
 {
-    avctx->sample_fmt = SAMPLE_FMT_S16;
+    avctx->sample_fmt = SAMPLE_FMT_FLT;
     return 0;
-}
-
-static inline float scalar_product_float(const float * v1, const float * v2,
-                                         int size)
-{
-    float res = 0.;
-
-    while (size--)
-        res += *v1++ * *v2++;
-
-    return res;
 }
 
 static void apply_window(float *tgt, const float *m1, const float *m2, int n)
@@ -69,21 +60,22 @@ static void apply_window(float *tgt, const float *m1, const float *m2, int n)
         *tgt++ = *m1++ * *m2++;
 }
 
+static void convolve(float *tgt, const float *src, int len, int n)
+{
+    for (; n >= 0; n--)
+        tgt[n] = ff_dot_productf(src, src - n, len);
+
+}
+
 static void decode(RA288Context *ractx, float gain, int cb_coef)
 {
-    int i, j;
+    int i;
     double sumsum;
     float sum, buffer[5];
     float *block = ractx->sp_hist + 70 + 36; // current block
     float *gain_block = ractx->gain_hist + 28;
 
     memmove(ractx->sp_hist + 70, ractx->sp_hist + 75, 36*sizeof(*block));
-
-    for (i=0; i < 5; i++) {
-        block[i] = 0.;
-        for (j=0; j < 36; j++)
-            block[i] -= block[i-1-j]*ractx->sp_lpc[j];
-    }
 
     /* block 46 of G.728 spec */
     sum = 32.;
@@ -94,12 +86,13 @@ static void decode(RA288Context *ractx, float gain, int cb_coef)
     sum = av_clipf(sum, 0, 60);
 
     /* block 48 of G.728 spec */
-    sumsum = exp(sum * 0.1151292546497) * gain; /* pow(10.0,sum/20)*gain */
+    /* exp(sum * 0.1151292546497) == pow(10.0,sum/20) */
+    sumsum = exp(sum * 0.1151292546497) * gain * (1.0/(1<<23));
 
     for (i=0; i < 5; i++)
-        buffer[i] = codetable[cb_coef][i] * sumsum * (1./2048.);
+        buffer[i] = codetable[cb_coef][i] * sumsum;
 
-    sum = scalar_product_float(buffer, buffer, 5) / 5;
+    sum = ff_dot_productf(buffer, buffer, 5) * ((1<<24)/5.);
 
     sum = FFMAX(sum, 1);
 
@@ -108,20 +101,11 @@ static void decode(RA288Context *ractx, float gain, int cb_coef)
 
     gain_block[9] = 10 * log10(sum) - 32;
 
-    for (i=1; i < 5; i++)
-        for (j=i-1; j >= 0; j--)
-            buffer[i] -= ractx->sp_lpc[i-j-1] * buffer[j];
+    ff_celp_lp_synthesis_filterf(block, ractx->sp_lpc, buffer, 5, 36);
 
     /* output */
     for (i=0; i < 5; i++)
-        block[i] = av_clipf(block[i] + buffer[i], -4095, 4095);
-}
-
-static void convolve(float *tgt, const float *src, int len, int n)
-{
-    for (; n >= 0; n--)
-        tgt[n] = scalar_product_float(src, src - n, len);
-
+        block[i] = av_clipf(block[i], -4095./4096., 4095./4096.);
 }
 
 /**
@@ -161,35 +145,26 @@ static void do_hybrid_window(int order, int n, int non_rec, float *out,
 /**
  * Backward synthesis filter, find the LPC coefficients from past speech data.
  */
-static void backward_filter(RA288Context *ractx)
+static void backward_filter(float *hist, float *rec, const float *window,
+                            float *lpc, const float *tab,
+                            int order, int n, int non_rec, int move_size)
 {
-    float temp1[37]; // RTMP in the spec
-    float temp2[11]; // GPTPMP in the spec
+    float temp[order+1];
 
-    do_hybrid_window(36, 40, 35, temp1, ractx->sp_hist,
-                     ractx->sp_rec, syn_window);
+    do_hybrid_window(order, n, non_rec, temp, hist, rec, window);
 
-    if (!compute_lpc_coefs(temp1, 36, ractx->sp_lpc, 0, 1, 1))
-        apply_window(ractx->sp_lpc, ractx->sp_lpc, syn_bw_tab, 36);
+    if (!compute_lpc_coefs(temp, order, lpc, 0, 1, 1))
+        apply_window(lpc, lpc, tab, order);
 
-    do_hybrid_window(10, 8, 20, temp2, ractx->gain_hist,
-                     ractx->gain_rec, gain_window);
-
-    if (!compute_lpc_coefs(temp2, 10, ractx->gain_lpc, 0, 1, 1))
-        apply_window(ractx->gain_lpc, ractx->gain_lpc, gain_bw_tab, 10);
-
-    memmove(ractx->gain_hist, ractx->gain_hist + 8,
-                                 28*sizeof(*ractx->gain_hist));
-
-    memmove(ractx->sp_hist  , ractx->sp_hist   + 40,
-                                 70*sizeof(*ractx->sp_hist  ));
+    memmove(hist, hist + n, move_size*sizeof(*hist));
 }
 
 static int ra288_decode_frame(AVCodecContext * avctx, void *data,
-                              int *data_size, const uint8_t * buf,
-                              int buf_size)
+                              int *data_size, AVPacket *avpkt)
 {
-    int16_t *out = data;
+    const uint8_t *buf = avpkt->data;
+    int buf_size = avpkt->size;
+    float *out = data;
     int i, j;
     RA288Context *ractx = avctx->priv_data;
     GetBitContext gb;
@@ -201,7 +176,7 @@ static int ra288_decode_frame(AVCodecContext * avctx, void *data,
         return 0;
     }
 
-    if (*data_size < 32*5*2)
+    if (*data_size < 32*5*4)
         return -1;
 
     init_get_bits(&gb, buf, avctx->block_align * 8);
@@ -213,10 +188,15 @@ static int ra288_decode_frame(AVCodecContext * avctx, void *data,
         decode(ractx, gain, cb_coef);
 
         for (j=0; j < 5; j++)
-            *(out++) = 8 * ractx->sp_hist[70 + 36 + j];
+            *(out++) = ractx->sp_hist[70 + 36 + j];
 
-        if ((i & 7) == 3)
-            backward_filter(ractx);
+        if ((i & 7) == 3) {
+            backward_filter(ractx->sp_hist, ractx->sp_rec, syn_window,
+                            ractx->sp_lpc, syn_bw_tab, 36, 40, 35, 70);
+
+            backward_filter(ractx->gain_hist, ractx->gain_rec, gain_window,
+                            ractx->gain_lpc, gain_bw_tab, 10, 8, 20, 28);
+        }
     }
 
     *data_size = (char *)out - (char *)data;

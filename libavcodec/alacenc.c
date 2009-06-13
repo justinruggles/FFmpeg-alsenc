@@ -20,9 +20,11 @@
  */
 
 #include "avcodec.h"
-#include "bitstream.h"
+#include "get_bits.h"
+#include "put_bits.h"
 #include "dsputil.h"
 #include "lpc.h"
+#include "mathops.h"
 
 #define DEFAULT_FRAME_SIZE        4096
 #define DEFAULT_SAMPLE_SIZE       16
@@ -253,7 +255,8 @@ static void alac_linear_predictor(AlacEncodeContext *s, int ch)
 
             sum >>= lpc.lpc_quant;
             sum += samples[0];
-            residual[i] = samples[lpc.lpc_order+1] - sum;
+            residual[i] = sign_extend(samples[lpc.lpc_order+1] - sum,
+                                      s->write_sample_size);
             res_val = residual[i];
 
             if(res_val) {
@@ -329,7 +332,6 @@ static void write_compressed_frame(AlacEncodeContext *s)
 {
     int i, j;
 
-    /* only simple mid/side decorrelation supported as of now */
     if(s->avctx->channels == 2)
         alac_stereo_decorrelation(s);
     put_bits(&s->pbctx, 8, s->interlacing_shift);

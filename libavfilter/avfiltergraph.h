@@ -27,28 +27,50 @@
 typedef struct AVFilterGraph {
     unsigned filter_count;
     AVFilterContext **filters;
+
+    char *scale_sws_opts; ///< sws options to use for the auto-inserted scale filters
 } AVFilterGraph;
 
 /**
- * Get a pointer to a graph by instance name
+ * Gets a filter instance with name name from graph.
+ *
+ * @return the pointer to the found filter instance or NULL if it
+ * cannot be found.
  */
 AVFilterContext *avfilter_graph_get_filter(AVFilterGraph *graph, char *name);
 
 /**
- * Add an existing filter instance to a filter graph.
+ * Adds an existing filter instance to a filter graph.
  * @param graph  The filter graph
  * @param filter The filter to be added
  */
 int avfilter_graph_add_filter(AVFilterGraph *graphctx, AVFilterContext *filter);
 
 /**
- * Configure the formats of all the links in the graph.
+ * Checks for the validity of graph.
+ *
+ * A graph is considered valid if all its input and output pads are
+ * connected.
+ *
+ * @return 0 in case of success, a negative value otherwise
+ */
+int avfilter_graph_check_validity(AVFilterGraph *graphctx, AVClass *log_ctx);
+
+/**
+ * Configures all the links of graphctx.
+ *
+ * @return 0 in case of success, a negative value otherwise
+ */
+int avfilter_graph_config_links(AVFilterGraph *graphctx, AVClass *log_ctx);
+
+/**
+ * Configures the formats of all the links in the graph.
  */
 int avfilter_graph_config_formats(AVFilterGraph *graphctx);
 
 /**
- * Free a graph and destroy its links.
+ * Frees a graph and destroys its links.
  */
-void avfilter_destroy_graph(AVFilterGraph *graph);
+void avfilter_graph_destroy(AVFilterGraph *graph);
 
 #endif  /* AVFILTER_AVFILTERGRAPH_H */

@@ -23,6 +23,9 @@
 #define FFMPEG_CMDUTILS_H
 
 #include <inttypes.h>
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
+#include "libswscale/swscale.h"
 
 /**
  * program name, defined by the program for show_version().
@@ -33,6 +36,19 @@ extern const char program_name[];
  * program birth year, defined by the program for show_banner()
  */
 extern const int program_birth_year;
+
+extern const int this_year;
+
+extern const char **opt_names;
+extern AVCodecContext *avcodec_opts[CODEC_TYPE_NB];
+extern AVFormatContext *avformat_opts;
+extern struct SwsContext *sws_opts;
+
+/**
+ * Fallback for options that are not explicitly handled, these will be
+ * parsed through AVOptions.
+ */
+int opt_default(const char *opt, const char *arg);
 
 /**
  * Parses a string and returns its corresponding value as a double.
@@ -57,8 +73,8 @@ double parse_number_or_die(const char *context, const char *numstr, int type, do
  * @param context the context of the value to be set (e.g. the
  * corresponding commandline option name)
  * @param timestr the string to be parsed
- * @param is_duration a flag which tells how to interpret \p timestr, if
- * not zero \p timestr is interpreted as a duration, otherwise as a
+ * @param is_duration a flag which tells how to interpret timestr, if
+ * not zero timestr is interpreted as a duration, otherwise as a
  * date
  *
  * @see parse_date()
@@ -106,6 +122,8 @@ void show_help_options(const OptionDef *options, const char *msg, int mask, int 
 void parse_options(int argc, char **argv, const OptionDef *options,
                    void (* parse_arg_function)(const char*));
 
+void set_context_opts(void *ctx, void *opts_ctx, int flags);
+
 void print_error(const char *filename, int err);
 
 /**
@@ -133,5 +151,11 @@ void show_license(void);
  * program.
  */
 void show_formats(void);
+
+/**
+ * Returns a positive value if reads from standard input a line
+ * starting with [yY], otherwise returns 0.
+ */
+int read_yesno(void);
 
 #endif /* FFMPEG_CMDUTILS_H */

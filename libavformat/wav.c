@@ -1,6 +1,6 @@
 /*
  * WAV muxer and demuxer
- * Copyright (c) 2001, 2002 Fabrice Bellard.
+ * Copyright (c) 2001, 2002 Fabrice Bellard
  *
  * This file is part of FFmpeg.
  *
@@ -23,19 +23,19 @@
 #include "riff.h"
 
 typedef struct {
-    offset_t data;
-    offset_t data_end;
+    int64_t data;
+    int64_t data_end;
     int64_t minpts;
     int64_t maxpts;
     int last_duration;
 } WAVContext;
 
-#ifdef CONFIG_WAV_MUXER
+#if CONFIG_WAV_MUXER
 static int wav_write_header(AVFormatContext *s)
 {
     WAVContext *wav = s->priv_data;
     ByteIOContext *pb = s->pb;
-    offset_t fmt, fact;
+    int64_t fmt, fact;
 
     put_tag(pb, "RIFF");
     put_le32(pb, 0); /* file length */
@@ -45,7 +45,7 @@ static int wav_write_header(AVFormatContext *s)
     fmt = start_tag(pb, "fmt ");
     if (put_wav_header(pb, s->streams[0]->codec) < 0) {
         av_log(s, AV_LOG_ERROR, "%s codec not supported in WAVE format\n",
-               s->streams[0]->codec->codec->name);
+               s->streams[0]->codec->codec ? s->streams[0]->codec->codec->name : "NONE");
         av_free(wav);
         return -1;
     }
@@ -88,7 +88,7 @@ static int wav_write_trailer(AVFormatContext *s)
 {
     ByteIOContext *pb = s->pb;
     WAVContext *wav = s->priv_data;
-    offset_t file_size;
+    int64_t file_size;
 
     if (!url_is_streamed(s->pb)) {
         end_tag(pb, wav->data);
@@ -118,11 +118,10 @@ static int wav_write_trailer(AVFormatContext *s)
 #endif /* CONFIG_WAV_MUXER */
 
 /* return the size of the found tag */
-/* XXX: > 2GB ? */
-static int find_tag(ByteIOContext *pb, uint32_t tag1)
+static int64_t find_tag(ByteIOContext *pb, uint32_t tag1)
 {
     unsigned int tag;
-    int size;
+    int64_t size;
 
     for(;;) {
         if (url_feof(pb))
@@ -133,8 +132,6 @@ static int find_tag(ByteIOContext *pb, uint32_t tag1)
             break;
         url_fseek(pb, size, SEEK_CUR);
     }
-    if (size < 0)
-        size = 0x7fffffff;
     return size;
 }
 
@@ -161,7 +158,7 @@ static int wav_probe(AVProbeData *p)
 static int wav_read_header(AVFormatContext *s,
                            AVFormatParameters *ap)
 {
-    int size;
+    int64_t size;
     unsigned int tag;
     ByteIOContext *pb = s->pb;
     AVStream *st;
@@ -256,7 +253,7 @@ static int wav_read_seek(AVFormatContext *s,
     return pcm_read_seek(s, stream_index, timestamp, flags);
 }
 
-#ifdef CONFIG_WAV_DEMUXER
+#if CONFIG_WAV_DEMUXER
 AVInputFormat wav_demuxer = {
     "wav",
     NULL_IF_CONFIG_SMALL("WAV format"),
@@ -270,7 +267,7 @@ AVInputFormat wav_demuxer = {
     .codec_tag= (const AVCodecTag* const []){codec_wav_tags, 0},
 };
 #endif
-#ifdef CONFIG_WAV_MUXER
+#if CONFIG_WAV_MUXER
 AVOutputFormat wav_muxer = {
     "wav",
     NULL_IF_CONFIG_SMALL("WAV format"),
