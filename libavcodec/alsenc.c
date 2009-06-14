@@ -203,7 +203,7 @@ static av_cold int als_encode_init(AVCodecContext *avctx)
     s->sample_rate = avctx->sample_rate;
 
     /* frame length (fixed, for now) */
-    s->avctx->frame_size = s->full_frame_length = 2048;
+    s->avctx->frame_size = s->full_frame_length = 1024;
     s->frame.frame_length = s->full_frame_length;
     s->sample_count = 0xFFFFFFFF; // unknown
 
@@ -211,8 +211,8 @@ static av_cold int als_encode_init(AVCodecContext *avctx)
     s->random_access = 0;
 
     /* LPC prediction settings */
-    s->max_lpc_order = 10;
-    s->adapt_lpc_order = ADAPT_METHOD_LOG_SEARCH;
+    s->max_lpc_order = 12;
+    s->adapt_lpc_order = ADAPT_METHOD_FULL_SEARCH;
     s->parcor_table_number = 0;
     if (s->adapt_lpc_order) {
         int log_order = av_log2((s->max_lpc_order     << 1) - 1);
@@ -221,7 +221,7 @@ static av_cold int als_encode_init(AVCodecContext *avctx)
     }
 
     s->ec_part = 1;
-    s->joint_stereo = 1;
+    s->joint_stereo = 0;
 
     /* allocate extradata and write MP4 AudioSpecificConfig */
     if (write_extradata(s)) {
