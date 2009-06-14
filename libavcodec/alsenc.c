@@ -792,5 +792,5 @@ AVCodec als_encoder = {
     als_encode_close,
     NULL,
     .capabilities = CODEC_CAP_DELAY | CODEC_CAP_SMALL_LAST_FRAME,
-    .long_name = "MPEG-4 ALS (Audio Lossless Coding)",
+    .long_name = NULL_IF_CONFIG_SMALL("MPEG-4 ALS (Audio Lossless Coding)"),
 };
