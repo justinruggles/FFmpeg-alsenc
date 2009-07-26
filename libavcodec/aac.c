@@ -199,6 +199,8 @@ static int output_configure(AACContext *ac, enum ChannelPosition che_pos[4][MAX_
 
     avctx->channels = channels;
 
+    ac->output_configured = 1;
+
     return 0;
 }
 
@@ -320,7 +322,7 @@ static int decode_ga_specific_config(AACContext * ac, GetBitContext * gb, int ch
     int extension_flag, ret;
 
     if(get_bits1(gb)) {  // frameLengthFlag
-        ff_log_missing_feature(ac->avccontext, "960/120 MDCT window is", 1);
+        av_log_missing_feature(ac->avccontext, "960/120 MDCT window is", 1);
         return -1;
     }
 
@@ -445,12 +447,6 @@ static av_cold int aac_decode_init(AVCodecContext * avccontext) {
             return -1;
         avccontext->sample_rate = ac->m4ac.sample_rate;
     } else if (avccontext->channels > 0) {
-        enum ChannelPosition new_che_pos[4][MAX_ELEM_ID];
-        memset(new_che_pos, 0, 4 * MAX_ELEM_ID * sizeof(new_che_pos[0][0]));
-        if(set_default_channel_config(ac, new_che_pos, avccontext->channels - (avccontext->channels == 8)))
-            return -1;
-        if(output_configure(ac, ac->che_pos, new_che_pos, 1))
-            return -1;
         ac->m4ac.sample_rate = avccontext->sample_rate;
     }
 
@@ -588,7 +584,7 @@ static int decode_ics_info(AACContext * ac, IndividualChannelStream * ics, GetBi
                 memset(ics, 0, sizeof(IndividualChannelStream));
                 return -1;
             } else {
-                ff_log_missing_feature(ac->avccontext, "Predictor bit set but LTP is", 1);
+                av_log_missing_feature(ac->avccontext, "Predictor bit set but LTP is", 1);
                 memset(ics, 0, sizeof(IndividualChannelStream));
                 return -1;
             }
@@ -1040,7 +1036,7 @@ static int decode_ics(AACContext * ac, SingleChannelElement * sce, GetBitContext
         if ((tns->present = get_bits1(gb)) && decode_tns(ac, tns, gb, ics))
             return -1;
         if (get_bits1(gb)) {
-            ff_log_missing_feature(ac->avccontext, "SSR", 1);
+            av_log_missing_feature(ac->avccontext, "SSR", 1);
             return -1;
         }
     }
@@ -1245,7 +1241,7 @@ static int decode_cce(AACContext * ac, GetBitContext * gb, ChannelElement * che)
  */
 static int decode_sbr_extension(AACContext * ac, GetBitContext * gb, int crc, int cnt) {
     // TODO : sbr_extension implementation
-    ff_log_missing_feature(ac->avccontext, "SBR", 0);
+    av_log_missing_feature(ac->avccontext, "SBR", 0);
     skip_bits_long(gb, 8*cnt - 4); // -4 due to reading extension type
     return cnt;
 }
@@ -1579,8 +1575,15 @@ static int parse_adts_frame_header(AACContext * ac, GetBitContext * gb) {
 
     size = ff_aac_parse_header(gb, &hdr_info);
     if (size > 0) {
-        if (hdr_info.chan_config)
+        if (!ac->output_configured && hdr_info.chan_config) {
+            enum ChannelPosition new_che_pos[4][MAX_ELEM_ID];
+            memset(new_che_pos, 0, 4 * MAX_ELEM_ID * sizeof(new_che_pos[0][0]));
             ac->m4ac.chan_config = hdr_info.chan_config;
+            if (set_default_channel_config(ac, new_che_pos, hdr_info.chan_config))
+                return -7;
+            if (output_configure(ac, ac->che_pos, new_che_pos, 1))
+                return -7;
+        }
         ac->m4ac.sample_rate     = hdr_info.sample_rate;
         ac->m4ac.sampling_index  = hdr_info.sampling_index;
         ac->m4ac.object_type     = hdr_info.object_type;
@@ -1588,7 +1591,7 @@ static int parse_adts_frame_header(AACContext * ac, GetBitContext * gb) {
             if (!hdr_info.crc_absent)
                 skip_bits(gb, 16);
         } else {
-            ff_log_missing_feature(ac->avccontext, "More than one AAC RDB per ADTS frame is", 0);
+            av_log_missing_feature(ac->avccontext, "More than one AAC RDB per ADTS frame is", 0);
             return -1;
         }
     }
@@ -1655,7 +1658,11 @@ static int aac_decode_frame(AVCodecContext * avccontext, void * data, int * data
             memset(new_che_pos, 0, 4 * MAX_ELEM_ID * sizeof(new_che_pos[0][0]));
             if((err = decode_pce(ac, new_che_pos, &gb)))
                 break;
-            err = output_configure(ac, ac->che_pos, new_che_pos, 0);
+            if (ac->output_configured)
+                av_log(avccontext, AV_LOG_ERROR,
+                       "Not evaluating a further program_config_element as this construct is dubious at best.\n");
+            else
+                err = output_configure(ac, ac->che_pos, new_che_pos, 0);
             break;
         }
 

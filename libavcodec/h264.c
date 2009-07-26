@@ -82,7 +82,7 @@ static void filter_mb_fast( H264Context *h, int mb_x, int mb_y, uint8_t *img_y, 
 static Picture * remove_long(H264Context *h, int i, int ref_mask);
 
 static av_always_inline uint32_t pack16to32(int a, int b){
-#ifdef WORDS_BIGENDIAN
+#if HAVE_BIGENDIAN
    return (b&0xFFFF) + (a<<16);
 #else
    return (a&0xFFFF) + (b<<16);
@@ -1997,6 +1997,9 @@ static void free_tables(H264Context *h){
         av_freep(&hx->top_borders[1]);
         av_freep(&hx->top_borders[0]);
         av_freep(&hx->s.obmc_scratchpad);
+        av_freep(&hx->rbsp_buffer[1]);
+        av_freep(&hx->rbsp_buffer[0]);
+        if (i) av_freep(&h->thread_context[i]);
     }
 }
 
@@ -2237,6 +2240,7 @@ static int frame_start(H264Context *h){
      * See decode_nal_units().
      */
     s->current_picture_ptr->key_frame= 0;
+    s->current_picture_ptr->mmco_reset= 0;
 
     assert(s->linesize && s->uvlinesize);
 
@@ -3366,6 +3370,7 @@ static int execute_ref_pic_marking(H264Context *h, MMCO *mmco, int mmco_count){
             h->poc_msb=
             h->frame_num=
             s->current_picture_ptr->frame_num= 0;
+            s->current_picture_ptr->mmco_reset=1;
             break;
         default: assert(0);
         }
@@ -7273,7 +7278,8 @@ int ff_h264_decode_seq_parameter_set(H264Context *h){
 
     sps->vui_parameters_present_flag= get_bits1(&s->gb);
     if( sps->vui_parameters_present_flag )
-        decode_vui_parameters(h, sps);
+        if (decode_vui_parameters(h, sps) < 0)
+            goto fail;
 
     if(s->avctx->debug&FF_DEBUG_PICT_INFO){
         av_log(h->s.avctx, AV_LOG_DEBUG, "sps:%u profile:%d/%d poc:%d ref:%d %dx%d %s %s crop:%d/%d/%d/%d %s %s %d/%d\n",
@@ -7500,7 +7506,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size){
             nalsize = 0;
             for(i = 0; i < h->nal_length_size; i++)
                 nalsize = (nalsize << 8) | buf[buf_index++];
-            if(nalsize <= 1 || (nalsize+buf_index > buf_size)){
+            if(nalsize <= 1 || nalsize > buf_size - buf_index){
                 if(nalsize == 1){
                     buf_index++;
                     continue;
@@ -7598,9 +7604,12 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size){
             init_get_bits(&hx->s.gb, ptr, bit_length);
             hx->intra_gb_ptr=
             hx->inter_gb_ptr= NULL;
+
+            if ((err = decode_slice_header(hx, h)) < 0)
+                break;
+
             hx->s.data_partitioning = 1;
 
-            err = decode_slice_header(hx, h);
             break;
         case NAL_DPB:
             init_get_bits(&hx->intra_gb, ptr, bit_length);
@@ -7705,7 +7714,7 @@ static int decode_frame(AVCodecContext *avctx,
 //FIXME factorize this with the output code below
         out = h->delayed_pic[0];
         out_idx = 0;
-        for(i=1; h->delayed_pic[i] && (h->delayed_pic[i]->poc && !h->delayed_pic[i]->key_frame); i++)
+        for(i=1; h->delayed_pic[i] && !h->delayed_pic[i]->key_frame && !h->delayed_pic[i]->mmco_reset; i++)
             if(h->delayed_pic[i]->poc < out->poc){
                 out = h->delayed_pic[i];
                 out_idx = i;
@@ -7881,12 +7890,12 @@ static int decode_frame(AVCodecContext *avctx,
 
             out = h->delayed_pic[0];
             out_idx = 0;
-            for(i=1; h->delayed_pic[i] && (h->delayed_pic[i]->poc && !h->delayed_pic[i]->key_frame); i++)
+            for(i=1; h->delayed_pic[i] && !h->delayed_pic[i]->key_frame && !h->delayed_pic[i]->mmco_reset; i++)
                 if(h->delayed_pic[i]->poc < out->poc){
                     out = h->delayed_pic[i];
                     out_idx = i;
                 }
-            cross_idr = !h->delayed_pic[0]->poc || !!h->delayed_pic[i] || h->delayed_pic[0]->key_frame;
+            cross_idr = !!h->delayed_pic[i] || h->delayed_pic[0]->key_frame || h->delayed_pic[0]->mmco_reset;
 
             out_of_order = !cross_idr && out->poc < h->outputed_poc;
 
@@ -8123,8 +8132,6 @@ av_cold void ff_h264_free_context(H264Context *h)
 {
     int i;
 
-    av_freep(&h->rbsp_buffer[0]);
-    av_freep(&h->rbsp_buffer[1]);
     free_tables(h); //FIXME cleanup init stuff perhaps
 
     for(i = 0; i < MAX_SPS_COUNT; i++)

@@ -40,7 +40,7 @@
 #include "timer.h"
 
 #ifndef attribute_align_arg
-#if (!defined(__ICC) || __ICC > 1100) && AV_GCC_VERSION_AT_LEAST(4,2)
+#if (!defined(__ICC) || __ICC > 1110) && AV_GCC_VERSION_AT_LEAST(4,2)
 #    define attribute_align_arg __attribute__((force_align_arg_pointer))
 #else
 #    define attribute_align_arg
@@ -258,29 +258,19 @@ if((y)<(x)){\
     }\
 }
 
-#if defined(__ICC) || defined(__SUNPRO_C)
-    #define DECLARE_ALIGNED(n,t,v)      t v __attribute__ ((aligned (n)))
-    #define DECLARE_ASM_CONST(n,t,v)    const t __attribute__ ((aligned (n))) v
-#elif defined(__GNUC__)
-    #define DECLARE_ALIGNED(n,t,v)      t v __attribute__ ((aligned (n)))
-    #define DECLARE_ASM_CONST(n,t,v)    static const t v attribute_used __attribute__ ((aligned (n)))
-#elif defined(_MSC_VER)
-    #define DECLARE_ALIGNED(n,t,v)      __declspec(align(n)) t v
-    #define DECLARE_ASM_CONST(n,t,v)    __declspec(align(n)) static const t v
-#elif HAVE_INLINE_ASM
-    #error The asm code needs alignment, but we do not know how to do it for this compiler.
-#else
-    #define DECLARE_ALIGNED(n,t,v)      t v
-    #define DECLARE_ASM_CONST(n,t,v)    static const t v
-#endif
-
-
 #if !HAVE_LLRINT
 static av_always_inline av_const long long llrint(double x)
 {
     return rint(x);
 }
 #endif /* HAVE_LLRINT */
+
+#if !HAVE_LOG2
+static av_always_inline av_const double log2(double x)
+{
+    return log(x) * 1.44269504088896340736;
+}
+#endif /* HAVE_LOG2 */
 
 #if !HAVE_LRINT
 static av_always_inline av_const long int lrint(double x)

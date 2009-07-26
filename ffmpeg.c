@@ -255,13 +255,29 @@ typedef struct AVOutputStream {
     AVFrame pict_tmp;      /* temporary image for resampling */
     struct SwsContext *img_resample_ctx; /* for image resampling */
     int resample_height;
+    int resample_width;
+    int resample_pix_fmt;
 
+    /* full frame size of first frame */
+    int original_height;
+    int original_width;
+
+    /* cropping area sizes */
     int video_crop;
-    int topBand;             /* cropping area sizes */
+    int topBand;
+    int bottomBand;
     int leftBand;
+    int rightBand;
 
+    /* cropping area of first frame */
+    int original_topBand;
+    int original_bottomBand;
+    int original_leftBand;
+    int original_rightBand;
+
+    /* padding area sizes */
     int video_pad;
-    int padtop;              /* padding area sizes */
+    int padtop;
     int padbottom;
     int padleft;
     int padright;
@@ -814,6 +830,7 @@ static void do_subtitle_out(AVFormatContext *s,
         nb = 1;
 
     for(i = 0; i < nb; i++) {
+        sub->pts = av_rescale_q(pts, ist->st->time_base, AV_TIME_BASE_Q);
         subtitle_out_size = avcodec_encode_subtitle(enc, subtitle_out,
                                                     subtitle_out_max_size, sub);
 
@@ -844,6 +861,7 @@ static void do_video_out(AVFormatContext *s,
                          int *frame_size)
 {
     int nb_frames, i, ret;
+    int64_t topBand, bottomBand, leftBand, rightBand;
     AVFrame *final_picture, *formatted_picture, *resampling_dst, *padding_src;
     AVFrame picture_crop_temp, picture_pad_temp;
     AVCodecContext *enc, *dec;
@@ -920,6 +938,48 @@ static void do_video_out(AVFormatContext *s,
     if (ost->video_resample) {
         padding_src = NULL;
         final_picture = &ost->pict_tmp;
+        if(  (ost->resample_height != (ist->st->codec->height - (ost->topBand  + ost->bottomBand)))
+          || (ost->resample_width  != (ist->st->codec->width  - (ost->leftBand + ost->rightBand)))
+          || (ost->resample_pix_fmt!= ist->st->codec->pix_fmt) ) {
+
+            fprintf(stderr,"Input Stream #%d.%d frame size changed to %dx%d, %s\n", ist->file_index, ist->index, ist->st->codec->width, ist->st->codec->height,avcodec_get_pix_fmt_name(ist->st->codec->pix_fmt));
+            /* keep bands proportional to the frame size */
+            topBand    = ((int64_t)ist->st->codec->height * ost->original_topBand    / ost->original_height) & ~1;
+            bottomBand = ((int64_t)ist->st->codec->height * ost->original_bottomBand / ost->original_height) & ~1;
+            leftBand   = ((int64_t)ist->st->codec->width  * ost->original_leftBand   / ost->original_width)  & ~1;
+            rightBand  = ((int64_t)ist->st->codec->width  * ost->original_rightBand  / ost->original_width)  & ~1;
+
+            /* sanity check to ensure no bad band sizes sneak in */
+            assert(topBand    <= INT_MAX && topBand    >= 0);
+            assert(bottomBand <= INT_MAX && bottomBand >= 0);
+            assert(leftBand   <= INT_MAX && leftBand   >= 0);
+            assert(rightBand  <= INT_MAX && rightBand  >= 0);
+
+            ost->topBand    = topBand;
+            ost->bottomBand = bottomBand;
+            ost->leftBand   = leftBand;
+            ost->rightBand  = rightBand;
+
+            ost->resample_height = ist->st->codec->height - (ost->topBand  + ost->bottomBand);
+            ost->resample_width  = ist->st->codec->width  - (ost->leftBand + ost->rightBand);
+            ost->resample_pix_fmt= ist->st->codec->pix_fmt;
+
+            /* initialize a new scaler context */
+            sws_freeContext(ost->img_resample_ctx);
+            sws_flags = av_get_int(sws_opts, "sws_flags", NULL);
+            ost->img_resample_ctx = sws_getContext(
+                ist->st->codec->width  - (ost->leftBand + ost->rightBand),
+                ist->st->codec->height - (ost->topBand  + ost->bottomBand),
+                ist->st->codec->pix_fmt,
+                ost->st->codec->width  - (ost->padleft  + ost->padright),
+                ost->st->codec->height - (ost->padtop   + ost->padbottom),
+                ost->st->codec->pix_fmt,
+                sws_flags, NULL, NULL, NULL);
+            if (ost->img_resample_ctx == NULL) {
+                fprintf(stderr, "Cannot get resampling context\n");
+                av_exit(1);
+            }
+        }
         sws_scale(ost->img_resample_ctx, formatted_picture->data, formatted_picture->linesize,
               0, ost->resample_height, resampling_dst->data, resampling_dst->linesize);
     }
@@ -1407,8 +1467,13 @@ static int output_packet(AVInputStream *ist, int ist_index,
                         opkt.flags= pkt->flags;
 
                         //FIXME remove the following 2 lines they shall be replaced by the bitstream filters
+                        if(ost->st->codec->codec_id != CODEC_ID_H264) {
                         if(av_parser_change(ist->st->parser, ost->st->codec, &opkt.data, &opkt.size, data_buf, data_size, pkt->flags & PKT_FLAG_KEY))
                             opkt.destruct= av_destruct_packet;
+                        } else {
+                            opkt.data = data_buf;
+                            opkt.size = data_size;
+                        }
 
                         write_frame(os, &opkt, ost->st->codec, bitstream_filters[ost->file_index][opkt.stream_index]);
                         ost->st->codec->frame_number++;
@@ -1832,8 +1897,10 @@ static int av_encode(AVFormatContext **output_files,
                                 (frame_padtop + frame_padbottom)) ||
                         (codec->pix_fmt != icodec->pix_fmt));
                 if (ost->video_crop) {
-                    ost->topBand = frame_topBand;
-                    ost->leftBand = frame_leftBand;
+                    ost->topBand    = ost->original_topBand    = frame_topBand;
+                    ost->bottomBand = ost->original_bottomBand = frame_bottomBand;
+                    ost->leftBand   = ost->original_leftBand   = frame_leftBand;
+                    ost->rightBand  = ost->original_rightBand  = frame_rightBand;
                 }
                 if (ost->video_pad) {
                     ost->padtop = frame_padtop;
@@ -1867,7 +1934,13 @@ static int av_encode(AVFormatContext **output_files,
                         fprintf(stderr, "Cannot get resampling context\n");
                         av_exit(1);
                     }
-                    ost->resample_height = icodec->height - (frame_topBand + frame_bottomBand);
+
+                    ost->original_height = icodec->height;
+                    ost->original_width  = icodec->width;
+
+                    ost->resample_height = icodec->height - (frame_topBand  + frame_bottomBand);
+                    ost->resample_width  = icodec->width  - (frame_leftBand + frame_rightBand);
+                    ost->resample_pix_fmt= icodec->pix_fmt;
                     codec->bits_per_raw_sample= 0;
                 }
                 ost->encoding_needed = 1;
@@ -1930,6 +2003,8 @@ static int av_encode(AVFormatContext **output_files,
     if (!bit_buffer)
         bit_buffer = av_malloc(bit_buffer_size);
     if (!bit_buffer) {
+        fprintf(stderr, "Cannot allocate %d bytes output buffer\n",
+                bit_buffer_size);
         ret = AVERROR(ENOMEM);
         goto fail;
     }
@@ -1942,13 +2017,13 @@ static int av_encode(AVFormatContext **output_files,
             if (!codec)
                 codec = avcodec_find_encoder(ost->st->codec->codec_id);
             if (!codec) {
-                snprintf(error, sizeof(error), "Unsupported codec for output stream #%d.%d",
-                        ost->file_index, ost->index);
+                snprintf(error, sizeof(error), "Encoder (codec id %d) not found for output stream #%d.%d",
+                         ost->st->codec->codec_id, ost->file_index, ost->index);
                 ret = AVERROR(EINVAL);
                 goto dump_format;
             }
             if (avcodec_open(ost->st->codec, codec) < 0) {
-                snprintf(error, sizeof(error), "Error while opening codec for output stream #%d.%d - maybe incorrect parameters such as bit_rate, rate, width or height",
+                snprintf(error, sizeof(error), "Error while opening encoder for output stream #%d.%d - maybe incorrect parameters such as bit_rate, rate, width or height",
                         ost->file_index, ost->index);
                 ret = AVERROR(EINVAL);
                 goto dump_format;
@@ -1965,13 +2040,13 @@ static int av_encode(AVFormatContext **output_files,
             if (!codec)
                 codec = avcodec_find_decoder(ist->st->codec->codec_id);
             if (!codec) {
-                snprintf(error, sizeof(error), "Unsupported codec (id=%d) for input stream #%d.%d",
+                snprintf(error, sizeof(error), "Decoder (codec id %d) not found for input stream #%d.%d",
                         ist->st->codec->codec_id, ist->file_index, ist->index);
                 ret = AVERROR(EINVAL);
                 goto dump_format;
             }
             if (avcodec_open(ist->st->codec, codec) < 0) {
-                snprintf(error, sizeof(error), "Error while opening codec for input stream #%d.%d",
+                snprintf(error, sizeof(error), "Error while opening decoder for input stream #%d.%d",
                         ist->file_index, ist->index);
                 ret = AVERROR(EINVAL);
                 goto dump_format;
@@ -2344,13 +2419,6 @@ static void opt_video_rc_override_string(const char *arg)
 static int opt_me_threshold(const char *opt, const char *arg)
 {
     me_threshold = parse_number_or_die(opt, arg, OPT_INT64, INT_MIN, INT_MAX);
-    return 0;
-}
-
-static int opt_loglevel(const char *opt, const char *arg)
-{
-    int level = parse_number_or_die(opt, arg, OPT_INT, INT_MIN, INT_MAX);
-    av_log_set_level(level);
     return 0;
 }
 
@@ -2983,7 +3051,7 @@ static void new_video_stream(AVFormatContext *oc)
 {
     AVStream *st;
     AVCodecContext *video_enc;
-    int codec_id;
+    enum CodecID codec_id;
 
     st = av_new_stream(oc, oc->nb_streams);
     if (!st) {
@@ -3125,7 +3193,7 @@ static void new_audio_stream(AVFormatContext *oc)
 {
     AVStream *st;
     AVCodecContext *audio_enc;
-    int codec_id;
+    enum CodecID codec_id;
 
     st = av_new_stream(oc, oc->nb_streams);
     if (!st) {
@@ -3588,7 +3656,7 @@ static void opt_target(const char *arg)
 
         opt_frame_size(norm ? "352x240" : "352x288");
         opt_frame_rate(NULL, frame_rates[norm]);
-        opt_default("gop", norm ? "18" : "15");
+        opt_default("g", norm ? "18" : "15");
 
         opt_default("b", "1150000");
         opt_default("maxrate", "1150000");
@@ -3616,7 +3684,7 @@ static void opt_target(const char *arg)
 
         opt_frame_size(norm ? "480x480" : "480x576");
         opt_frame_rate(NULL, frame_rates[norm]);
-        opt_default("gop", norm ? "18" : "15");
+        opt_default("g", norm ? "18" : "15");
 
         opt_default("b", "2040000");
         opt_default("maxrate", "2516000");
@@ -3638,7 +3706,7 @@ static void opt_target(const char *arg)
 
         opt_frame_size(norm ? "720x480" : "720x576");
         opt_frame_rate(NULL, frame_rates[norm]);
-        opt_default("gop", norm ? "18" : "15");
+        opt_default("g", norm ? "18" : "15");
 
         opt_default("b", "6000000");
         opt_default("maxrate", "9000000");
@@ -3793,7 +3861,7 @@ static const OptionDef options[] = {
     { "loop_input", OPT_BOOL | OPT_EXPERT, {(void*)&loop_input}, "loop (current only works with images)" },
     { "loop_output", HAS_ARG | OPT_INT | OPT_EXPERT, {(void*)&loop_output}, "number of times to loop output in formats that support looping (0 loops forever)", "" },
     { "v", HAS_ARG | OPT_FUNC2, {(void*)opt_verbose}, "set ffmpeg verbosity level", "number" },
-    { "loglevel", HAS_ARG | OPT_FUNC2, {(void*)opt_loglevel}, "set libav* logging level", "number" },
+    { "loglevel", HAS_ARG | OPT_FUNC2, {(void*)opt_loglevel}, "set libav* logging level", "logging level number or string" },
     { "target", HAS_ARG, {(void*)opt_target}, "specify target file type (\"vcd\", \"svcd\", \"dvd\", \"dv\", \"dv50\", \"pal-vcd\", \"ntsc-svcd\", ...)", "type" },
     { "threads", OPT_FUNC2 | HAS_ARG | OPT_EXPERT, {(void*)opt_thread_count}, "thread count", "count" },
     { "vsync", HAS_ARG | OPT_INT | OPT_EXPERT, {(void*)&video_sync_method}, "video sync method", "" },
@@ -3900,8 +3968,10 @@ int main(int argc, char **argv)
     avdevice_register_all();
     av_register_all();
 
+#if HAVE_ISATTY
     if(isatty(STDIN_FILENO))
         url_set_interrupt_cb(decode_interrupt_cb);
+#endif
 
     for(i=0; i<CODEC_TYPE_NB; i++){
         avcodec_opts[i]= avcodec_alloc_context2(i);

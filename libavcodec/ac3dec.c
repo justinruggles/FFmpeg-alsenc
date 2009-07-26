@@ -314,9 +314,12 @@ static int parse_frame_header(AC3DecodeContext *s)
         s->skip_syntax           = 1;
         memset(s->channel_uses_aht, 0, sizeof(s->channel_uses_aht));
         return ac3_parse_header(s);
-    } else {
+    } else if (CONFIG_EAC3_DECODER) {
         s->eac3 = 1;
         return ff_eac3_parse_header(s);
+    } else {
+        av_log(s->avctx, AV_LOG_ERROR, "E-AC-3 support not compiled in\n");
+        return -1;
     }
 }
 
@@ -559,7 +562,7 @@ static void decode_transform_coeffs_ch(AC3DecodeContext *s, int blk, int ch,
         /* if AHT is used, mantissas for all blocks are encoded in the first
            block of the frame. */
         int bin;
-        if (!blk)
+        if (!blk && CONFIG_EAC3_DECODER)
             ff_eac3_decode_transform_coeffs_aht_ch(s, ch);
         for (bin = s->start_freq[ch]; bin < s->end_freq[ch]; bin++) {
             s->fixed_coeffs[ch][bin] = s->pre_mantissa[ch][bin][blk] >> s->dexps[ch][bin];
@@ -820,7 +823,7 @@ static int decode_audio_block(AC3DecodeContext *s, int blk)
     /* spectral extension strategy */
     if (s->eac3 && (!blk || get_bits1(gbc))) {
         if (get_bits1(gbc)) {
-            ff_log_missing_feature(s->avctx, "Spectral extension", 1);
+            av_log_missing_feature(s->avctx, "Spectral extension", 1);
             return -1;
         }
         /* TODO: parse spectral extension strategy info */
@@ -845,7 +848,7 @@ static int decode_audio_block(AC3DecodeContext *s, int blk)
             /* check for enhanced coupling */
             if (s->eac3 && get_bits1(gbc)) {
                 /* TODO: parse enhanced coupling strategy info */
-                ff_log_missing_feature(s->avctx, "Enhanced coupling", 1);
+                av_log_missing_feature(s->avctx, "Enhanced coupling", 1);
                 return -1;
             }
 
@@ -1355,6 +1358,7 @@ AVCodec ac3_decoder = {
     .long_name = NULL_IF_CONFIG_SMALL("ATSC A/52A (AC-3)"),
 };
 
+#if CONFIG_EAC3_DECODER
 AVCodec eac3_decoder = {
     .name = "eac3",
     .type = CODEC_TYPE_AUDIO,
@@ -1365,3 +1369,4 @@ AVCodec eac3_decoder = {
     .decode = ac3_decode_frame,
     .long_name = NULL_IF_CONFIG_SMALL("ATSC A/52B (AC-3, E-AC-3)"),
 };
+#endif

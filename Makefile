@@ -65,10 +65,13 @@ ffplay_g$(EXESUF): FF_EXTRALIBS += $(SDL_LIBS)
 ffserver_g$(EXESUF): FF_LDFLAGS += $(FFSERVERLDFLAGS)
 
 %_g$(EXESUF): %.o cmdutils.o $(FF_DEP_LIBS)
-	$(CC) $(FF_LDFLAGS) -o $@ $< cmdutils.o $(FF_EXTRALIBS)
+	$(LD) $(FF_LDFLAGS) -o $@ $< cmdutils.o $(FF_EXTRALIBS)
 
-tools/%$(EXESUF): tools/%.c
-	$(CC) $(CFLAGS) $(FF_LDFLAGS) -o $@ $< $(FF_EXTRALIBS)
+tools/%$(EXESUF): tools/%.o
+	$(LD) $(FF_LDFLAGS) -o $@ $< $(FF_EXTRALIBS)
+
+tools/%.o: tools.%.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_O) $<
 
 ffplay.o ffplay.d: CFLAGS += $(SDL_CFLAGS)
 
@@ -76,7 +79,7 @@ cmdutils.o cmdutils.d: version.h
 
 alltools: $(addsuffix $(EXESUF),$(addprefix tools/, cws2fws pktdumper qt-faststart trasher))
 
-documentation: $(addprefix doc/, ffmpeg-doc.html faq.html ffserver-doc.html \
+documentation: $(addprefix doc/, developer.html faq.html ffmpeg-doc.html ffserver-doc.html \
                                  ffplay-doc.html general.html $(ALLMANPAGES))
 
 doc/%.html: doc/%.texi
@@ -121,7 +124,7 @@ clean:: testclean
 	rm -f $(ALLPROGS) $(ALLPROGS_G)
 	rm -f $(CLEANSUFFIXES)
 	rm -f doc/*.html doc/*.pod doc/*.1
-	rm -f tests/seek_test$(EXESUF)
+	rm -f tests/seek_test$(EXESUF) tests/seek_test.o
 	rm -f $(addprefix tests/,$(addsuffix $(HOSTEXESUF),audiogen videogen rotozoom tiny_psnr))
 	rm -f $(addprefix tools/,$(addsuffix $(EXESUF),cws2fws pktdumper qt-faststart trasher))
 
@@ -129,17 +132,20 @@ distclean::
 	rm -f $(DISTCLEANSUFFIXES)
 	rm -f version.h config.*
 
+config:
+	$(SRC_PATH)/configure $(value FFMPEG_CONFIGURATION)
+
 # regression tests
 
 check: test checkheaders
 
 fulltest test: codectest lavftest seektest
 
-FFMPEG_REFFILE   = $(SRC_PATH)/tests/ffmpeg.regression.ref
 FFSERVER_REFFILE = $(SRC_PATH)/tests/ffserver.regression.ref
 LAVF_REFFILE     = $(SRC_PATH)/tests/lavf.regression.ref
 ROTOZOOM_REFFILE = $(SRC_PATH)/tests/rotozoom.regression.ref
 SEEK_REFFILE     = $(SRC_PATH)/tests/seek.regression.ref
+VSYNTH_REFFILE   = $(SRC_PATH)/tests/vsynth.regression.ref
 
 CODEC_TESTS = $(addprefix regtest-,             \
         mpeg                                    \
@@ -227,16 +233,16 @@ LAVF_TESTS = $(addprefix regtest-,              \
         pcx                                     \
     )
 
-REGFILES = $(addprefix tests/data/,$(addsuffix .$(1),$(2:regtest-%=%)))
+RESFILES = $(addprefix tests/data/,$(addsuffix .$(1),$(2:regtest-%=%)))
 
-CODEC_ROTOZOOM = $(call REGFILES,rotozoom.regression,$(CODEC_TESTS))
-CODEC_VSYNTH   = $(call REGFILES,vsynth.regression,$(CODEC_TESTS))
+ROTOZOOM_RESFILES = $(call RESFILES,rotozoom.regression,$(CODEC_TESTS))
+VSYNTH_RESFILES   = $(call RESFILES,vsynth.regression,$(CODEC_TESTS))
 
-LAVF_REGFILES = $(call REGFILES,lavf.regression,$(LAVF_TESTS))
+LAVF_RESFILES = $(call RESFILES,lavf.regression,$(LAVF_TESTS))
 
-LAVF_REG     = tests/data/lavf.regression
-ROTOZOOM_REG = tests/data/rotozoom.regression
-VSYNTH_REG   = tests/data/vsynth.regression
+LAVF_RESFILE     = tests/data/lavf.regression
+ROTOZOOM_RESFILE = tests/data/rotozoom.regression
+VSYNTH_RESFILE   = tests/data/vsynth.regression
 
 ifneq ($(CONFIG_ZLIB),yes)
 regtest-flashsv codectest: zlib-error
@@ -247,23 +253,23 @@ zlib-error:
 	@echo
 	@exit 1
 
-codectest: $(VSYNTH_REG) $(ROTOZOOM_REG)
-	diff -u -w $(FFMPEG_REFFILE)   $(VSYNTH_REG)
-	diff -u -w $(ROTOZOOM_REFFILE) $(ROTOZOOM_REG)
+codectest: $(VSYNTH_RESFILE) $(ROTOZOOM_RESFILE)
+	diff -u -w $(VSYNTH_REFFILE)   $(VSYNTH_RESFILE)
+	diff -u -w $(ROTOZOOM_REFFILE) $(ROTOZOOM_RESFILE)
 
-lavftest: $(LAVF_REG)
-	diff -u -w $(LAVF_REFFILE) $(LAVF_REG)
+lavftest: $(LAVF_RESFILE)
+	diff -u -w $(LAVF_REFFILE) $(LAVF_RESFILE)
 
-$(VSYNTH_REG) $(ROTOZOOM_REG) $(LAVF_REG):
+$(VSYNTH_RESFILE) $(ROTOZOOM_RESFILE) $(LAVF_RESFILE):
 	cat $^ > $@
 
-$(LAVF_REG):     $(LAVF_REGFILES)
-$(ROTOZOOM_REG): $(CODEC_ROTOZOOM)
-$(VSYNTH_REG):   $(CODEC_VSYNTH)
+$(LAVF_RESFILE):     $(LAVF_RESFILES)
+$(ROTOZOOM_RESFILE): $(ROTOZOOM_RESFILES)
+$(VSYNTH_RESFILE):   $(VSYNTH_RESFILES)
 
-$(CODEC_VSYNTH) $(CODEC_ROTOZOOM): $(CODEC_TESTS)
+$(VSYNTH_RESFILES) $(ROTOZOOM_RESFILES): $(CODEC_TESTS)
 
-$(LAVF_REGFILES): $(LAVF_TESTS)
+$(LAVF_RESFILES): $(LAVF_TESTS)
 
 $(CODEC_TESTS) $(LAVF_TESTS): regtest-ref
 
@@ -301,8 +307,8 @@ tests/data/asynth1.sw: tests/audiogen$(HOSTEXESUF)
 tests/%$(HOSTEXESUF): tests/%.c
 	$(HOSTCC) $(HOSTCFLAGS) $(HOSTLDFLAGS) -o $@ $< $(HOSTLIBS)
 
-tests/seek_test$(EXESUF): tests/seek_test.c $(FF_DEP_LIBS)
-	$(CC) $(FF_LDFLAGS) $(CFLAGS) -o $@ $< $(FF_EXTRALIBS)
+tests/seek_test$(EXESUF): tests/seek_test.o $(FF_DEP_LIBS)
+	$(LD) $(FF_LDFLAGS) -o $@ $< $(FF_EXTRALIBS)
 
 
-.PHONY: documentation *test regtest-* zlib-error alltools check
+.PHONY: documentation *test regtest-* zlib-error alltools check config

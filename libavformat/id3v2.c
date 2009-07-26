@@ -48,6 +48,26 @@ int ff_id3v2_tag_len(const uint8_t * buf)
     return len;
 }
 
+void ff_id3v2_read(AVFormatContext *s)
+{
+    int len, ret;
+    uint8_t buf[ID3v2_HEADER_SIZE];
+
+    ret = get_buffer(s->pb, buf, ID3v2_HEADER_SIZE);
+    if (ret != ID3v2_HEADER_SIZE)
+        return;
+    if (ff_id3v2_match(buf)) {
+        /* parse ID3v2 header */
+        len = ((buf[6] & 0x7f) << 21) |
+            ((buf[7] & 0x7f) << 14) |
+            ((buf[8] & 0x7f) << 7) |
+            (buf[9] & 0x7f);
+        ff_id3v2_parse(s, len, buf[3], buf[5]);
+    } else {
+        url_fseek(s->pb, 0, SEEK_SET);
+    }
+}
+
 static unsigned int get_size(ByteIOContext *s, int len)
 {
     int v = 0;
@@ -135,11 +155,14 @@ void ff_id3v2_parse(AVFormatContext *s, int len, uint8_t version, uint8_t flags)
     while (len >= taghdrlen) {
         if (isv34) {
             tag  = get_be32(s->pb);
-            tlen = get_size(s->pb, 4);
+            if(version==3){
+                tlen = get_be32(s->pb);
+            }else
+                tlen = get_size(s->pb, 4);
             get_be16(s->pb); /* flags */
         } else {
             tag  = get_be24(s->pb);
-            tlen = get_size(s->pb, 3);
+            tlen = get_be24(s->pb);
         }
         len -= taghdrlen + tlen;
 

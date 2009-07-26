@@ -401,6 +401,8 @@ int av_open_input_stream(AVFormatContext **ic_ptr,
     ff_metadata_demux_compat(ic);
 #endif
 
+    ic->raw_packet_buffer_remaining_size = RAW_PACKET_BUFFER_SIZE;
+
     *ic_ptr = ic;
     return 0;
  fail:
@@ -497,6 +499,8 @@ int av_open_input_file(AVFormatContext **ic_ptr, const char *filename,
     av_freep(&pd->buf);
     if (pb)
         url_fclose(pb);
+    if (ap && ap->prealloced_context)
+        av_free(*ic_ptr);
     *ic_ptr = NULL;
     return err;
 
@@ -532,8 +536,13 @@ int av_read_packet(AVFormatContext *s, AVPacket *pkt)
         if (pktl) {
             *pkt = pktl->pkt;
             if(s->streams[pkt->stream_index]->codec->codec_id != CODEC_ID_PROBE ||
-               !s->streams[pkt->stream_index]->probe_packets){
+               !s->streams[pkt->stream_index]->probe_packets ||
+               s->raw_packet_buffer_remaining_size < pkt->size){
+                AVProbeData *pd = &s->streams[pkt->stream_index]->probe_data;
+                av_freep(&pd->buf);
+                pd->buf_size = 0;
                 s->raw_packet_buffer = pktl->next;
+                s->raw_packet_buffer_remaining_size += pkt->size;
                 av_free(pktl);
                 return 0;
             }
@@ -567,6 +576,7 @@ int av_read_packet(AVFormatContext *s, AVPacket *pkt)
             return ret;
 
         add_to_pktbuf(&s->raw_packet_buffer, pkt, &s->raw_packet_buffer_end);
+        s->raw_packet_buffer_remaining_size -= pkt->size;
 
         if(st->codec->codec_id == CODEC_ID_PROBE){
             AVProbeData *pd = &st->probe_data;
@@ -1102,6 +1112,7 @@ static void flush_packet_queue(AVFormatContext *s)
         av_free_packet(&pktl->pkt);
         av_free(pktl);
     }
+    s->raw_packet_buffer_remaining_size = RAW_PACKET_BUFFER_SIZE;
 }
 
 /*******************************************************/
@@ -1904,7 +1915,7 @@ static int try_decode_frame(AVStream *st, AVPacket *avpkt)
     return ret;
 }
 
-unsigned int codec_get_tag(const AVCodecTag *tags, int id)
+unsigned int ff_codec_get_tag(const AVCodecTag *tags, int id)
 {
     while (tags->id != CODEC_ID_NONE) {
         if (tags->id == id)
@@ -1914,7 +1925,7 @@ unsigned int codec_get_tag(const AVCodecTag *tags, int id)
     return 0;
 }
 
-enum CodecID codec_get_id(const AVCodecTag *tags, unsigned int tag)
+enum CodecID ff_codec_get_id(const AVCodecTag *tags, unsigned int tag)
 {
     int i;
     for(i=0; tags[i].id != CODEC_ID_NONE;i++) {
@@ -1935,7 +1946,7 @@ unsigned int av_codec_get_tag(const AVCodecTag * const *tags, enum CodecID id)
 {
     int i;
     for(i=0; tags && tags[i]; i++){
-        int tag= codec_get_tag(tags[i], id);
+        int tag= ff_codec_get_tag(tags[i], id);
         if(tag) return tag;
     }
     return 0;
@@ -1945,7 +1956,7 @@ enum CodecID av_codec_get_id(const AVCodecTag * const *tags, unsigned int tag)
 {
     int i;
     for(i=0; tags && tags[i]; i++){
-        enum CodecID id= codec_get_id(tags[i], tag);
+        enum CodecID id= ff_codec_get_id(tags[i], tag);
         if(id!=CODEC_ID_NONE) return id;
     }
     return CODEC_ID_NONE;
@@ -1970,9 +1981,6 @@ static void compute_chapters_end(AVFormatContext *s)
                                            s->chapters[i]->time_base);
     }
 }
-
-/* absolute maximum size we read until we abort */
-#define MAX_READ_SIZE        5000000
 
 #define MAX_STD_TIMEBASES (60*12+5)
 static int get_std_framerate(int i){
@@ -2042,6 +2050,7 @@ int av_find_stream_info(AVFormatContext *ic)
     for(;;) {
         if(url_interrupt_cb()){
             ret= AVERROR(EINTR);
+            av_log(ic, AV_LOG_DEBUG, "interrupted\n");
             break;
         }
 
@@ -2066,12 +2075,14 @@ int av_find_stream_info(AVFormatContext *ic)
             if (!(ic->ctx_flags & AVFMTCTX_NOHEADER)) {
                 /* if we found the info for all the codecs, we can stop */
                 ret = count;
+                av_log(ic, AV_LOG_DEBUG, "All info found\n");
                 break;
             }
         }
         /* we did not get all the codec info, but we read too much data */
-        if (read_size >= MAX_READ_SIZE) {
+        if (read_size >= ic->probesize) {
             ret = count;
+            av_log(ic, AV_LOG_DEBUG, "MAX_READ_SIZE:%d reached\n", ic->probesize);
             break;
         }
 
@@ -2106,8 +2117,10 @@ int av_find_stream_info(AVFormatContext *ic)
 
         st = ic->streams[pkt->stream_index];
         if(codec_info_nb_frames[st->index]>1) {
-            if (st->time_base.den > 0 && av_rescale_q(codec_info_duration[st->index], st->time_base, AV_TIME_BASE_Q) >= ic->max_analyze_duration)
+            if (st->time_base.den > 0 && av_rescale_q(codec_info_duration[st->index], st->time_base, AV_TIME_BASE_Q) >= ic->max_analyze_duration){
+                av_log(ic, AV_LOG_DEBUG, "max_analyze_duration reached\n");
                 break;
+            }
             codec_info_duration[st->index] += pkt->duration;
         }
         if (pkt->duration != 0)
@@ -3293,13 +3306,16 @@ char *ff_data_to_hex(char *buff, const uint8_t *src, int s)
 }
 
 void av_set_pts_info(AVStream *s, int pts_wrap_bits,
-                     int pts_num, int pts_den)
+                     unsigned int pts_num, unsigned int pts_den)
 {
-    unsigned int gcd= av_gcd(pts_num, pts_den);
     s->pts_wrap_bits = pts_wrap_bits;
-    s->time_base.num = pts_num/gcd;
-    s->time_base.den = pts_den/gcd;
 
-    if(gcd>1)
-        av_log(NULL, AV_LOG_DEBUG, "st:%d removing common factor %d from timebase\n", s->index, gcd);
+    if(av_reduce(&s->time_base.num, &s->time_base.den, pts_num, pts_den, INT_MAX)){
+        if(s->time_base.num != pts_num)
+            av_log(NULL, AV_LOG_DEBUG, "st:%d removing common factor %d from timebase\n", s->index, pts_num/s->time_base.num);
+    }else
+        av_log(NULL, AV_LOG_WARNING, "st:%d has too large timebase, reducing\n", s->index);
+
+    if(!s->time_base.num || !s->time_base.den)
+        s->time_base.num= s->time_base.den= 0;
 }

@@ -32,7 +32,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "avcodec.h"
 #include "dsputil.h"
@@ -517,23 +516,30 @@ static void init_dequantizer(Vp3DecodeContext *s, int qpi)
 /*
  * This function initializes the loop filter boundary limits if the frame's
  * quality index is different from the previous frame's.
+ *
+ * The filter_limit_values may not be larger than 127.
  */
 static void init_loop_filter(Vp3DecodeContext *s)
 {
     int *bounding_values= s->bounding_values_array+127;
     int filter_limit;
     int x;
+    int value;
 
     filter_limit = s->filter_limit_values[s->qps[0]];
 
     /* set up the bounding values */
     memset(s->bounding_values_array, 0, 256 * sizeof(int));
     for (x = 0; x < filter_limit; x++) {
-        bounding_values[-x - filter_limit] = -filter_limit + x;
         bounding_values[-x] = -x;
         bounding_values[x] = x;
-        bounding_values[x + filter_limit] = filter_limit - x;
     }
+    for (x = value = filter_limit; x < 128 && value; x++, value--) {
+        bounding_values[ x] =  value;
+        bounding_values[-x] = -value;
+    }
+    if (value)
+        bounding_values[128] = value;
     bounding_values[129] = bounding_values[130] = filter_limit * 0x02020202;
 }
 
@@ -1781,29 +1787,34 @@ static av_cold int vp3_decode_init(AVCodecContext *avctx)
         for (i = 0; i < 16; i++) {
 
             /* DC histograms */
-            init_vlc(&s->dc_vlc[i], 5, 32,
+            if (init_vlc(&s->dc_vlc[i], 5, 32,
                 &s->huffman_table[i][0][1], 4, 2,
-                &s->huffman_table[i][0][0], 4, 2, 0);
+                &s->huffman_table[i][0][0], 4, 2, 0) < 0)
+                goto vlc_fail;
 
             /* group 1 AC histograms */
-            init_vlc(&s->ac_vlc_1[i], 5, 32,
+            if (init_vlc(&s->ac_vlc_1[i], 5, 32,
                 &s->huffman_table[i+16][0][1], 4, 2,
-                &s->huffman_table[i+16][0][0], 4, 2, 0);
+                &s->huffman_table[i+16][0][0], 4, 2, 0) < 0)
+                goto vlc_fail;
 
             /* group 2 AC histograms */
-            init_vlc(&s->ac_vlc_2[i], 5, 32,
+            if (init_vlc(&s->ac_vlc_2[i], 5, 32,
                 &s->huffman_table[i+16*2][0][1], 4, 2,
-                &s->huffman_table[i+16*2][0][0], 4, 2, 0);
+                &s->huffman_table[i+16*2][0][0], 4, 2, 0) < 0)
+                goto vlc_fail;
 
             /* group 3 AC histograms */
-            init_vlc(&s->ac_vlc_3[i], 5, 32,
+            if (init_vlc(&s->ac_vlc_3[i], 5, 32,
                 &s->huffman_table[i+16*3][0][1], 4, 2,
-                &s->huffman_table[i+16*3][0][0], 4, 2, 0);
+                &s->huffman_table[i+16*3][0][0], 4, 2, 0) < 0)
+                goto vlc_fail;
 
             /* group 4 AC histograms */
-            init_vlc(&s->ac_vlc_4[i], 5, 32,
+            if (init_vlc(&s->ac_vlc_4[i], 5, 32,
                 &s->huffman_table[i+16*4][0][1], 4, 2,
-                &s->huffman_table[i+16*4][0][0], 4, 2, 0);
+                &s->huffman_table[i+16*4][0][0], 4, 2, 0) < 0)
+                goto vlc_fail;
         }
     }
 
@@ -1837,6 +1848,10 @@ static av_cold int vp3_decode_init(AVCodecContext *avctx)
     }
 
     return 0;
+
+vlc_fail:
+    av_log(avctx, AV_LOG_FATAL, "Invalid huffman table\n");
+    return -1;
 }
 
 /*
@@ -2164,8 +2179,13 @@ static int theora_decode_tables(AVCodecContext *avctx, GetBitContext *gb)
     if (s->theora >= 0x030200) {
         n = get_bits(gb, 3);
         /* loop filter limit values table */
-        for (i = 0; i < 64; i++)
+        for (i = 0; i < 64; i++) {
             s->filter_limit_values[i] = get_bits(gb, n);
+            if (s->filter_limit_values[i] > 127) {
+                av_log(avctx, AV_LOG_ERROR, "filter limit value too large (%i > 127), clamping\n", s->filter_limit_values[i]);
+                s->filter_limit_values[i] = 127;
+            }
+        }
     }
 
     if (s->theora >= 0x030200)
@@ -2322,8 +2342,7 @@ static av_cold int theora_decode_init(AVCodecContext *avctx)
         break;
   }
 
-    vp3_decode_init(avctx);
-    return 0;
+    return vp3_decode_init(avctx);
 }
 
 AVCodec theora_decoder = {

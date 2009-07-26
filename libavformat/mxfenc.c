@@ -63,12 +63,13 @@ typedef struct {
 typedef struct {
     AudioInterleaveContext aic;
     UID track_essence_element_key;
-    int index;            ///< index in mxf_essence_container_uls table
+    int index;               ///< index in mxf_essence_container_uls table
     const UID *codec_ul;
-    int order;            ///< interleaving order if dts are equal
-    int interlaced;       ///< wether picture is interlaced
+    int order;               ///< interleaving order if dts are equal
+    int interlaced;          ///< wether picture is interlaced
     int temporal_reordering;
     AVRational aspect_ratio; ///< display aspect ratio
+    int closed_gop;          ///< gop is closed, used in mpeg-2 frame parsing
 } MXFStreamContext;
 
 typedef struct {
@@ -297,6 +298,7 @@ static const MXFLocalTagPair mxf_local_tag_batch[] = {
     { 0x3F0A, {0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x05,0x04,0x04,0x04,0x02,0x05,0x00,0x00,0x00}}, /* Index Entry Array */
     // MPEG video Descriptor
     { 0x8000, {0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x05,0x04,0x01,0x06,0x02,0x01,0x0B,0x00,0x00}}, /* BitRate */
+    { 0x8007, {0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x05,0x04,0x01,0x06,0x02,0x01,0x0A,0x00,0x00}}, /* ProfileAndLevel */
     // Wave Audio Essence Descriptor
     { 0x3D09, {0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x05,0x04,0x02,0x03,0x03,0x05,0x00,0x00,0x00}}, /* Average Bytes Per Second */
     { 0x3D0A, {0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x05,0x04,0x02,0x03,0x02,0x01,0x00,0x00,0x00}}, /* Block Align */
@@ -752,7 +754,7 @@ static void mxf_write_generic_desc(AVFormatContext *s, AVStream *st, const UID k
     ByteIOContext *pb = s->pb;
 
     put_buffer(pb, key, 16);
-    klv_encode_ber_length(pb, size+20+8+12+20);
+    klv_encode_ber4_length(pb, size+20+8+12+20);
 
     mxf_write_local_tag(pb, 16, 0x3C0A);
     mxf_write_uuid(pb, SubDescriptor, st->index);
@@ -854,12 +856,19 @@ static void mxf_write_cdci_desc(AVFormatContext *s, AVStream *st)
 static void mxf_write_mpegvideo_desc(AVFormatContext *s, AVStream *st)
 {
     ByteIOContext *pb = s->pb;
+    int profile_and_level = (st->codec->profile<<4) | st->codec->level;
 
-    mxf_write_cdci_common(s, st, mxf_mpegvideo_descriptor_key, 8);
+    mxf_write_cdci_common(s, st, mxf_mpegvideo_descriptor_key, 8+5);
 
     // bit rate
     mxf_write_local_tag(pb, 4, 0x8000);
     put_be32(pb, st->codec->bit_rate);
+
+    // profile and level
+    mxf_write_local_tag(pb, 1, 0x8007);
+    if (!st->codec->profile)
+        profile_and_level |= 0x80; // escape bit
+    put_byte(pb, profile_and_level);
 }
 
 static void mxf_write_generic_sound_common(AVFormatContext *s, AVStream *st, const UID key, unsigned size)
@@ -1063,7 +1072,10 @@ static void mxf_write_index_table_segment(AVFormatContext *s)
 
     // index duration
     mxf_write_local_tag(pb, 8, 0x3F0D);
-    put_be64(pb, mxf->edit_units_count);
+    if (mxf->edit_unit_byte_count)
+        put_be64(pb, 0); // index table covers whole container
+    else
+        put_be64(pb, mxf->edit_units_count);
 
     // edit unit byte count
     mxf_write_local_tag(pb, 4, 0x3F05);
@@ -1111,14 +1123,14 @@ static void mxf_write_index_table_segment(AVFormatContext *s)
         put_be32(pb, mxf->edit_units_count);  // num of entries
         put_be32(pb, 11+mxf->slice_count*4);  // size of one entry
         for (i = 0; i < mxf->edit_units_count; i++) {
+            int temporal_offset = 0;
             if (temporal_reordering) {
-                int temporal_offset = 0;
                 for (j = i+1; j < mxf->edit_units_count; j++) {
                     temporal_offset++;
                     if (mxf->index_entries[j].flags & 0x10) { // backward prediction
                         // next is not b, so is reordered
                         if (!(mxf->index_entries[i+1].flags & 0x10)) {
-                            if ((mxf->index_entries[i].flags & 0x11) == 0) // i frame
+                            if ((mxf->index_entries[i].flags & 0x11) == 0) // I frame
                                 temporal_offset = 0;
                             else
                                 temporal_offset = -temporal_offset;
@@ -1126,15 +1138,17 @@ static void mxf_write_index_table_segment(AVFormatContext *s)
                         break;
                     }
                 }
-                put_byte(pb, temporal_offset);
-            } else
-                put_byte(pb, 0);
+            }
+            put_byte(pb, temporal_offset);
+
             if (!(mxf->index_entries[i].flags & 0x33)) { // I frame
+                if (mxf->index_entries[i].flags & 0x40 && // seq header
+                    (!temporal_reordering || !temporal_offset))
+                    mxf->index_entries[i].flags |= 0x80; // random access
                 mxf->last_key_index = key_index;
                 key_index = i;
             }
-            if (mxf->index_entries[i].flags & 0x10 && // backward prediction
-                !(mxf->index_entries[key_index].flags & 0x80)) { // open gop
+            if ((mxf->index_entries[i].flags & 0x30) == 0x30) { // back and forward prediction
                 put_byte(pb, mxf->last_key_index - i);
             } else {
                 put_byte(pb, key_index - i); // key frame offset
@@ -1273,24 +1287,18 @@ static const UID mxf_mpeg2_codec_uls[] = {
 
 static const UID *mxf_get_mpeg2_codec_ul(AVCodecContext *avctx)
 {
+    int long_gop = avctx->gop_size > 1 || avctx->has_b_frames;
+
     if (avctx->profile == 4) { // Main
         if (avctx->level == 8) // Main
-            return avctx->gop_size ?
-                &mxf_mpeg2_codec_uls[1] :
-                &mxf_mpeg2_codec_uls[0];
+            return &mxf_mpeg2_codec_uls[0+long_gop];
         else if (avctx->level == 4) // High
-            return avctx->gop_size ?
-                &mxf_mpeg2_codec_uls[5] :
-                &mxf_mpeg2_codec_uls[4];
+            return &mxf_mpeg2_codec_uls[4+long_gop];
     } else if (avctx->profile == 0) { // 422
         if (avctx->level == 5) // Main
-            return avctx->gop_size ?
-                &mxf_mpeg2_codec_uls[3] :
-                &mxf_mpeg2_codec_uls[2];
+            return &mxf_mpeg2_codec_uls[2+long_gop];
         else if (avctx->level == 2) // High
-            return avctx->gop_size ?
-                &mxf_mpeg2_codec_uls[7] :
-                &mxf_mpeg2_codec_uls[6];
+            return &mxf_mpeg2_codec_uls[6+long_gop];
     }
     return NULL;
 }
@@ -1306,7 +1314,7 @@ static int mxf_parse_mpeg2_frame(AVFormatContext *s, AVStream *st, AVPacket *pkt
 
     for(i = 0; i < pkt->size - 4; i++) {
         c = (c<<8) + pkt->data[i];
-        if (c == 0x1B5) {
+        if (c == 0x1b5) {
             if ((pkt->data[i+1] & 0xf0) == 0x10) { // seq ext
                 st->codec->profile = pkt->data[i+1] & 0x07;
                 st->codec->level   = pkt->data[i+2] >> 4;
@@ -1315,8 +1323,11 @@ static int mxf_parse_mpeg2_frame(AVFormatContext *s, AVStream *st, AVPacket *pkt
                 break;
             }
         } else if (c == 0x1b8) { // gop
-            if (pkt->data[i+4]>>6 & 0x01) // closed
-                *flags |= 0x80; // random access
+            if (pkt->data[i+4]>>6 & 0x01) { // closed
+                sc->closed_gop = 1;
+                if (*flags & 0x40) // sequence header present
+                    *flags |= 0x80; // random access
+            }
             if (!mxf->header_written) {
                 unsigned hours   =  (pkt->data[i+1]>>2) & 0x1f;
                 unsigned minutes = ((pkt->data[i+1] & 0x03) << 4) | (pkt->data[i+2]>>4);
@@ -1346,9 +1357,12 @@ static int mxf_parse_mpeg2_frame(AVFormatContext *s, AVStream *st, AVPacket *pkt
             int pict_type = (pkt->data[i+2]>>3) & 0x07;
             if (pict_type == 2) { // P frame
                 *flags |= 0x22;
-                st->codec->gop_size = 1;
+                sc->closed_gop = 0; // reset closed gop, don't matter anymore
             } else if (pict_type == 3) { // B frame
-                *flags |= 0x33;
+                if (sc->closed_gop)
+                    *flags |= 0x13; // only backward prediction
+                else
+                    *flags |= 0x33;
                 sc->temporal_reordering = -1;
             } else if (!pict_type) {
                 av_log(s, AV_LOG_ERROR, "error parsing mpeg2 frame\n");

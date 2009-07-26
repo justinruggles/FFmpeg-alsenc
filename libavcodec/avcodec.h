@@ -30,8 +30,8 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 52
-#define LIBAVCODEC_VERSION_MINOR 31
-#define LIBAVCODEC_VERSION_MICRO  2
+#define LIBAVCODEC_VERSION_MINOR 32
+#define LIBAVCODEC_VERSION_MICRO  0
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
                                                LIBAVCODEC_VERSION_MINOR, \
@@ -1114,7 +1114,7 @@ typedef struct AVCodecContext {
      * - encoding: Set by user.
      * - decoding: Set by libavcodec.
      */
-    enum SampleFormat sample_fmt;  ///< sample format, currently unused
+    enum SampleFormat sample_fmt;  ///< sample format
 
     /* The following data should not be initialized. */
     /**
@@ -2734,6 +2734,7 @@ typedef struct AVSubtitle {
     uint32_t end_display_time; /* relative to packet pts, in ms */
     unsigned num_rects;
     AVSubtitleRect **rects;
+    int64_t pts;    ///< Same as packet pts, in AV_TIME_BASE
 } AVSubtitle;
 
 /* packet functions */
@@ -2901,7 +2902,7 @@ void avpicture_free(AVPicture *picture);
  * @return size of the image data in bytes
  */
 int avpicture_fill(AVPicture *picture, uint8_t *ptr,
-                   int pix_fmt, int width, int height);
+                   enum PixelFormat pix_fmt, int width, int height);
 int avpicture_layout(const AVPicture* src, enum PixelFormat pix_fmt, int width, int height,
                      unsigned char *dest, int dest_size);
 
@@ -3223,7 +3224,7 @@ attribute_deprecated int avcodec_decode_audio2(AVCodecContext *avctx, int16_t *s
  * (AltiVec and SSE do).
  *
  * @param avctx the codec context
- * @param[out] samples the output buffer
+ * @param[out] samples the output buffer, sample type in avctx->sample_fmt
  * @param[in,out] frame_size_ptr the output buffer size in bytes
  * @param[in] avpkt The input AVPacket containing the input buffer.
  *            You can create such packet with av_init_packet() and by then setting
@@ -3714,6 +3715,30 @@ int av_parse_video_frame_rate(AVRational *frame_rate, const char *str);
 #define AVERROR_NOENT       AVERROR(ENOENT)  /**< No such file or directory. */
 #define AVERROR_EOF         AVERROR(EPIPE)   /**< End of file. */
 #define AVERROR_PATCHWELCOME    -MKTAG('P','A','W','E') /**< Not yet implemented in FFmpeg. Patches welcome. */
+
+/**
+ * Logs a generic warning message about a missing feature. This function is
+ * intended to be used internally by FFmpeg (libavcodec, libavformat, etc.)
+ * only, and would normally not be used by applications.
+ * @param[in] avc a pointer to an arbitrary struct of which the first field is
+ * a pointer to an AVClass struct
+ * @param[in] feature string containing the name of the missing feature
+ * @param[in] want_sample indicates if samples are wanted which exhibit this feature.
+ * If want_sample is non-zero, additional verbage will be added to the log
+ * message which tells the user how to report samples to the development
+ * mailing list.
+ */
+void av_log_missing_feature(void *avc, const char *feature, int want_sample);
+
+/**
+ * Logs a generic warning message asking for a sample. This function is
+ * intended to be used internally by FFmpeg (libavcodec, libavformat, etc.)
+ * only, and would normally not be used by applications.
+ * @param[in] avc a pointer to an arbitrary struct of which the first field is
+ * a pointer to an AVClass struct
+ * @param[in] msg string containing an optional message, or NULL if no message
+ */
+void av_log_ask_for_sample(void *avc, const char *msg);
 
 /**
  * Registers the hardware accelerator hwaccel.

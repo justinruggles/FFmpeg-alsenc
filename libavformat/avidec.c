@@ -252,6 +252,7 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
     AVIStream *ast = NULL;
     int avih_width=0, avih_height=0;
     int amv_file_format=0;
+    uint64_t list_end = 0;
 
     avi->stream_index= -1;
 
@@ -277,6 +278,7 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
 
         switch(tag) {
         case MKTAG('L', 'I', 'S', 'T'):
+            list_end = url_ftell(pb) + size;
             /* Ignored, except at start of video packets. */
             tag1 = get_le32(pb);
 #ifdef DEBUG
@@ -445,6 +447,9 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
             if (stream_index >= (unsigned)s->nb_streams || avi->dv_demux) {
                 url_fskip(pb, size);
             } else {
+                uint64_t cur_pos = url_ftell(pb);
+                if (cur_pos < list_end)
+                    size = FFMIN(size, list_end - cur_pos);
                 st = s->streams[stream_index];
                 switch(codec_type) {
                 case CODEC_TYPE_VIDEO:
@@ -478,6 +483,10 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
                     if(size > 10*4 && size<(1<<30)){
                         st->codec->extradata_size= size - 10*4;
                         st->codec->extradata= av_malloc(st->codec->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
+                        if (!st->codec->extradata) {
+                            st->codec->extradata_size= 0;
+                            return AVERROR(ENOMEM);
+                        }
                         get_buffer(pb, st->codec->extradata, st->codec->extradata_size);
                     }
 
@@ -489,7 +498,7 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
                     /* This is true for all paletted codecs implemented in FFmpeg. */
                     if (st->codec->extradata_size && (st->codec->bits_per_coded_sample <= 8)) {
                         st->codec->palctrl = av_mallocz(sizeof(AVPaletteControl));
-#ifdef WORDS_BIGENDIAN
+#if HAVE_BIGENDIAN
                         for (i = 0; i < FFMIN(st->codec->extradata_size, AVPALETTE_SIZE)/4; i++)
                             st->codec->palctrl->palette[i] = bswap_32(((uint32_t*)st->codec->extradata)[i]);
 #else
@@ -504,7 +513,7 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
 #endif
                     st->codec->codec_type = CODEC_TYPE_VIDEO;
                     st->codec->codec_tag = tag1;
-                    st->codec->codec_id = codec_get_id(codec_bmp_tags, tag1);
+                    st->codec->codec_id = ff_codec_get_id(ff_codec_bmp_tags, tag1);
                     st->need_parsing = AVSTREAM_PARSE_HEADERS; // This is needed to get the pict type which is necessary for generating correct pts.
 
                     if(st->codec->codec_tag==0 && st->codec->height > 0 && st->codec->extradata_size < 1U<<30){
@@ -518,7 +527,7 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
 //                    url_fskip(pb, size - 5 * 4);
                     break;
                 case CODEC_TYPE_AUDIO:
-                    get_wav_header(pb, st->codec, size);
+                    ff_get_wav_header(pb, st->codec, size);
                     if(ast->sample_size && st->codec->block_align && ast->sample_size != st->codec->block_align){
                         av_log(s, AV_LOG_WARNING, "sample size (%d) != block align (%d)\n", ast->sample_size, st->codec->block_align);
                         ast->sample_size= st->codec->block_align;

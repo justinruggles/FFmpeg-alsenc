@@ -22,13 +22,13 @@ THIS_LIB := $(SUBDIR)$($(BUILD_SHARED:yes=S)LIBNAME)
 
 define RULES
 $(SUBDIR)%$(EXESUF): $(SUBDIR)%.o
-	$(CC) $(FFLDFLAGS) -o $$@ $$^ -l$(FULLNAME) $(FFEXTRALIBS) $$(ELIBS)
+	$(LD) $(FFLDFLAGS) -o $$@ $$^ -l$(FULLNAME) $(FFEXTRALIBS) $$(ELIBS)
 
 $(SUBDIR)%-test.o: $(SUBDIR)%.c
-	$(CC) $(CFLAGS) -DTEST -c -o $$@ $$^
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DTEST -c -o $$@ $$^
 
 $(SUBDIR)%-test.o: $(SUBDIR)%-test.c
-	$(CC) $(CFLAGS) -DTEST -c -o $$@ $$^
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DTEST -c -o $$@ $$^
 
 $(SUBDIR)x86/%.o: $(SUBDIR)x86/%.asm
 	$(YASM) $(YASMFLAGS) -I $$(<D)/ -o $$@ $$<
@@ -54,7 +54,7 @@ $(SUBDIR)$(SLIBNAME): $(SUBDIR)$(SLIBNAME_WITH_MAJOR)
 
 $(SUBDIR)$(SLIBNAME_WITH_MAJOR): $(OBJS)
 	$(SLIB_CREATE_DEF_CMD)
-	$(CC) $(SHFLAGS) $(FFLDFLAGS) -o $$@ $$(filter %.o,$$^) $(FFEXTRALIBS) $(EXTRAOBJS)
+	$(LD) $(SHFLAGS) $(FFLDFLAGS) -o $$@ $$(filter %.o,$$^) $(FFEXTRALIBS) $(EXTRAOBJS)
 	$(SLIB_EXTRA_CMD)
 
 ifdef SUBDIR

@@ -195,7 +195,7 @@ void avcodec_register_all(void)
     REGISTER_ENCDEC  (ZMBV, zmbv);
 
     /* audio codecs */
-    REGISTER_DECODER (AAC, aac);
+    REGISTER_ENCDEC  (AAC, aac);
     REGISTER_ENCDEC  (AC3, ac3);
     REGISTER_ENCDEC  (ALAC, alac);
     REGISTER_ENCODER (ALS, als);
@@ -230,8 +230,7 @@ void avcodec_register_all(void)
     REGISTER_DECODER (TRUESPEECH, truespeech);
     REGISTER_DECODER (TTA, tta);
     REGISTER_DECODER (VMDAUDIO, vmdaudio);
-    /* The Vorbis encoder is disabled because it is extremely low quality. */
-    REGISTER_DECODER (VORBIS, vorbis);
+    REGISTER_ENCDEC  (VORBIS, vorbis);
     REGISTER_DECODER (WAVPACK, wavpack);
     REGISTER_ENCDEC  (WMAV1, wmav1);
     REGISTER_ENCDEC  (WMAV2, wmav2);
@@ -302,11 +301,9 @@ void avcodec_register_all(void)
     /* subtitles */
     REGISTER_ENCDEC  (DVBSUB, dvbsub);
     REGISTER_ENCDEC  (DVDSUB, dvdsub);
-    REGISTER_DECODER (XSUB, xsub);
+    REGISTER_ENCDEC  (XSUB, xsub);
 
     /* external libraries */
-    REGISTER_ENCDEC  (LIBAMR_NB, libamr_nb);
-    REGISTER_ENCDEC  (LIBAMR_WB, libamr_wb);
     REGISTER_ENCDEC  (LIBDIRAC, libdirac);
     REGISTER_ENCODER (LIBFAAC, libfaac);
     REGISTER_DECODER (LIBFAAD, libfaad);
