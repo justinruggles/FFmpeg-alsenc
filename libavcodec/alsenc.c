@@ -43,7 +43,6 @@
 #define MAX_SAMPLERATE 16777215
 #define MAX_EC_BLOCKS  8
 
-#define ALS_OBJECT_TYPE 36
 #define ALS_SPECIFIC_CFG_SIZE  30
 #define ALS_EXTRADATA_MAX_SIZE (6 + ALS_SPECIFIC_CFG_SIZE)
 
@@ -110,18 +109,19 @@ static int write_extradata(AlsEncodeContext *s)
 
     /* object type */
     put_bits(&pb, 5, 0x1F);
-    put_bits(&pb, 6, 32-ALS_OBJECT_TYPE);
+    put_bits(&pb, 6, AOT_ALS-32);
 
     /* sample rate */
-    for (i = 0; i < 12; i++)
+    /* reference encoder always encodes sample rate explicitly */
+    /*for (i = 0; i < 12; i++)
         if (s->sample_rate == ff_mpeg4audio_sample_rates[i])
             break;
     if (i < 12) {
         put_bits(&pb, 4, i);
-    } else {
+    } else {*/
         put_bits(&pb, 4, 0xF);
         put_bits(&pb, 24, s->sample_rate);
-    }
+    //}
 
     /* channel config */
     put_bits(&pb, 4, 0); // 0 = defined in DecoderSpecificConfig
