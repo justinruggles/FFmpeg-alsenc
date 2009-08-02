@@ -1002,7 +1002,7 @@ static int mov_write_hdlr_tag(ByteIOContext *pb, MOVTrack *track)
             if(track->enc->codec_id == CODEC_ID_MP4ALS) {
                 descr = "";
             } else {
-            descr = "SoundHandler";
+                descr = "SoundHandler";
             }
         } else if (track->enc->codec_type == CODEC_TYPE_SUBTITLE) {
             if (track->tag == MKTAG('t','x','3','g')) hdlr_type = "sbtl";
