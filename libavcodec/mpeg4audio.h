@@ -51,18 +51,6 @@ extern const uint8_t ff_mpeg4audio_channels[8];
  */
 int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_size);
 
-/**
- * Parse MPEG-4 systems extradata to retrieve basic information from the
- * ALSSpecificConfig for MPEG-4 ALS audio.
- * @param[in] c          MPEG4AudioConfig structure to fill.
- * @param[in] buf        Extradata from container.
- * @param[in] buf_size   Extradata size.
- * @param[in] bit_offset Offset, in bits, to the ALSSpecificConfig
- * @return               -1 on error, 0 on success
- */
-int ff_mpeg4audio_get_als_config(MPEG4AudioConfig *c, const uint8_t *buf,
-                                 int buf_size, int bit_offset);
-
 enum AudioObjectType {
     AOT_NULL,
                                // Support?                Name

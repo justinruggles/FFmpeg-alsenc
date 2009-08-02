@@ -432,16 +432,8 @@ static int mov_read_esds(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
             st->codec->extradata_size = len;
             if (st->codec->codec_id == CODEC_ID_AAC) {
                 MPEG4AudioConfig cfg;
-                int offset = ff_mpeg4audio_get_config(&cfg, st->codec->extradata,
+                ff_mpeg4audio_get_config(&cfg, st->codec->extradata,
                                          st->codec->extradata_size);
-                if (cfg.object_type == AOT_ALS) {
-                    /* read more accurate information from ALSSpecificConfig */
-                    if (ff_mpeg4audio_get_als_config(&cfg, st->codec->extradata,
-                                                     st->codec->extradata_size,
-                                                     offset) < 0) {
-                        return -1;
-                    }
-                }
                 if (cfg.absolute_channels) {
                     st->codec->channels = cfg.absolute_channels;
                 } else {

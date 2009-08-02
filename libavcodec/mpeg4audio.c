@@ -48,6 +48,34 @@ static inline int get_sample_rate(GetBitContext *gb, int *index)
         ff_mpeg4audio_sample_rates[*index];
 }
 
+/**
+ * Parse basic information from ALSSpecificConfig for MPEG-4 ALS audio.
+ */
+static int get_als_config(MPEG4AudioConfig *c, GetBitContext *gb)
+{
+    int res, fp;
+
+    align_get_bits(gb);
+
+    if (gb->size_in_bits - get_bits_count(gb) < 119)
+        return -1;
+
+    skip_bits_long(gb, 32);                         // skip als id
+    c->sample_rate = get_bits_long(gb, 32);         // sample rate
+    skip_bits_long(gb, 32);                         // skip number of samples
+    c->absolute_channels = get_bits(gb, 16) + 1;    // number of channels
+    skip_bits(gb, 3);                               // skip original file type
+    res = get_bits(gb, 3);                          // resolution
+    fp  = get_bits(gb, 1);                          // floating-point flag
+
+    if (fp)
+        c->bits_per_sample = 32;
+    else
+        c->bits_per_sample = (res+1) << 3;
+
+    return 0;
+}
+
 int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_size)
 {
     GetBitContext gb;
@@ -73,8 +101,13 @@ int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_si
     }
     specific_config_bitindex = get_bits_count(&gb);
 
+    if (c->object_type == AOT_ALS) {
+        if (get_als_config(c, &gb))
+            return -1;
+    }
+
     if (c->ext_object_type != 5) {
-        int bits_left = buf_size*8 - specific_config_bitindex;
+        int bits_left = gb.size_in_bits - get_bits_count(&gb);
         for (; bits_left > 15; bits_left--) {
             if (show_bits(&gb, 11) == 0x2b7) { // sync extension
                 get_bits(&gb, 11);
@@ -87,35 +120,6 @@ int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_si
         }
     }
     return specific_config_bitindex;
-}
-
-int ff_mpeg4audio_get_als_config(MPEG4AudioConfig *c, const uint8_t *buf,
-                                 int buf_size, int bit_offset)
-{
-    GetBitContext gb;
-    int res, fp;
-
-    if (buf_size*8 < (((bit_offset+7)>>3)<<3) + 119)
-        return -1;
-
-    init_get_bits(&gb, buf, buf_size*8);
-    skip_bits_long(&gb, bit_offset);
-    align_get_bits(&gb);
-
-    skip_bits_long(&gb, 32);                        // skip ALS id
-    c->sample_rate = get_bits_long(&gb, 32);        // sample rate
-    skip_bits_long(&gb, 32);                        // skip number of samples
-    c->absolute_channels = get_bits(&gb, 16) + 1;   // number of channels
-    skip_bits(&gb, 3);                              // skip original file type
-    res = get_bits(&gb, 3);                         // resolution
-    fp  = get_bits(&gb, 1);                         // floating-point flag
-
-    if (fp)
-        c->bits_per_sample = 32;
-    else
-        c->bits_per_sample = (res+1) << 3;
-
-    return 0;
 }
 
 static av_always_inline unsigned int copy_bits(PutBitContext *pb,
