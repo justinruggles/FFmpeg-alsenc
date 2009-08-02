@@ -60,6 +60,16 @@ static int get_als_config(MPEG4AudioConfig *c, GetBitContext *gb)
     if (gb->size_in_bits - get_bits_count(gb) < 119)
         return -1;
 
+    /* Earlier versions of the reference software, as well as the
+       conformance tests, add 24 padding bits before the start of the
+       ALSSpecificConfig.  However, recent versions of the reference software
+       do not add these padding bits. */
+    if (show_bits_long(gb, 24) != 0x414C53) {
+        skip_bits_long(gb, 24);
+        if (gb->size_in_bits - get_bits_count(gb) < 119)
+            return -1;
+    }
+
     skip_bits_long(gb, 32);                         // skip als id
     c->sample_rate = get_bits_long(gb, 32);         // sample rate
     skip_bits_long(gb, 32);                         // skip number of samples
