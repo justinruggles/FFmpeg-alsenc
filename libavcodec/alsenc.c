@@ -132,7 +132,7 @@ static int write_extradata(AlsEncodeContext *s)
     put_bits(&pb, 32, s->sample_rate);
     put_bits(&pb, 32, s->sample_count);
     put_bits(&pb, 16, s->channels-1);
-    put_bits(&pb,  3, 0);                  // orig. file type (0=unknown/raw)
+    put_bits(&pb,  3, 1);                  // orig. file type (1=WAVE)
     put_bits(&pb,  3, (s->bps/8)-1);
     put_bits(&pb,  1, 0);                  // sample type (0=integer)
     put_bits(&pb,  1, 0);                  // msb-first (arbitrary since it's unknown)
