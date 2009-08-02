@@ -432,21 +432,29 @@ static int mov_read_esds(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
             st->codec->extradata_size = len;
             if (st->codec->codec_id == CODEC_ID_AAC) {
                 MPEG4AudioConfig cfg;
-                ff_mpeg4audio_get_config(&cfg, st->codec->extradata,
+                int offset = ff_mpeg4audio_get_config(&cfg, st->codec->extradata,
                                          st->codec->extradata_size);
+                if (cfg.object_type == AOT_ALS) {
+                    /* read more accurate information from ALSSpecificConfig */
+                    if (ff_mpeg4audio_get_als_config(&cfg, st->codec->extradata,
+                                                     st->codec->extradata_size,
+                                                     offset) < 0) {
+                        return -1;
+                    }
+                }
+                if (cfg.absolute_channels) {
+                    st->codec->channels = cfg.absolute_channels;
+                } else {
                 if (cfg.chan_config > 7)
                     return -1;
                 st->codec->channels = ff_mpeg4audio_channels[cfg.chan_config];
-                if (!cfg.chan_config && cfg.object_type == 36) {
-                    /* get number of channels from ALSSpecificConfig */
-                    if(len < 20)
-                        return -1;
-                    st->codec->channels = AV_RB16(&st->codec->extradata[18]) + 1;
                 }
                 if (cfg.object_type == 29 && cfg.sampling_index < 3) // old mp3on4
                     st->codec->sample_rate = ff_mpa_freq_tab[cfg.sampling_index];
                 else
                     st->codec->sample_rate = cfg.sample_rate; // ext sample rate ?
+                if (cfg.bits_per_sample)
+                    st->codec->bits_per_coded_sample = cfg.bits_per_sample;
                 dprintf(c->fc, "mp4a config channels %d obj %d ext obj %d "
                         "sample rate %d ext sample rate %d\n", st->codec->channels,
                         cfg.object_type, cfg.ext_object_type,
