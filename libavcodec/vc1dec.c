@@ -3256,7 +3256,7 @@ static int vc1_decode_frame(AVCodecContext *avctx,
     s->me.qpel_put= s->dsp.put_qpel_pixels_tab;
     s->me.qpel_avg= s->dsp.avg_qpel_pixels_tab;
 
-    if ((CONFIG_VC1_VDPAU_DECODER || CONFIG_WMV3_VDPAU_DECODER)
+    if ((CONFIG_VC1_VDPAU_DECODER)
         &&s->avctx->codec->capabilities&CODEC_CAP_HWACCEL_VDPAU)
         ff_vdpau_vc1_decode_picture(s, buf_start, (buf + buf_size) - buf_start);
     else if (avctx->hwaccel) {
@@ -3333,6 +3333,7 @@ AVCodec vc1_decoder = {
     .pix_fmts = ff_hwaccel_pixfmt_list_420
 };
 
+#if CONFIG_WMV3_DECODER
 AVCodec wmv3_decoder = {
     "wmv3",
     CODEC_TYPE_VIDEO,
@@ -3347,6 +3348,7 @@ AVCodec wmv3_decoder = {
     .long_name = NULL_IF_CONFIG_SMALL("Windows Media Video 9"),
     .pix_fmts = ff_hwaccel_pixfmt_list_420
 };
+#endif
 
 #if CONFIG_WMV3_VDPAU_DECODER
 AVCodec wmv3_vdpau_decoder = {

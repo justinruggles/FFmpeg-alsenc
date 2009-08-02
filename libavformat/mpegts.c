@@ -640,6 +640,11 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
     p += program_info_length;
     if (p >= p_end)
         return;
+
+    // stop parsing after pmt, we found header
+    if (!ts->stream->nb_streams)
+        ts->stop_parse = 1;
+
     for(;;) {
         st = 0;
         stream_type = get8(&p, p_end);
@@ -725,7 +730,6 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
         p = desc_list_end;
     }
     /* all parameters are there */
-    ts->stop_parse++;
     mpegts_close_filter(ts, filter);
 }
 
@@ -762,17 +766,12 @@ static void pat_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
             /* NIT info */
         } else {
             av_new_program(ts->stream, sid);
-            ts->stop_parse--;
             mpegts_open_section_filter(ts, pmt_pid, pmt_cb, ts, 1);
             add_pat_entry(ts, sid);
             add_pid_to_pmt(ts, sid, 0); //add pat pid to program
             add_pid_to_pmt(ts, sid, pmt_pid);
         }
     }
-    /* not found */
-    ts->stop_parse++;
-
-    mpegts_close_filter(ts, filter);
 }
 
 static void sdt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len)
@@ -1062,6 +1061,8 @@ static PESContext *add_pes_stream(MpegTSContext *ts, int pid, int pcr_pid, int s
     pes->pcr_pid = pcr_pid;
     pes->stream_type = stream_type;
     pes->state = MPEGTS_SKIP;
+    pes->pts = AV_NOPTS_VALUE;
+    pes->dts = AV_NOPTS_VALUE;
     tss = mpegts_open_pes_filter(ts, pid, mpegts_push_data, pes);
     if (!tss) {
         av_free(pes);
