@@ -999,7 +999,11 @@ static int mov_write_hdlr_tag(ByteIOContext *pb, MOVTrack *track)
             descr = "VideoHandler";
         } else if (track->enc->codec_type == CODEC_TYPE_AUDIO) {
             hdlr_type = "soun";
+            if(track->enc->codec_id == CODEC_ID_MP4ALS) {
+                descr = "";
+            } else {
             descr = "SoundHandler";
+            }
         } else if (track->enc->codec_type == CODEC_TYPE_SUBTITLE) {
             if (track->tag == MKTAG('t','x','3','g')) hdlr_type = "sbtl";
             else                                      hdlr_type = "text";
@@ -1455,7 +1459,8 @@ static int mov_write_udta_tag(ByteIOContext *pb, MOVMuxContext *mov,
     uint8_t *buf;
 
     for (i = 0; i < s->nb_streams; i++)
-        if (mov->tracks[i].enc->flags & CODEC_FLAG_BITEXACT) {
+        if (mov->tracks[i].enc->flags & CODEC_FLAG_BITEXACT ||
+                mov->tracks[i].enc->codec_id == CODEC_ID_MP4ALS) {
             return 0;
         }
 
