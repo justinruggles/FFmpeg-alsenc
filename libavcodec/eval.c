@@ -28,21 +28,14 @@
  * see http://joe.hotchkiss.com/programming/eval/eval.html
  */
 
-#include "avcodec.h"
-#include "eval.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-#ifndef NAN
-  #define NAN 0.0/0.0
-#endif
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+#include "libavutil/mathematics.h"
+#include "avcodec.h"
+#include "eval.h"
 
 typedef struct Parser{
     int stack_index;

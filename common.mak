@@ -21,24 +21,15 @@ ALLFFLIBS = avcodec avdevice avfilter avformat avutil postproc swscale
 CPPFLAGS := -DHAVE_AV_CONFIG_H -I$(BUILD_ROOT_REL) -I$(SRC_PATH) $(CPPFLAGS)
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(LIBOBJFLAGS) -c $(CC_O) $<
+	$(CCDEP)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CC_DEPFLAGS) $(LIBOBJFLAGS) -c $(CC_O) $<
 
 %.o: %.S
-	$(AS) $(CPPFLAGS) $(ASFLAGS) $(LIBOBJFLAGS) -c -o $@ $<
+	$(ASDEP)
+	$(AS) $(CPPFLAGS) $(ASFLAGS) $(AS_DEPFLAGS) $(LIBOBJFLAGS) -c -o $@ $<
 
 %.ho: %.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LIBOBJFLAGS) -Wno-unused -c -o $@ -x c $<
-
-%.d: %.c
-	$(DEPEND_CMD)
-
-%.d: %.S
-	$(DEPEND_CMD)
-
-%.d: %.cpp
-	$(DEPEND_CMD)
-
-%.o: %.d
 
 %$(EXESUF): %.c
 
@@ -83,4 +74,4 @@ CLEANSUFFIXES     = *.o *~ *.ho *.map
 DISTCLEANSUFFIXES = *.d *.pc
 LIBSUFFIXES       = *.a *.lib *.so *.so.* *.dylib *.dll *.def *.dll.a *.exp
 
--include $(DEPS)
+-include $(wildcard $(DEPS))

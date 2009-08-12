@@ -201,6 +201,7 @@ Codecs:
   vp6                                   Aurelien Jacobs
   vqavideo.c                            Mike Melanson
   wavpack.c                             Kostya Shishkov
+  wmaprodec.c                           Sascha Sommer
   wmv2.c                                Michael Niedermayer
   wnv1.c                                Kostya Shishkov
   xan.c                                 Mike Melanson
@@ -282,6 +283,7 @@ Muxers/Demuxers:
   rl2.c                                 Sascha Sommer
   rmdec.c, rmenc.c                      Ronald S. Bultje, Kostya Shishkov
   rtp.c, rtpenc.c                       Luca Abeni
+  rtp_asf.*                             Ronald S. Bultje
   rtp_mpv.*, rtp_aac.*                  Luca Abeni
   rtsp.c                                Luca Barbato
   sdp.c                                 Luca Abeni

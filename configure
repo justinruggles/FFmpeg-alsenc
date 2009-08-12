@@ -290,6 +290,14 @@ sh_quote(){
     echo "$v"
 }
 
+filter(){
+    pat=$1
+    shift
+    for v; do
+        case "$v" in $pat) echo "$v" ;; esac
+    done
+}
+
 set_all(){
     value=$1
     shift
@@ -1068,12 +1076,12 @@ flac_decoder_select="golomb"
 flac_encoder_select="golomb"
 flashsv_decoder_select="zlib"
 flashsv_encoder_select="zlib"
-flv_encoder_select="aandct"
+flv_encoder_select="h263_encoder"
 h261_encoder_select="aandct"
 h263_encoder_select="aandct"
 h263_vaapi_hwaccel_deps="va_va_h"
 h263_vaapi_hwaccel_select="vaapi h263_decoder"
-h263p_encoder_select="aandct"
+h263p_encoder_select="h263_encoder"
 h264_decoder_select="golomb"
 h264_vaapi_hwaccel_deps="va_va_h"
 h264_vaapi_hwaccel_select="vaapi"
@@ -1087,7 +1095,7 @@ loco_decoder_select="golomb"
 mjpeg_encoder_select="aandct"
 mpeg1video_encoder_select="aandct"
 mpeg2video_encoder_select="aandct"
-mpeg4_encoder_select="aandct"
+mpeg4_encoder_select="h263_encoder"
 mpeg_vdpau_decoder_deps="vdpau_vdpau_h vdpau_vdpau_x11_h"
 mpeg_vdpau_decoder_select="vdpau mpegvideo_decoder"
 mpeg1_vdpau_decoder_deps="vdpau_vdpau_h vdpau_vdpau_x11_h"
@@ -1097,16 +1105,17 @@ mpeg2_vaapi_hwaccel_select="vaapi mpeg2video_decoder"
 mpeg4_vaapi_hwaccel_deps="va_va_h"
 mpeg4_vaapi_hwaccel_select="vaapi mpeg4_decoder"
 mpeg_xvmc_decoder_deps="X11_extensions_XvMClib_h"
-msmpeg4v1_encoder_select="aandct"
-msmpeg4v2_encoder_select="aandct"
-msmpeg4v3_encoder_select="aandct"
+mpeg_xvmc_decoder_select="mpegvideo_decoder"
+msmpeg4v1_encoder_select="h263_encoder"
+msmpeg4v2_encoder_select="h263_encoder"
+msmpeg4v3_encoder_select="h263_encoder"
 nellymoser_decoder_select="fft mdct"
 nellymoser_encoder_select="fft mdct"
 png_decoder_select="zlib"
 png_encoder_select="zlib"
 qdm2_decoder_select="fft mdct rdft"
-rv10_encoder_select="aandct"
-rv20_encoder_select="aandct"
+rv10_encoder_select="h263_encoder"
+rv20_encoder_select="h263_encoder"
 rv30_decoder_select="golomb"
 rv40_decoder_select="golomb"
 shorten_decoder_select="golomb"
@@ -1131,8 +1140,8 @@ wmav1_decoder_select="fft mdct"
 wmav1_encoder_select="fft mdct"
 wmav2_decoder_select="fft mdct"
 wmav2_encoder_select="fft mdct"
-wmv1_encoder_select="aandct"
-wmv2_encoder_select="aandct"
+wmv1_encoder_select="h263_encoder"
+wmv2_encoder_select="h263_encoder"
 wmv3_decoder_select="vc1_decoder"
 wmv3_vaapi_hwaccel_select="vc1_vaapi_hwaccel"
 wmv3_vdpau_decoder_select="vc1_vdpau_decoder"
@@ -1300,7 +1309,7 @@ target_path='.'
 
 # gcc stupidly only outputs the basename of targets with -MM, but we need the
 # full relative path for objects in subdirectories for non-recursive Make.
-DEPEND_CMD='$(DEPCC) $(DEPFLAGS) $< | sed -e "/^\#.*/d" -e "s,^[[:space:]]*$(*F)\\.o,$(@D)/$(*F).o," > $@'
+DEPEND_CMD='$(DEPCC) $(DEPFLAGS) $< | sed -e "/^\#.*/d" -e "s,^[[:space:]]*$(*F)\\.o,$(@D)/$(*F).o," > $(@:.o=.d)'
 DEPFLAGS='$(CPPFLAGS) $(CFLAGS) -MM'
 
 # find source path
@@ -1381,11 +1390,11 @@ for opt do
     --enable-debug=*) debuglevel="$optval"
     ;;
     --enable-*=*|--disable-*=*)
-    eval $(echo "$opt" | sed 's/=/-/;s/--/action=/;s/-/ thing=/;s/-/ name=/')
-    case "$thing" in
-        encoder|decoder|hwaccel|muxer|demuxer|indev|outdev|parser|bsf|protocol|filter) $action ${optval}_${thing} ;;
-        *) die_unknown "$opt" ;;
-    esac
+    eval $(echo "${opt%%=*}" | sed 's/--/action=/;s/-/ thing=/')
+    is_in "${thing}s" $COMPONENT_LIST || die_unknown "$opt"
+    eval list=\$$(toupper $thing)_LIST
+    name=$(echo "${optval}" | sed "s/,/_${thing}|/g")_${thing}
+    $action $(filter "$name" $list)
     ;;
     --enable-?*|--disable-?*)
     eval $(echo "$opt" | sed 's/--/action=/;s/-/ option=/;s/-/_/g')
@@ -1499,10 +1508,16 @@ filter_cflags=echo
 filter_cppflags=echo
 filter_asflags=echo
 
-if   $cc --version 2>/dev/null | grep -qi gcc; then
+if   $cc -v 2>&1 | grep -qi ^gcc; then
     cc_type=gcc
+    if ! $cc -dumpversion | grep -q '^2\.'; then
+        CC_DEPFLAGS='-MMD -MF $(@:.o=.d) -MT $@'
+        AS_DEPFLAGS='-MMD -MF $(@:.o=.d) -MT $@'
+    fi
 elif $cc --version 2>/dev/null | grep -q Intel; then
     cc_type=icc
+    CC_DEPFLAGS='-MMD'
+    AS_DEPFLAGS='-MMD'
 elif $cc -v 2>&1 | grep -q xlc; then
     cc_type=xlc
 elif $cc -V 2>/dev/null | grep -q Compaq; then
@@ -1521,17 +1536,19 @@ elif $cc --vsn 2>/dev/null | grep -q RVCT; then
         die "Error creating armcc configuration file."
     cc="$cc --arm_linux_config_file=$armcc_conf --translate_gcc"
     as_default="${cross_prefix}gcc"
+    CC_DEPFLAGS='-MMD'
+    AS_DEPFLAGS='-MMD'
 elif $cc -version 2>/dev/null | grep -q TMS470; then
     cc_type=tms470
     cc="$cc --gcc --abi=eabi -eo=.o -mc -me"
     CC_O='-fr=$(@D)'
     as_default="${cross_prefix}gcc"
     ld_default="${cross_prefix}gcc"
-    dep_cc_default="${cross_prefix}gcc"
     TMPO=$(basename $TMPC .c).o
     append TMPFILES $TMPO
     add_cflags -D__gnuc_va_list=va_list -D__USER_LABEL_PREFIX__=
-    DEPFLAGS='$(CPPFLAGS) -MM'
+    CC_DEPFLAGS='-ppa -ppd=$(@:.o=.d)'
+    AS_DEPFLAGS='-MMD'
     filter_cflags=tms470_flags
     tms470_flags(){
         for flag; do
@@ -1565,6 +1582,9 @@ test -n "$cc_type" && enable $cc_type || echolog "Unknown C compiler $cc"
 : ${ld_default:=$cc}
 set_default as dep_cc ld
 
+test -n "$CC_DEPFLAGS" || CCDEP=$DEPEND_CMD
+test -n "$AS_DEPFLAGS" || ASDEP=$DEPEND_CMD
+
 add_cflags $extra_cflags
 add_asflags $extra_cflags
 
@@ -1579,6 +1599,22 @@ if test -n "$sysroot"; then
             add_ldflags  --sysroot="$sysroot"
         ;;
     esac
+fi
+
+if test "$cpu" = host; then
+    enabled cross_compile && die "--cpu=host makes no sense when cross-compiling."
+
+    case "$cc_type" in
+        gcc)
+            check_native(){
+                $cc $1=native -v -c -o $TMPO $TMPC >$TMPE 2>&1 || return
+                awk "/$1=/{ match(\$0, /$1=(\\w+)/, a);print a[1];exit }" $TMPE
+            }
+            cpu=$(check_native -march || check_native -mcpu)
+        ;;
+    esac
+
+    test "${cpu:-host}" = host && die "--cpu=host not supported with compiler $cc"
 fi
 
 # Add processor-specific flags
@@ -1837,7 +1873,8 @@ case $target_os in
         FFSERVERLDFLAGS=-Wl,-bind_at_load
         objformat="macho"
         enabled x86_64 && objformat="macho64"
-        enabled shared || check_cflags -mdynamic-no-pic
+        enabled shared ||
+            { check_cflags -mdynamic-no-pic && add_asflags -mdynamic-no-pic; }
         ;;
     mingw32*)
         if test $target_os = "mingw32ce"; then
@@ -2586,8 +2623,11 @@ echo "SLIBPREF=$SLIBPREF" >> config.mak
 echo "SLIBSUF=$SLIBSUF" >> config.mak
 echo "EXESUF=$EXESUF" >> config.mak
 echo "EXTRA_VERSION=$extra_version" >> config.mak
-echo "DEPEND_CMD=$DEPEND_CMD" >> config.mak
 echo "DEPFLAGS=$DEPFLAGS" >> config.mak
+echo "CCDEP=$CCDEP" >> config.mak
+echo "ASDEP=$ASDEP" >> config.mak
+echo "CC_DEPFLAGS=$CC_DEPFLAGS" >> config.mak
+echo "AS_DEPFLAGS=$AS_DEPFLAGS" >> config.mak
 echo "HOSTCC=$host_cc" >> config.mak
 echo "HOSTCFLAGS=$host_cflags" >> config.mak
 echo "HOSTEXESUF=$HOSTEXESUF" >> config.mak

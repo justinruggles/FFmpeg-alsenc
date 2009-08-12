@@ -1171,23 +1171,6 @@ static void alloc_picture(void *opaque)
     if (vp->bmp)
         SDL_FreeYUVOverlay(vp->bmp);
 
-#if 0
-    /* XXX: use generic function */
-    /* XXX: disable overlay if no hardware acceleration or if RGB format */
-    switch(is->video_st->codec->pix_fmt) {
-    case PIX_FMT_YUV420P:
-    case PIX_FMT_YUV422P:
-    case PIX_FMT_YUV444P:
-    case PIX_FMT_YUYV422:
-    case PIX_FMT_YUV410P:
-    case PIX_FMT_YUV411P:
-        is_yuv = 1;
-        break;
-    default:
-        is_yuv = 0;
-        break;
-    }
-#endif
     vp->bmp = SDL_CreateYUVOverlay(is->video_st->codec->width,
                                    is->video_st->codec->height,
                                    SDL_YV12_OVERLAY,
@@ -2495,7 +2478,7 @@ static const OptionDef options[] = {
     { "nodisp", OPT_BOOL, {(void*)&display_disable}, "disable graphical display" },
     { "f", HAS_ARG, {(void*)opt_format}, "force format", "fmt" },
     { "pix_fmt", HAS_ARG | OPT_EXPERT | OPT_VIDEO, {(void*)opt_frame_pix_fmt}, "set pixel format", "format" },
-    { "stats", HAS_ARG | OPT_INT | OPT_EXPERT, {(void*)&show_status}, "show status", "" },
+    { "stats", OPT_BOOL | OPT_EXPERT, {(void*)&show_status}, "show status", "" },
     { "debug", HAS_ARG | OPT_FUNC2 | OPT_EXPERT, {(void*)opt_debug}, "print specific debug info", "" },
     { "bug", OPT_INT | HAS_ARG | OPT_EXPERT, {(void*)&workaround_bugs}, "workaround bugs", "" },
     { "vismv", HAS_ARG | OPT_FUNC2 | OPT_EXPERT, {(void*)opt_vismv}, "visualize motion vectors", "" },

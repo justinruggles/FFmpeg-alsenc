@@ -1,5 +1,7 @@
 /*
- * Copyright (c) 2008 BBC, Anuradha Suraparaju <asuraparaju at gmail dot com >
+ * APE tag handling
+ * Copyright (c) 2007 Benjamin Zores <ben@geexbox.org>
+ *  based upon libdemac from Dave Chapman.
  *
  * This file is part of FFmpeg.
  *
@@ -18,27 +20,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-/**
-* @file libavcodec/libdirac.h
-* data structures common to libdiracenc.c and libdiracdec.c
-*/
+#ifndef AVFORMAT_APETAG_H
+#define AVFORMAT_APETAG_H
 
-#ifndef AVCODEC_LIBDIRAC_H
-#define AVCODEC_LIBDIRAC_H
-
-#include "avcodec.h"
-#include <libdirac_common/dirac_types.h>
+#include "avformat.h"
 
 /**
-* Table providing a Dirac chroma format to FFmpeg pixel format mapping.
-*/
-static const struct {
-    enum PixelFormat ff_pix_fmt;
-    dirac_chroma_t dirac_pix_fmt;
-} ffmpeg_dirac_pixel_format_map[] = {
-    { PIX_FMT_YUV420P, format420 },
-    { PIX_FMT_YUV422P, format422 },
-    { PIX_FMT_YUV444P, format444 },
-};
+ * Read and parse an APE tag
+ */
+void ff_ape_parse_tag(AVFormatContext *s);
 
-#endif /* AVCODEC_LIBDIRAC_H */
+#endif /* AVFORMAT_ID3V2_H */
