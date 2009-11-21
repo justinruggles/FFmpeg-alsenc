@@ -30,7 +30,9 @@ typedef struct {
     int object_type;
     int sampling_index;
     int sample_rate;
+    int bits_per_sample;
     int chan_config;
+    int absolute_channels;
     int sbr; //< -1 implicit, 1 presence
     int ext_object_type;
     int ext_sampling_index;

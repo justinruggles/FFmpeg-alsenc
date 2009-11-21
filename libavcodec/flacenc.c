@@ -26,7 +26,7 @@
 #include "dsputil.h"
 #include "golomb.h"
 #include "lpc.h"
-#include "flac.h"
+#include "flacenc.h"
 #include "flacdata.h"
 
 #define FLAC_SUBFRAME_CONSTANT  0
@@ -53,11 +53,6 @@ typedef struct CompressionOptions {
     int max_partition_order;
 } CompressionOptions;
 
-typedef struct RiceContext {
-    int porder;
-    int params[MAX_PARTITIONS];
-} RiceContext;
-
 typedef struct FlacSubframe {
     int type;
     int type_code;
@@ -65,7 +60,7 @@ typedef struct FlacSubframe {
     int order;
     int32_t coefs[MAX_LPC_ORDER];
     int shift;
-    RiceContext rc;
+    FlacRiceContext rc;
     int32_t samples[FLAC_MAX_BLOCKSIZE];
     int32_t residual[FLAC_MAX_BLOCKSIZE+1];
 } FlacSubframe;
@@ -434,7 +429,7 @@ static int find_optimal_param(uint32_t sum, int n)
     return FFMIN(k, MAX_RICE_PARAM);
 }
 
-static uint32_t calc_optimal_rice_params(RiceContext *rc, int porder,
+static uint32_t calc_optimal_rice_params(FlacRiceContext *rc, int porder,
                                          uint32_t *sums, int n, int pred_order)
 {
     int i;
@@ -485,13 +480,13 @@ static void calc_sums(int pmin, int pmax, uint32_t *data, int n, int pred_order,
     }
 }
 
-static uint32_t calc_rice_params(RiceContext *rc, int pmin, int pmax,
-                                 int32_t *data, int n, int pred_order)
+uint32_t ff_flac_calc_rice_params(FlacRiceContext *rc, int pmin, int pmax,
+                                  int32_t *data, int n, int pred_order)
 {
     int i;
     uint32_t bits[MAX_PARTITION_ORDER+1];
     int opt_porder;
-    RiceContext tmp_rc;
+    FlacRiceContext tmp_rc;
     uint32_t *udata;
     uint32_t sums[MAX_PARTITION_ORDER+1][MAX_PARTITIONS];
 
@@ -528,7 +523,7 @@ static int get_max_p_order(int max_porder, int n, int order)
     return porder;
 }
 
-static uint32_t calc_rice_params_fixed(RiceContext *rc, int pmin, int pmax,
+static uint32_t calc_rice_params_fixed(FlacRiceContext *rc, int pmin, int pmax,
                                        int32_t *data, int n, int pred_order,
                                        int bps)
 {
@@ -536,11 +531,11 @@ static uint32_t calc_rice_params_fixed(RiceContext *rc, int pmin, int pmax,
     pmin = get_max_p_order(pmin, n, pred_order);
     pmax = get_max_p_order(pmax, n, pred_order);
     bits = pred_order*bps + 6;
-    bits += calc_rice_params(rc, pmin, pmax, data, n, pred_order);
+    bits += ff_flac_calc_rice_params(rc, pmin, pmax, data, n, pred_order);
     return bits;
 }
 
-static uint32_t calc_rice_params_lpc(RiceContext *rc, int pmin, int pmax,
+static uint32_t calc_rice_params_lpc(FlacRiceContext *rc, int pmin, int pmax,
                                      int32_t *data, int n, int pred_order,
                                      int bps, int precision)
 {
@@ -548,7 +543,7 @@ static uint32_t calc_rice_params_lpc(RiceContext *rc, int pmin, int pmax,
     pmin = get_max_p_order(pmin, n, pred_order);
     pmax = get_max_p_order(pmax, n, pred_order);
     bits = pred_order*bps + 4 + 5 + pred_order*precision + 6;
-    bits += calc_rice_params(rc, pmin, pmax, data, n, pred_order);
+    bits += ff_flac_calc_rice_params(rc, pmin, pmax, data, n, pred_order);
     return bits;
 }
 

@@ -371,7 +371,8 @@ static int mov_write_wave_tag(ByteIOContext *pb, MOVTrack *track)
     put_tag(pb, "frma");
     put_le32(pb, track->tag);
 
-    if (track->enc->codec_id == CODEC_ID_AAC) {
+    if (track->enc->codec_id == CODEC_ID_AAC ||
+        track->enc->codec_id == CODEC_ID_MP4ALS) {
         /* useless atom needed by mplayer, ipod, not needed by quicktime */
         put_be32(pb, 12); /* size */
         put_tag(pb, "mp4a");
@@ -452,7 +453,8 @@ static int mov_write_audio_tag(ByteIOContext *pb, MOVTrack *track)
         track->enc->codec_id == CODEC_ID_AMR_NB ||
         track->enc->codec_id == CODEC_ID_PCM_S24LE ||
         track->enc->codec_id == CODEC_ID_PCM_S32LE ||
-        track->enc->codec_id == CODEC_ID_ALAC))
+        track->enc->codec_id == CODEC_ID_ALAC ||
+        track->enc->codec_id == CODEC_ID_MP4ALS))
         mov_write_wave_tag(pb, track);
     else if(track->tag == MKTAG('m','p','4','a'))
         mov_write_esds_tag(pb, track);
@@ -997,7 +999,11 @@ static int mov_write_hdlr_tag(ByteIOContext *pb, MOVTrack *track)
             descr = "VideoHandler";
         } else if (track->enc->codec_type == CODEC_TYPE_AUDIO) {
             hdlr_type = "soun";
-            descr = "SoundHandler";
+            if(track->enc->codec_id == CODEC_ID_MP4ALS) {
+                descr = "";
+            } else {
+                descr = "SoundHandler";
+            }
         } else if (track->enc->codec_type == CODEC_TYPE_SUBTITLE) {
             if (track->tag == MKTAG('t','x','3','g')) hdlr_type = "sbtl";
             else                                      hdlr_type = "text";
@@ -1453,7 +1459,8 @@ static int mov_write_udta_tag(ByteIOContext *pb, MOVMuxContext *mov,
     uint8_t *buf;
 
     for (i = 0; i < s->nb_streams; i++)
-        if (mov->tracks[i].enc->flags & CODEC_FLAG_BITEXACT) {
+        if (mov->tracks[i].enc->flags & CODEC_FLAG_BITEXACT ||
+                mov->tracks[i].enc->codec_id == CODEC_ID_MP4ALS) {
             return 0;
         }
 

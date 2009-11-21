@@ -31,6 +31,42 @@
 
 /* simple formats */
 
+#if CONFIG_ALS_MUXER
+static int als_write_header(AVFormatContext *s)
+{
+    uint8_t *als_specific_config = s->streams[0]->codec->extradata;
+    if(als_specific_config) {
+        int len = s->streams[0]->codec->extradata_size;
+        /* find start of ALSSpecificConfig */
+        while(AV_RB32(als_specific_config) != MKBETAG('A','L','S','\0') &&
+                len > 30) {
+            als_specific_config++;
+            len--;
+        }
+        if(len >= 30) {
+            /* write ALSSpecificConfig as ALS header */
+            put_buffer(s->pb, als_specific_config, len);
+        }
+    }
+    return 0;
+}
+
+static int als_write_trailer(AVFormatContext *s)
+{
+    int64_t file_size = url_ftell(s->pb);
+
+    if(!url_is_streamed(s->pb) && url_fseek(s->pb, 0, SEEK_SET) >= 0) {
+        als_write_header(s);
+        url_fseek(s->pb, file_size, SEEK_SET);
+    } else {
+        av_log(s, AV_LOG_WARNING, "Warning: streaming ALS is not supported "
+               "currently due to the specification requirement to have the "
+               "total number of samples in the header.\n");
+    }
+    return 0;
+}
+#endif
+
 #if CONFIG_ROQ_MUXER
 static int roq_write_header(struct AVFormatContext *s)
 {
@@ -746,6 +782,22 @@ AVOutputFormat ac3_muxer = {
     CODEC_ID_NONE,
     NULL,
     raw_write_packet,
+    .flags= AVFMT_NOTIMESTAMPS,
+};
+#endif
+
+#if CONFIG_ALS_MUXER
+AVOutputFormat als_muxer = {
+    "als",
+    NULL_IF_CONFIG_SMALL("raw ALS"),
+    NULL,
+    "als",
+    0,
+    CODEC_ID_MP4ALS,
+    0,
+    als_write_header,
+    raw_write_packet,
+    als_write_trailer,
     .flags= AVFMT_NOTIMESTAMPS,
 };
 #endif

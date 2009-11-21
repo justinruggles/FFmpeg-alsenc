@@ -76,6 +76,44 @@ static inline int get_sample_rate(GetBitContext *gb, int *index)
         ff_mpeg4audio_sample_rates[*index];
 }
 
+/**
+ * Parse basic information from ALSSpecificConfig for MPEG-4 ALS audio.
+ */
+static int get_als_config(MPEG4AudioConfig *c, GetBitContext *gb)
+{
+    int res, fp;
+
+    align_get_bits(gb);
+
+    if (gb->size_in_bits - get_bits_count(gb) < 119)
+        return -1;
+
+    /* Earlier versions of the reference software, as well as the
+       conformance tests, add 24 padding bits before the start of the
+       ALSSpecificConfig.  However, recent versions of the reference software
+       do not add these padding bits. */
+    if (show_bits_long(gb, 24) != 0x414C53) {
+        skip_bits_long(gb, 24);
+        if (gb->size_in_bits - get_bits_count(gb) < 119)
+            return -1;
+    }
+
+    skip_bits_long(gb, 32);                         // skip als id
+    c->sample_rate = get_bits_long(gb, 32);         // sample rate
+    skip_bits_long(gb, 32);                         // skip number of samples
+    c->absolute_channels = get_bits(gb, 16) + 1;    // number of channels
+    skip_bits(gb, 3);                               // skip original file type
+    res = get_bits(gb, 3);                          // resolution
+    fp  = get_bits(gb, 1);                          // floating-point flag
+
+    if (fp)
+        c->bits_per_sample = 32;
+    else
+        c->bits_per_sample = (res+1) << 3;
+
+    return 0;
+}
+
 int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_size)
 {
     GetBitContext gb;
