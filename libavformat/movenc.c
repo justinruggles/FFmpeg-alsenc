@@ -371,8 +371,7 @@ static int mov_write_wave_tag(ByteIOContext *pb, MOVTrack *track)
     put_tag(pb, "frma");
     put_le32(pb, track->tag);
 
-    if (track->enc->codec_id == CODEC_ID_AAC ||
-        track->enc->codec_id == CODEC_ID_MP4ALS) {
+    if (track->tag == MKTAG('m','p','4','a')) {
         /* useless atom needed by mplayer, ipod, not needed by quicktime */
         put_be32(pb, 12); /* size */
         put_tag(pb, "mp4a");
@@ -448,13 +447,12 @@ static int mov_write_audio_tag(ByteIOContext *pb, MOVTrack *track)
     }
 
     if(track->mode == MODE_MOV &&
-       (track->enc->codec_id == CODEC_ID_AAC ||
+       (track->tag == MKTAG('m','p','4','a') ||
         track->enc->codec_id == CODEC_ID_AC3 ||
         track->enc->codec_id == CODEC_ID_AMR_NB ||
         track->enc->codec_id == CODEC_ID_PCM_S24LE ||
         track->enc->codec_id == CODEC_ID_PCM_S32LE ||
-        track->enc->codec_id == CODEC_ID_ALAC ||
-        track->enc->codec_id == CODEC_ID_MP4ALS))
+        track->enc->codec_id == CODEC_ID_ALAC))
         mov_write_wave_tag(pb, track);
     else if(track->tag == MKTAG('m','p','4','a'))
         mov_write_esds_tag(pb, track);
