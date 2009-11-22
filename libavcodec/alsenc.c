@@ -486,11 +486,11 @@ static int encode_frame(AlsEncodeContext *s)
             blk->residual[0] = v;
         } else if (s->max_lpc_order) {
             if (!s->random_access && n < s->max_lpc_order) {
-                s->dsp.flac_compute_autocorr(blk->samples-s->max_lpc_order,
+                s->dsp.lpc_compute_autocorr(blk->samples-s->max_lpc_order,
                                              n+s->max_lpc_order,
                                              s->max_lpc_order, autoc);
             } else {
-                s->dsp.flac_compute_autocorr(blk->samples, n, s->max_lpc_order,
+                s->dsp.lpc_compute_autocorr(blk->samples, n, s->max_lpc_order,
                                              autoc);
             }
             compute_parcor_coeffs(autoc, s->max_lpc_order, parcor);
