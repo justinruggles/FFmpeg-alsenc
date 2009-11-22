@@ -511,7 +511,7 @@ static int get_packet(URLContext *s, int for_header)
             continue;
         }
         if (rpkt.type == RTMP_PT_VIDEO || rpkt.type == RTMP_PT_AUDIO ||
-            rpkt.type == RTMP_PT_NOTIFY) {
+           (rpkt.type == RTMP_PT_NOTIFY && !memcmp("\002\000\012onMetaData", rpkt.data, 13))) {
             uint8_t *p;
             uint32_t ts = rpkt.timestamp;
 
@@ -590,8 +590,10 @@ static int rtmp_open(URLContext *s, const char *uri, int flags)
         port = RTMP_DEFAULT_PORT;
     snprintf(buf, sizeof(buf), "tcp://%s:%d", hostname, port);
 
-    if (url_open(&rt->stream, buf, URL_RDWR) < 0)
+    if (url_open(&rt->stream, buf, URL_RDWR) < 0) {
+        av_log(LOG_CONTEXT, AV_LOG_ERROR, "Cannot open connection %s\n", buf);
         goto fail;
+    }
 
     if (!is_input) {
         av_log(LOG_CONTEXT, AV_LOG_ERROR, "RTMP output is not supported yet.\n");
