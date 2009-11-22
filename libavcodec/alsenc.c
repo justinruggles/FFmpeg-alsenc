@@ -100,7 +100,8 @@ static int write_extradata(AlsEncodeContext *s)
 {
     PutBitContext pb;
     uint8_t header[ALS_EXTRADATA_MAX_SIZE+FF_INPUT_BUFFER_PADDING_SIZE];
-    int i, length;
+    int length;
+    //int i;
 
     memset(header, 0, sizeof(header));
     init_put_bits(&pb, header, ALS_EXTRADATA_MAX_SIZE);
