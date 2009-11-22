@@ -456,7 +456,7 @@ int ff_mov_read_esds(AVFormatContext *fc, ByteIOContext *pb, MOVAtom atom)
                 return AVERROR(ENOMEM);
             get_buffer(pb, st->codec->extradata, len);
             st->codec->extradata_size = len;
-            if (st->codec->codec_id == CODEC_ID_AAC) {
+            if (object_type_id >= 0x40 && object_type_id <= 0x4B) { // 14496-3
                 MPEG4AudioConfig cfg;
                 ff_mpeg4audio_get_config(&cfg, st->codec->extradata,
                                          st->codec->extradata_size);
