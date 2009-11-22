@@ -487,11 +487,11 @@ static int encode_frame(AlsEncodeContext *s)
         } else if (s->max_lpc_order) {
             if (!s->random_access && n < s->max_lpc_order) {
                 s->dsp.lpc_compute_autocorr(blk->samples-s->max_lpc_order,
-                                             n+s->max_lpc_order,
-                                             s->max_lpc_order, autoc);
+                                            n+s->max_lpc_order,
+                                            s->max_lpc_order, autoc);
             } else {
                 s->dsp.lpc_compute_autocorr(blk->samples, n, s->max_lpc_order,
-                                             autoc);
+                                            autoc);
             }
             compute_parcor_coeffs(autoc, s->max_lpc_order, parcor);
             quantize_parcor_coeffs(parcor, s->max_lpc_order,
