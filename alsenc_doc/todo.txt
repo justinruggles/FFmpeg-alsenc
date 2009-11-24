@@ -1,0 +1,4 @@
+Simple To-Do list for the ALS encoder:
+
+- do more planning...
+
