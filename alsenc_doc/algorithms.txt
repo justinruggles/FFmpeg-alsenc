@@ -1,0 +1,38 @@
+Algorithm overview for the ALS encoder:
+
+
+Stage: Signal Preprocessing
+    Speed:          -
+    Compression:    -
+    Compromise:     -
+
+Stage: Channel Sorting
+    Speed:          user defined sorting
+    Compression:    user defined sorting
+    Compromise:     user defined sorting
+
+Stage: Frame Partitioning
+    Speed:          -
+    Compression:    -
+    Compromise:     -
+
+Stage: Block Partitioning
+    Speed:          -
+    Compression:    -
+    Compromise:     -
+
+Stage: Short-Term Prediction
+    Speed:          -
+    Compression:    -
+    Compromise:     -
+
+Stage: Long-Term Prediction
+    Speed:          -
+    Compression:    -
+    Compromise:     -
+
+Stage: Joint-/Multi-Channel Coding
+    Speed:          -
+    Compression:    -
+    Compromise:     -
+
