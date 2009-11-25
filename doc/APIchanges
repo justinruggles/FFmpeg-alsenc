@@ -12,6 +12,16 @@ libavutil:   2009-03-08
 
 API changes, most recent first:
 
+2009-11-25 - r20607 - lavfi 1.10.0 - avfilter_next()
+  Introduce the avfilter_next() function.
+
+2009-11-25 - r20605 - lavfi 1.9.0 - avfilter_register()
+  Change the signature of avfilter_register() to make it return an
+  int. This is required since now the registration operation may fail.
+
+2009-11-25 - r20603 - lavu 50.5.0 - pixdesc.h API
+  Make the pixdesc.h API public.
+
 2009-10-27 - r20385 - lavfi 1.5.0 - AVFilter.next
   Add a next field to AVFilter, this is used for simplifying the
   registration and management of the registered filters.
