@@ -2,9 +2,9 @@ Algorithm overview for the ALS encoder:
 
 
 Stage: Channel Sorting
-    Speed:          user defined sorting
-    Compression:    user defined sorting
-    Compromise:     user defined sorting
+    Speed:          Determined by user defined channel layout
+    Compression:    Determined by user defined channel layout
+    Compromise:     Determined by user defined channel layout
 
 Stage: Frame Partitioning
     Speed:          -
