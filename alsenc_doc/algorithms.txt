@@ -7,27 +7,42 @@ Stage: Channel Sorting
     Compromise:     Determined by user defined channel layout
 
 Stage: Frame Partitioning
-    Speed:          -
-    Compression:    -
-    Compromise:     -
+    Speed:          Fixed frame sizes for different encoding parameters.
+    Compression:    Fixed frame sizes for different encoding parameters.
+    Compromise:     Fixed frame sizes for different encoding parameters.
 
 Stage: Block Partitioning
-    Speed:          -
-    Compression:    -
-    Compromise:     -
+    Speed:          Off
+    Compression:    Trellis search for rate-optimal partitioning.
+    Compromise:     A)  a faster algorithm using difference of sum of simple
+                        prediction residual between adjacent sub-blocks
+                        (similar to the variable block size algorithm in Flake)
+                    B)  varying amounts of speed/accuracy in the bit count part
+                        of the trellis search
+                    C)  different maximum levels of partitioning
 
 Stage: Short-Term Prediction
-    Speed:          -
-    Compression:    -
-    Compromise:     -
+    1: Calculation of Prediction Coefficients:
+    Speed:          Pre-defined fixed coefficients
+    Compression:    Cholesky
+    Compromise:     A) Levinson-Durbin
+                    B) different window functions(?)
+                    C) different recusrion levels for Cholesky
+
+    2: Selection of Prediction Order:
+    Speed:          Fixed order determined at init by user and/or encoder
+    Compression:    Full search using highest accuracy of all lower stages
+    Compromise:     A) estimate order based on PARCOR threshold value
+                    B) use less search steps
+                    C) use varying levels of accuracy for lower stages in the search
 
 Stage: Long-Term Prediction
-    Speed:          -
-    Compression:    -
-    Compromise:     -
+    Speed:          Off
+    Compression:    Full Search
+    Compromise:     Maybe full search is fast enough. Heuristics otherwise(?)
 
 Stage: Joint-/Multi-Channel Coding
-    Speed:          -
-    Compression:    -
-    Compromise:     -
+    Speed:          Off
+    Compression:    Full Search
+    Compromise:     Maybe channel layout dependant
 
