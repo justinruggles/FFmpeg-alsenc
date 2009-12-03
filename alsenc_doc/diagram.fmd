@@ -1,50 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" id="SVG_ROOT" style="position: absolute; z-index: 10; opacity: 1; -moz-user-select: none;" x="0px" y="0px" width="10000px" height="10000px" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><filter filterUnits="objectBoundingBox" id="shadow_filter"><feGaussianBlur result="MyBlur" stdDeviation="2" in="SourceAlpha"/><feOffset result="FinalBlur" dy="2" dx="3" in="MyBlur"/><feMerge><feMergeNode in="FinalBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g transform="rotate(0, 345.6, 61.44)" stroke-width="1" z-index="200" id="shape:004aa1b9-1ad8-94bb-2971-7183706c91de">
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" id="SVG_ROOT" style="position: absolute; z-index: 10; opacity: 1; -moz-user-select: none;" x="0px" y="0px" width="10000px" height="10000px" xmlns:xlink="http://www.w3.org/1999/xlink"><defs><filter filterUnits="objectBoundingBox" id="shadow_filter"><feGaussianBlur result="MyBlur" stdDeviation="2" in="SourceAlpha"/><feOffset result="FinalBlur" dy="2" dx="3" in="MyBlur"/><feMerge><feMergeNode in="FinalBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g transform="rotate(0, 161.28, 56.6)" stroke-width="1" z-index="200" id="shape:004aa1b9-1ad8-94bb-2971-7183706c91de">
 
-<svg x="291.8400000000px" y="30.7200000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<svg x="107.5200000000px" y="25.879999999999995px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
 </svg>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:b5cab27d-f126-182d-30e8-3e376cb8fefb" type="from"/><c:connection lineid="connector:d12b946d-d7bc-40b0-ce4c-0b7c19dd22a4" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:d12b946d-d7bc-40b0-ce4c-0b7c19dd22a4" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:2787aa6c-1045-035a-c5de-81a6b54aa584" type="from"/><c:connection lineid="connector:2e7cb3c1-e361-e586-ed67-a3275957e8b7" type="from"/><c:connection lineid="connector:49bf2b5f-1e15-a6ce-acd5-8725ff155f09" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:2787aa6c-1045-035a-c5de-81a6b54aa584" type="from"/><c:connection lineid="connector:2e7cb3c1-e361-e586-ed67-a3275957e8b7" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:b5cab27d-f126-182d-30e8-3e376cb8fefb" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:49bf2b5f-1e15-a6ce-acd5-8725ff155f09" type="from"/></c:connection-point>
 <linearGradient id="Gradient01a66f44ba-151d-2624-6a94-09f764e32f9f" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="345.6" y="64" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Deinterleave Raw </text><text id="text:normal" x="345.6" y="75.264" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Samples</text><text id="text:templateshape:004aa1b9-1ad8-94bb-2971-7183706c91de" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#68;&#101;&#105;&#110;&#116;&#101;&#114;&#108;&#101;&#97;&#118;&#101;&#32;&#82;&#97;&#119;&#32;&#83;&#97;&#109;&#112;&#108;&#101;&#115;--></c:textData></g><g transform="rotate(0, 345.6, 153.6)" stroke-width="1" z-index="207" id="shape:a2001791-dae6-17b7-466e-4e5080b3acb8">
+ <text id="text:normal" x="161.28" y="59.16" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Deinterleave Raw </text><text id="text:normal" x="161.28" y="70.424" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Samples</text><text id="text:templateshape:004aa1b9-1ad8-94bb-2971-7183706c91de" x="107.52" y="107.52" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#68;&#101;&#105;&#110;&#116;&#101;&#114;&#108;&#101;&#97;&#118;&#101;&#32;&#82;&#97;&#119;&#32;&#83;&#97;&#109;&#112;&#108;&#101;&#115;--></c:textData></g><g transform="rotate(0, 345.6, 56.6)" stroke-width="1" z-index="207" id="shape:a2001791-dae6-17b7-466e-4e5080b3acb8">
 
-<svg x="291.84px" y="122.88000000000002px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<svg x="291.84px" y="25.880000000000024px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
 </svg>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:fd494323-ac0a-c072-7b31-ad15ddae229b" type="from"/><c:connection lineid="connector:7efae615-e85d-b29d-32cf-ae2a4e1d30b7" type="from"/><c:connection lineid="connector:49bf2b5f-1e15-a6ce-acd5-8725ff155f09" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:fd494323-ac0a-c072-7b31-ad15ddae229b" type="from"/><c:connection lineid="connector:7efae615-e85d-b29d-32cf-ae2a4e1d30b7" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:a5af6606-754b-0c13-ed63-6d24bf42ff93" type="from"/><c:connection lineid="connector:81e6ddce-0899-c465-cdfe-3bf9e323aafa" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:49bf2b5f-1e15-a6ce-acd5-8725ff155f09" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:db744210-a0d9-2a84-a213-2172d2347aa1" type="to"/></c:connection-point>
 <linearGradient id="Gradient01ab331a88-b099-217f-9ecd-1eff313c12db" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="345.6" y="156.16" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Channel Sorting</text><text id="text:templateshape:a2001791-dae6-17b7-466e-4e5080b3acb8" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#67;&#104;&#97;&#110;&#110;&#101;&#108;&#32;&#83;&#111;&#114;&#116;&#105;&#110;&#103;--></c:textData></g><g type="line" z-index="257" id="connector:ae3f025f-6351-a85e-18ef-623f0af3c2e8">
+ <text id="text:normal" x="345.6" y="59.16" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Channel Sorting</text><text id="text:templateshape:a2001791-dae6-17b7-466e-4e5080b3acb8" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#67;&#104;&#97;&#110;&#110;&#101;&#108;&#32;&#83;&#111;&#114;&#116;&#105;&#110;&#103;--></c:textData></g><g type="line" z-index="257" id="connector:ae3f025f-6351-a85e-18ef-623f0af3c2e8">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="353.28" y1="107.52000000000001" x2="353.28" y2="107.52000000000001"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="353.28" y1="10.52000000000001" x2="353.28" y2="10.52000000000001"/>
  </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="123" shapepoint="0"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
 <marker id="MARKER_START4962f336-69c6-bfa6-0603-87a2e58ee394" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -55,10 +55,10 @@
 </g><g type="line" z-index="259" id="connector:a41d6bcc-ea86-b448-efcd-57b7925886b4">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="414.72" y1="107.52000000000001" x2="414.72" y2="107.52000000000001"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="414.72" y1="10.52000000000001" x2="414.72" y2="10.52000000000001"/>
  </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="123" shapepoint="0"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
 <marker id="MARKER_STARTdd2d168f-b2b3-3d51-6fff-6c8e44ac1615" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -69,10 +69,10 @@
 </g><g type="line" z-index="265" id="connector:7c73900c-9187-f997-a794-03c72be630cd">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="384" y1="122.88000000000002" x2="384" y2="122.88000000000002"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="384" y1="25.880000000000024" x2="384" y2="25.880000000000024"/>
  </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="123" shapepoint="0"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
 <marker id="MARKER_STARTe64bee77-c026-aa06-7691-5da252344860" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -83,10 +83,10 @@
 </g><g type="line" z-index="283" id="connector:49bf2b5f-1e15-a6ce-acd5-8725ff155f09">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="92" x2="345.59999999999997" y2="122.88000000000002" marker-start="" marker-end="url(#MARKER_START3ae23dc7-e820-bd13-d35e-cb68755cffad)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="215" y1="57" x2="292" y2="57" marker-start="" marker-end="url(#MARKER_START3ae23dc7-e820-bd13-d35e-cb68755cffad)"/>
  </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:004aa1b9-1ad8-94bb-2971-7183706c91de" shapepoint="4"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:a2001791-dae6-17b7-466e-4e5080b3acb8" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:004aa1b9-1ad8-94bb-2971-7183706c91de" shapepoint="7"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:a2001791-dae6-17b7-466e-4e5080b3acb8" shapepoint="6"/>
 <marker id="MARKER_START3ae23dc7-e820-bd13-d35e-cb68755cffad" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -97,10 +97,10 @@
 </g><g type="line" z-index="336" id="connector:81e6ddce-0899-c465-cdfe-3bf9e323aafa">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="345.59999999999997" y1="184.32" x2="345.59999999999997" y2="215.04000000000002" marker-start="" marker-end="url(#MARKER_START1939861a-725c-c1d3-761c-7b716373155f)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="87" x2="346" y2="118" marker-start="" marker-end="url(#MARKER_START1939861a-725c-c1d3-761c-7b716373155f)"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:a2001791-dae6-17b7-466e-4e5080b3acb8" shapepoint="4"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:c8786ff8-32f5-cd25-75e2-6f54f798e366" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263" shapepoint="1"/>
 <marker id="MARKER_START1939861a-725c-c1d3-761c-7b716373155f" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -111,7 +111,7 @@
 </g><g type="line" z-index="359" id="connector:29146ee2-bd7f-1c42-0299-d29cc046a41a">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="522.24" y1="337.92" x2="522.24" y2="337.92"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="522.24" y1="240.92000000000002" x2="522.24" y2="240.92000000000002"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
@@ -122,15 +122,15 @@
       <path d="M 10 0 L 0 5 L 10 10 z"/>
  </marker>
 
-</g><g transform="rotate(0, 345.6, 245.76)" stroke-width="1" z-index="363" id="shape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263">
+</g><g transform="rotate(0, 345.6, 148.76)" stroke-width="1" z-index="363" id="shape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263">
 
-<svg x="291.8400000000px" y="215.0400000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<svg x="291.8400000000px" y="118.03999999999999px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
 </svg>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:81e6ddce-0899-c465-cdfe-3bf9e323aafa" type="to"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:648818fe-8530-dff4-27fe-b97e5fb6671c" type="from"/></c:connection-point>
@@ -142,13 +142,13 @@
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="345.6" y="248.32" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Block partitioning</text><text id="text:templateshape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#66;&#108;&#111;&#99;&#107;&#32;&#112;&#97;&#114;&#116;&#105;&#116;&#105;&#111;&#110;&#105;&#110;&#103;--></c:textData></g><g transform="rotate(0, 345.6, 337.92)" stroke-width="1px" z-index="368" id="shape:7dcc442d-194a-9f2a-6092-a21f14d09beb">
-<svg x="291.8400000000px" y="307.2000000000px" position="absolute" overflow="visible" preserveAspectRatio="none" width="107.52000000000001" height="61.44000000000001">
+ <text id="text:normal" x="345.6" y="151.32" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Block partitioning</text><text id="text:templateshape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#66;&#108;&#111;&#99;&#107;&#32;&#112;&#97;&#114;&#116;&#105;&#116;&#105;&#111;&#110;&#105;&#110;&#103;--></c:textData></g><g transform="rotate(0, 345.6, 240.92)" stroke-width="1px" z-index="368" id="shape:7dcc442d-194a-9f2a-6092-a21f14d09beb">
+<svg x="291.8400000000px" y="210.2px" position="absolute" overflow="visible" preserveAspectRatio="none" width="107.52000000000001" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="white" d="M0,30.72 L53.76,0 L107.52,30.72 L53.76,61.44 L0,30.72" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0.0,500.0L 500.0,0.0L 1000.0,500.0L 500.0,1000.0L 0.0,500.0" fill-opacity="1.0"/>
  </svg>
 	<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:648818fe-8530-dff4-27fe-b97e5fb6671c" type="to"/></c:connection-point>
-	<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:a19b8f9a-6625-05c1-4645-7cddb97b17cb" type="from"/><c:connection lineid="connector:cda80d12-51bb-570d-7c23-df3367b245e5" type="to"/><c:connection lineid="connector:f4f80094-c427-8ae6-1b01-2bb991029fe2" type="from"/></c:connection-point>
+	<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:a19b8f9a-6625-05c1-4645-7cddb97b17cb" type="from"/><c:connection lineid="connector:cda80d12-51bb-570d-7c23-df3367b245e5" type="to"/><c:connection lineid="connector:f4f80094-c427-8ae6-1b01-2bb991029fe2" type="from"/><c:connection lineid="connector:2f477ff5-43f3-e74d-74b8-adfb01b74855" type="to"/></c:connection-point>
 	<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:61a393e8-ddbc-ccbc-c06d-defbfef8a610" type="from"/></c:connection-point>
 	<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:fa8009e0-a3bf-ce20-f1eb-bd3d9484efe4" type="to"/></c:connection-point>
 <linearGradient id="Gradient01a6099916-783e-9e8d-fbd7-d537a3510906" y2="10%" x2="0%" y1="90%" x1="0%">
@@ -156,15 +156,15 @@
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
 
- <text id="text:normal" x="345.6" y="340.48" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Select next block</text><text id="text:templateshape:7dcc442d-194a-9f2a-6092-a21f14d09beb" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#83;&#101;&#108;&#101;&#99;&#116;&#32;&#110;&#101;&#120;&#116;&#32;&#98;&#108;&#111;&#99;&#107;--></c:textData></g><g transform="rotate(0, 345.6, 430.08)" stroke-width="1" z-index="372" id="shape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b">
+ <text id="text:normal" x="345.6" y="243.48" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Select next block</text><text id="text:templateshape:7dcc442d-194a-9f2a-6092-a21f14d09beb" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#83;&#101;&#108;&#101;&#99;&#116;&#32;&#110;&#101;&#120;&#116;&#32;&#98;&#108;&#111;&#99;&#107;--></c:textData></g><g transform="rotate(0, 345.6, 349.32)" stroke-width="1" z-index="372" id="shape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b">
 
-<svg x="291.8400000000px" y="399.3600000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<svg x="291.84000000000003px" y="318.6px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
 </svg>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:61a393e8-ddbc-ccbc-c06d-defbfef8a610" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:07d5320d-8372-6084-1115-998691a40fbf" type="from"/></c:connection-point>
@@ -176,11 +176,11 @@
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:newline" x="345.6" y="432.64" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Short-Term Prediction</text><text id="text:templateshape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#83;&#104;&#111;&#114;&#116;&#45;&#84;&#101;&#114;&#109;&#32;&#80;&#114;&#101;&#100;&#105;&#99;&#116;&#105;&#111;&#110;--></c:textData></g><g transform="rotate(0, 483.84, 430.08)" stroke-width="1" z-index="376" id="shape:3ee0d754-124e-8d18-6064-312ddf2e2182">
+ <text id="text:normal" x="345.6" y="351.88" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Final Short-Term </text><text id="text:normal" x="345.6" y="363.144" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Prediction</text><text id="text:templateshape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#105;&#110;&#97;&#108;&#32;&#83;&#104;&#111;&#114;&#116;&#45;&#84;&#101;&#114;&#109;&#32;&#80;&#114;&#101;&#100;&#105;&#99;&#116;&#105;&#111;&#110;--></c:textData></g><g transform="rotate(0, 486.36, 395.32)" stroke-width="1" z-index="376" id="shape:3ee0d754-124e-8d18-6064-312ddf2e2182">
 
-<svg x="430.0800000000px" y="399.3600000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
-<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
-<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
+<svg x="432.59999999999997px" y="364.6px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0" stroke-dasharray=""/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0" stroke-dasharray=""/>
 
 </svg>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
@@ -189,16 +189,16 @@
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:a16c0837-11ad-b117-3ef1-180089789884" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:23433dfd-8934-ff75-353c-19638c087553" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:f0c4908c-b987-5206-b50a-96b514fa42c0" type="from"/></c:connection-point>
 <linearGradient id="Gradient01714b0c87-4bb4-0040-eafc-fca0ff2d116f" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="483.84" y="432.64" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Long-Term Prediction</text><text id="text:templateshape:3ee0d754-124e-8d18-6064-312ddf2e2182" x="430.08" y="430.08" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#76;&#111;&#110;&#103;&#45;&#84;&#101;&#114;&#109;&#32;&#80;&#114;&#101;&#100;&#105;&#99;&#116;&#105;&#111;&#110;--></c:textData></g><g transform="rotate(0, 622.08, 430.08)" stroke-width="1" z-index="380" id="shape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed">
+ <text id="text:normal" x="486.36" y="397.88" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Final Long-Term </text><text id="text:normal" x="486.36" y="409.144" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Prediction</text><text id="text:templateshape:3ee0d754-124e-8d18-6064-312ddf2e2182" x="432.6" y="432.6" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#105;&#110;&#97;&#108;&#32;&#76;&#111;&#110;&#103;&#45;&#84;&#101;&#114;&#109;&#32;&#80;&#114;&#101;&#100;&#105;&#99;&#116;&#105;&#111;&#110;--></c:textData></g><g transform="rotate(0, 624.6, 441.32)" stroke-width="1" z-index="380" id="shape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed">
 
-<svg x="568.3200000000px" y="399.3600000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<svg x="570.84px" y="410.6px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -209,17 +209,17 @@
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:44fdc7fc-5db4-27ba-89cb-be8696f41327" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:f0c4908c-b987-5206-b50a-96b514fa42c0" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:8d61d1bb-a1ec-04b6-e38f-39ccf600a5a3" type="from"/></c:connection-point>
 <linearGradient id="Gradient01d9ddbec1-2576-ef16-0234-e7a613857af0" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="622.08" y="432.64" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Joint and/or Multi</text><text id="text:normal" x="622.08" y="443.904" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Channel Coding</text><text id="text:templateshape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed" x="568.32" y="568.32" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#74;&#111;&#105;&#110;&#116;&#32;&#97;&#110;&#100;&#47;&#111;&#114;&#32;&#77;&#117;&#108;&#116;&#105;&#10;&#67;&#104;&#97;&#110;&#110;&#101;&#108;&#32;&#67;&#111;&#100;&#105;&#110;&#103;--></c:textData></g><g type="line" z-index="386" id="connector:648818fe-8530-dff4-27fe-b97e5fb6671c">
+ <text id="text:normal" x="624.6" y="443.88" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Multi</text><text id="text:normal" x="624.6" y="432.616" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Final Joint and/or </text><text id="text:normal" x="624.6" y="455.144" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Channel Coding</text><text id="text:templateshape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed" x="570.84" y="570.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#105;&#110;&#97;&#108;&#32;&#74;&#111;&#105;&#110;&#116;&#32;&#97;&#110;&#100;&#47;&#111;&#114;&#32;&#77;&#117;&#108;&#116;&#105;&#10;&#67;&#104;&#97;&#110;&#110;&#101;&#108;&#32;&#67;&#111;&#100;&#105;&#110;&#103;--></c:textData></g><g type="line" z-index="386" id="connector:648818fe-8530-dff4-27fe-b97e5fb6671c">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="276" x2="346" y2="307" marker-start="" marker-end="url(#MARKER_START74a4c75c-01a5-3390-7bd0-5b532b6660df)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="179" x2="346" y2="210" marker-start="" marker-end="url(#MARKER_START74a4c75c-01a5-3390-7bd0-5b532b6660df)"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263" shapepoint="4"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:7dcc442d-194a-9f2a-6092-a21f14d09beb" shapepoint="0"/>
@@ -233,10 +233,10 @@
 </g><g type="line" z-index="776" id="connector:61a393e8-ddbc-ccbc-c06d-defbfef8a610">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="369" x2="346" y2="399" marker-start="" marker-end="url(#MARKER_STARTda64ad31-098b-6a35-db5a-f1b8acd2ed24)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="271" x2="346" y2="287" marker-start="" marker-end="url(#MARKER_STARTda64ad31-098b-6a35-db5a-f1b8acd2ed24)"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:7dcc442d-194a-9f2a-6092-a21f14d09beb" shapepoint="2"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:cabe6384-fbaa-d77f-3ade-30fe0cd51de9" shapepoint="1"/>
 <marker id="MARKER_STARTda64ad31-098b-6a35-db5a-f1b8acd2ed24" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -247,10 +247,10 @@
 </g><g type="line" z-index="778" id="connector:23433dfd-8934-ff75-353c-19638c087553">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="399" y1="430" x2="430" y2="430" marker-start="" marker-end="url(#MARKER_STARTc5aec8b1-61dc-e3ed-0df4-88ced834017c)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="399" y1="348" x2="432" y2="348" marker-start="" marker-end="url(#MARKER_STARTc5aec8b1-61dc-e3ed-0df4-88ced834017c)"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b" shapepoint="7"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:3ee0d754-124e-8d18-6064-312ddf2e2182" shapepoint="6"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:c6612170-d218-9172-3a8d-144051f2b6b2" shapepoint="6"/>
 <marker id="MARKER_STARTc5aec8b1-61dc-e3ed-0df4-88ced834017c" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -261,10 +261,10 @@
 </g><g type="line" z-index="780" id="connector:f0c4908c-b987-5206-b50a-96b514fa42c0">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="538" y1="430" x2="568" y2="430" marker-start="" marker-end="url(#MARKER_START842606a7-aa4e-9eb5-454c-47b8e810b280)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="540" y1="394" x2="571" y2="394" marker-start="" marker-end="url(#MARKER_START842606a7-aa4e-9eb5-454c-47b8e810b280)"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:3ee0d754-124e-8d18-6064-312ddf2e2182" shapepoint="7"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed" shapepoint="6"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:262aac46-4bfd-889e-60fe-5e3b7c9c58a2" shapepoint="6"/>
 <marker id="MARKER_START842606a7-aa4e-9eb5-454c-47b8e810b280" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -275,9 +275,9 @@
 </g><g type="ortho-line" z-index="782" id="connector:fa8009e0-a3bf-ce20-f1eb-bd3d9484efe4">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="ortho-line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="760,399 760,387 760,338 411,338 399,338" fill-opacity="1.0" fill="none" marker-start="" marker-end="url(#MARKER_START68c17853-ed4a-3bd3-86bf-2a5e6e9a9918)"/>
+<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="821,487 833,487 833,444.44 833,241 411,241 399,241" fill-opacity="1.0" fill="none" marker-start="" marker-end="url(#MARKER_START68c17853-ed4a-3bd3-86bf-2a5e6e9a9918)"/>
 </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:1e2ea0da-ad46-15f7-4124-7a93b554bee2" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:57bbe532-7364-0b91-7450-47ff1510400f" shapepoint="7"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:7dcc442d-194a-9f2a-6092-a21f14d09beb" shapepoint="3"/>
 <marker id="MARKER_START68c17853-ed4a-3bd3-86bf-2a5e6e9a9918" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
@@ -286,9 +286,9 @@
       <path d="M 10 0 L 0 5 L 10 10 z"/>
  </marker>
 
-</g><g transform="rotate(0, 560.64, 537.6)" stroke-width="1" z-index="784" id="shape:a1d1ac9a-1eb6-1e41-a797-f2b1e8bd9459">
+</g><g transform="rotate(0, 560.64, 568.32)" stroke-width="1" z-index="784" id="shape:a1d1ac9a-1eb6-1e41-a797-f2b1e8bd9459">
 
-<svg x="230.4000000000px" y="506.8800000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="660.48" height="61.44000000000001">
+<svg x="230.4000000000px" y="537.6000000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="660.48" height="61.44000000000001">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L660.48,0 L660.48,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -299,17 +299,17 @@
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:2f3e0217-f29c-5731-2ac3-6609ad3c094b" type="from"/></c:connection-point>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
 <linearGradient id="Gradient0161975b47-aa33-4f97-593a-1995d24695ab" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="560.64" y="540.16" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">MUX / Buffer?</text><text id="text:templateshape:a1d1ac9a-1eb6-1e41-a797-f2b1e8bd9459" x="230.4" y="230.4" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#77;&#85;&#88;&#32;&#47;&#32;&#66;&#117;&#102;&#102;&#101;&#114;&#63;--></c:textData></g><g type="line" z-index="788" id="connector:07d5320d-8372-6084-1115-998691a40fbf">
+ <text id="text:normal" x="560.64" y="570.88" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Final Bitstream Assembly</text><text id="text:templateshape:a1d1ac9a-1eb6-1e41-a797-f2b1e8bd9459" x="230.4" y="230.4" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#105;&#110;&#97;&#108;&#32;&#66;&#105;&#116;&#115;&#116;&#114;&#101;&#97;&#109;&#32;&#65;&#115;&#115;&#101;&#109;&#98;&#108;&#121;--></c:textData></g><g type="line" z-index="788" id="connector:07d5320d-8372-6084-1115-998691a40fbf">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="461" x2="346" y2="506" marker-start="" marker-end="url(#MARKER_STARTb2735ecb-1815-8633-5273-9579b36b7ca9)" stroke-dasharray="4,3"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="379" x2="346" y2="537" marker-start="" marker-end="url(#MARKER_STARTb2735ecb-1815-8633-5273-9579b36b7ca9)" stroke-dasharray="4,3"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:b22f6226-f1fc-a590-87eb-0f09f3b0af5b" shapepoint="4"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
@@ -323,7 +323,7 @@
 </g><g type="line" z-index="790" id="connector:a16c0837-11ad-b117-3ef1-180089789884">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="484" y1="461" x2="484" y2="507" marker-start="" marker-end="url(#MARKER_START101be64d-77cb-f241-f5b2-eba919a0e03e)" stroke-dasharray="4,3"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="486" y1="425" x2="486" y2="536" marker-start="" marker-end="url(#MARKER_START101be64d-77cb-f241-f5b2-eba919a0e03e)" stroke-dasharray="4,3"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:3ee0d754-124e-8d18-6064-312ddf2e2182" shapepoint="4"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
@@ -337,7 +337,7 @@
 </g><g type="line" z-index="792" id="connector:44fdc7fc-5db4-27ba-89cb-be8696f41327">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="622" y1="461" x2="622" y2="507" marker-start="" marker-end="url(#MARKER_STARTc474776e-b942-f800-dd7a-52d626e6d69f)" stroke-dasharray="4,3"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="625" y1="471" x2="625" y2="537" marker-start="" marker-end="url(#MARKER_STARTc474776e-b942-f800-dd7a-52d626e6d69f)" stroke-dasharray="4,3"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed" shapepoint="4"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
@@ -351,10 +351,10 @@
 </g><g type="ortho-line" z-index="200" id="connector:2f477ff5-43f3-e74d-74b8-adfb01b74855">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="ortho-line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="258,505 258,337.92 291.84,337.92" fill-opacity="1.0" fill="none" marker-start="url(#MARKER_ENDc9070e87-2145-3a3f-cf1f-54e37b318166)" marker-end=""/>
+<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="253.56,535.24 253.56,241 280,241 292,241" fill-opacity="1.0" fill="none" marker-start="url(#MARKER_ENDc9070e87-2145-3a3f-cf1f-54e37b318166)" marker-end=""/>
 </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:a3b0acc6-09e2-61a6-ba3c-4885731f4205" shapepoint="1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:7dcc442d-194a-9f2a-6092-a21f14d09beb" shapepoint="1"/>
 <marker id="MARKER_START59bb2c62-3f02-c71b-fc5e-3068ad32b251" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -365,7 +365,7 @@
 </g><g type="ortho-line" z-index="297" id="connector:1ab56d8c-80c8-1d64-335a-dac828738f5f">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="ortho-line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="861,505 861,246 411,246 399,246" fill-opacity="1.0" fill="none" marker-start="url(#MARKER_END22602f81-1639-ed19-c883-ab58081627ef)" marker-end="" stroke-dasharray="4,3"/>
+<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="855,537 855,149 411,149 399,149" fill-opacity="1.0" fill="none" marker-start="url(#MARKER_END22602f81-1639-ed19-c883-ab58081627ef)" marker-end="" stroke-dasharray="4,3"/>
 </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:d0bc28e7-b5ae-1fce-8a06-9d8dcc42a263" shapepoint="7"/>
@@ -379,10 +379,10 @@
 </g><g type="ortho-line" z-index="429" id="connector:db744210-a0d9-2a84-a213-2172d2347aa1">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="ortho-line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="860.8,245.12 860.8,152.32 399.36,152.32" fill-opacity="1.0" fill="none" stroke-dasharray="4,3"/>
+<polyline stroke="black" stroke-width="2px" stroke-opacity="1.0" points="855,150 855,57 411,57 399,57" fill-opacity="1.0" fill="none" stroke-dasharray="4,3"/>
 </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:a2001791-dae6-17b7-466e-4e5080b3acb8" shapepoint="7"/>
 <marker id="MARKER_START74971f0e-147a-e7de-fd6c-b392a6157394" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -390,9 +390,9 @@
       <path d="M 10 0 L 0 5 L 10 10 z"/>
  </marker>
 
-</g><g transform="rotate(0, 84.48, 145.92)" stroke-width="1" z-index="462" id="shape:e47a8b63-20e1-1dac-69fd-676f30a8fe4c">
+</g><g transform="rotate(0, 969.2, 120.4)" stroke-width="1" z-index="462" id="shape:e47a8b63-20e1-1dac-69fd-676f30a8fe4c">
 
-<svg x="15.360000000000003px" y="30.720000000000006px" position="absolute" overflow="visible" preserveAspectRatio="none" Z-INDEX="203" width="138.24" height="230.39999999999998">
+<svg x="900.08px" y="5.20000000000001px" position="absolute" overflow="visible" preserveAspectRatio="none" Z-INDEX="203" width="138.24" height="230.39999999999998">
 <path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M13.824,0 L124.416,0 A13.824,23.04 0 0,1 138.24,23.04 L138.24,207.36 A13.824,23.04 0 0,1 124.416,230.4 L13.824,230.4 A13.824,23.04 0 0,1 0,207.36 L0,23.04 M13.824,0 A13.824,23.04 0 0,0 0,23.04" fill-opacity="1.0"/>
 <path id="_template" transform="scale(0)" d="M 100.0,0.0L 900.0,0.0A100.0,100.0,0,0,1,1000.0,100.0L 1000.0,900.0A100.0,100.0,0,0,1,900.0,1000.0L 100.0,1000.0A100.0,100.0,0,0,1,0.0,900.0L 0.0,100.0M 100.0,0.0A100.0,100.0,0,0,0,0.0,100.0" fill-opacity="1.0"/>
 
@@ -410,10 +410,10 @@
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
  
- <text id="text:normal" x="84.48" y="148.48" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:e47a8b63-20e1-1dac-69fd-676f30a8fe4c" x="15.36" y="15.36" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="466" id="connector:476c600c-4aae-4464-cdee-3cf9c789892f">
+ <text id="text:normal" x="969.2" y="122.96" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:e47a8b63-20e1-1dac-69fd-676f30a8fe4c" x="900.08" y="900.08" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="466" id="connector:476c600c-4aae-4464-cdee-3cf9c789892f">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="24.320000000000004" y1="83.19999999999999" x2="66.56" y2="83.19999999999999" marker-start="" marker-end="url(#MARKER_START4ad69136-ae8e-554f-ff0f-7b12b3c5f1c4)"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="909.0400000000001" y1="57.67999999999999" x2="951.2800000000001" y2="57.67999999999999" marker-start="" marker-end="url(#MARKER_START4ad69136-ae8e-554f-ff0f-7b12b3c5f1c4)"/>
  <rect style="position: absolute;" stroke-width="0px" fill="white" x="0" y="0" width="0" height="0"/></svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
@@ -424,10 +424,10 @@
       <path d="M 10 0 L 0 5 L 10 10 z"/>
  </marker>
 
-<text id="text:normal" x="45.44" y="85.76" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateconnector:476c600c-4aae-4464-cdee-3cf9c789892f" x="15.44" y="15.44" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="468" id="connector:3c92d38a-5980-9858-0e45-725098c5bf2c">
+<text id="text:normal" x="930.16" y="60.24" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateconnector:476c600c-4aae-4464-cdee-3cf9c789892f" x="900.16" y="900.16" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="468" id="connector:3c92d38a-5980-9858-0e45-725098c5bf2c">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="22.4" y1="129.92" x2="64.64" y2="129.92" marker-start="" marker-end="url(#MARKER_START942898e0-0f58-b9de-f2f2-401114035ee9)" stroke-dasharray="4,3"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="907.12" y1="104.39999999999999" x2="949.36" y2="104.39999999999999" marker-start="" marker-end="url(#MARKER_START942898e0-0f58-b9de-f2f2-401114035ee9)" stroke-dasharray="4,3"/>
  </svg>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="xx" shapepoint="-1"/>
 <c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
@@ -438,9 +438,9 @@
       <path d="M 10 0 L 0 5 L 10 10 z"/>
  </marker>
 
-</g><g transform="rotate(0, 153.92, 123.2)" stroke-width="1" z-index="596" id="shape:a67a5bb2-a88b-a9fe-c128-b7381b80ff11">
+</g><g transform="rotate(0, 1038.64, 97.68)" stroke-width="1" z-index="596" id="shape:a67a5bb2-a88b-a9fe-c128-b7381b80ff11">
 
-<svg x="153.6px" y="122.88000000000002px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
+<svg x="1038.3200000000002px" y="97.36000000000003px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L0.64,0 L0.64,0.64 L0,0.64 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -457,9 +457,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="166.1" y="125.76" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:a67a5bb2-a88b-a9fe-c128-b7381b80ff11" x="153.6" y="153.6" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 107.52, 84.48)" stroke-width="1" z-index="599" id="shape:c0256d0d-920e-fadb-d289-6fc516703914">
+ <text id="text:normal" x="1050.82" y="100.24" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:a67a5bb2-a88b-a9fe-c128-b7381b80ff11" x="1038.32" y="1038.32" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 992.24, 58.96)" stroke-width="1" z-index="599" id="shape:c0256d0d-920e-fadb-d289-6fc516703914">
 
-<svg x="76.8px" y="61.44000000000001px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="61.44000000000001" height="46.08">
+<svg x="961.52px" y="35.920000000000016px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="61.44000000000001" height="46.08">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L61.44,0 L61.44,46.08 L0,46.08 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -476,9 +476,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="107.52" y="87.04" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Control &amp; </text><text id="text:normal" x="107.52" y="75.776" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Flow of </text><text id="text:normal" x="107.52" y="98.304" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Data</text><text id="text:templateshape:c0256d0d-920e-fadb-d289-6fc516703914" x="76.8" y="76.8" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#108;&#111;&#119;&#32;&#111;&#102;&#32;&#67;&#111;&#110;&#116;&#114;&#111;&#108;&#32;&#38;&#32;&#68;&#97;&#116;&#97;--></c:textData></g><g transform="rotate(0, 107.52, 130.56)" stroke-width="1" z-index="600" id="shape:46841e9a-87cc-1996-51a0-05221f4f93af">
+ <text id="text:normal" x="992.24" y="61.52" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Control &amp; </text><text id="text:normal" x="992.24" y="50.256" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Flow of </text><text id="text:normal" x="992.24" y="72.784" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Data</text><text id="text:templateshape:c0256d0d-920e-fadb-d289-6fc516703914" x="961.52" y="961.52" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#108;&#111;&#119;&#32;&#111;&#102;&#32;&#67;&#111;&#110;&#116;&#114;&#111;&#108;&#32;&#38;&#32;&#68;&#97;&#116;&#97;--></c:textData></g><g transform="rotate(0, 992.24, 105.04)" stroke-width="1" z-index="600" id="shape:46841e9a-87cc-1996-51a0-05221f4f93af">
 
-<svg x="76.8px" y="107.52000000000001px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="61.44000000000001" height="46.08">
+<svg x="961.52px" y="82.00000000000001px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="61.44000000000001" height="46.08">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L61.44,0 L61.44,46.08 L0,46.08 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -495,9 +495,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="107.52" y="133.12" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Flow of Data</text><text id="text:templateshape:46841e9a-87cc-1996-51a0-05221f4f93af" x="76.8" y="76.8" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#108;&#111;&#119;&#32;&#111;&#102;&#32;&#68;&#97;&#116;&#97;--></c:textData></g><g transform="rotate(0, 138.56, 138.56)" stroke-width="1" z-index="601" id="shape:4e1d73e0-3aba-5266-b2ec-7498634e30c3">
+ <text id="text:normal" x="992.24" y="107.6" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Flow of Data</text><text id="text:templateshape:46841e9a-87cc-1996-51a0-05221f4f93af" x="961.52" y="961.52" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#108;&#111;&#119;&#32;&#111;&#102;&#32;&#68;&#97;&#116;&#97;--></c:textData></g><g transform="rotate(0, 1023.28, 113.04)" stroke-width="1" z-index="601" id="shape:4e1d73e0-3aba-5266-b2ec-7498634e30c3">
 
-<svg x="138.24px" y="138.24px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
+<svg x="1022.96px" y="112.72000000000001px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L0.64,0 L0.64,0.64 L0,0.64 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -514,13 +514,13 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="150.74" y="141.12" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:4e1d73e0-3aba-5266-b2ec-7498634e30c3" x="138.24" y="138.24" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="875" id="connector:b5cab27d-f126-182d-30e8-3e376cb8fefb">
+ <text id="text:normal" x="1035.46" y="115.6" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:4e1d73e0-3aba-5266-b2ec-7498634e30c3" x="1022.96" y="1022.96" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="875" id="connector:b5cab27d-f126-182d-30e8-3e376cb8fefb">
 <c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
 <svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="346" y1="31" x2="345.59999999999997" y2="3.2" marker-start="url(#MARKER_END1a0aa364-2bd2-96ae-5c06-6fedb0f0a28c)" marker-end=""/>
- </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:004aa1b9-1ad8-94bb-2971-7183706c91de" shapepoint="1"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="108" y1="57" x2="6" y2="56" marker-start="url(#MARKER_END1a0aa364-2bd2-96ae-5c06-6fedb0f0a28c)" marker-end=""/>
+ <rect style="position: absolute;" stroke-width="0px" x="0" y="0" width="0" height="0"/></svg>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:004aa1b9-1ad8-94bb-2971-7183706c91de" shapepoint="6"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
 <marker id="MARKER_START8f6e43d3-7481-69f0-9563-7f7418092387" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z"/>
  </marker>
@@ -528,9 +528,9 @@
       <path d="M 10 0 L 0 5 L 10 10 z"/>
  </marker>
 
-</g><g transform="rotate(0, 472.64, 357.44)" stroke-width="1" z-index="884" id="shape:50422cd0-8d2d-662f-e4de-87a9527522e3">
+<text id="text:normal" x="57" y="59.06" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateconnector:b5cab27d-f126-182d-30e8-3e376cb8fefb" x="27" y="27" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 472.64, 260.44)" stroke-width="1" z-index="884" id="shape:50422cd0-8d2d-662f-e4de-87a9527522e3">
 
-<svg x="472.32px" y="357.12px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
+<svg x="472.32px" y="260.12px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L0.64,0 L0.64,0.64 L0,0.64 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -547,9 +547,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="484.82" y="360" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:50422cd0-8d2d-662f-e4de-87a9527522e3" x="472.32" y="472.32" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 430.08, 330.24)" stroke-width="1" z-index="1151" id="shape:975f135c-3bbe-a4a9-e9af-5d7f78f23ed8">
+ <text id="text:normal" x="484.82" y="263" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:50422cd0-8d2d-662f-e4de-87a9527522e3" x="472.32" y="472.32" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 375.68, 275.2)" stroke-width="1" z-index="1151" id="shape:975f135c-3bbe-a4a9-e9af-5d7f78f23ed8">
 
-<svg x="399.36000000000007px" y="322.56px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="61.44000000000001" height="15.360000000000003">
+<svg x="344.9600000000px" y="267.5200000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="61.44000000000001" height="15.360000000000003">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L61.44,0 L61.44,15.36 L0,15.36 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -566,9 +566,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="430.08" y="332.8" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">next block</text><text id="text:templateshape:975f135c-3bbe-a4a9-e9af-5d7f78f23ed8" x="399.36" y="399.36" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#110;&#101;&#120;&#116;&#32;&#98;&#108;&#111;&#99;&#107;--></c:textData></g><g transform="rotate(0, 426.56, 290.24)" stroke-width="1" z-index="1152" id="shape:81ab3a14-61e7-cbc2-17bd-82ecc6ec3853">
+ <text id="text:normal" x="375.68" y="277.76" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">next block</text><text id="text:templateshape:975f135c-3bbe-a4a9-e9af-5d7f78f23ed8" x="344.96" y="344.96" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#110;&#101;&#120;&#116;&#32;&#98;&#108;&#111;&#99;&#107;--></c:textData></g><g transform="rotate(0, 426.56, 193.24)" stroke-width="1" z-index="1152" id="shape:81ab3a14-61e7-cbc2-17bd-82ecc6ec3853">
 
-<svg x="426.24px" y="289.9200000000001px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
+<svg x="426.24px" y="192.92000000000007px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L0.64,0 L0.64,0.64 L0,0.64 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -585,9 +585,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="438.74" y="292.8" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:81ab3a14-61e7-cbc2-17bd-82ecc6ec3853" x="426.24" y="426.24" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 268.8, 314.88)" stroke-width="1" z-index="1157" id="shape:33b2f7c9-aed6-68c2-e992-2c6c0208edd4">
+ <text id="text:normal" x="438.74" y="195.8" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:81ab3a14-61e7-cbc2-17bd-82ecc6ec3853" x="426.24" y="426.24" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 268.8, 217.88)" stroke-width="1" z-index="1157" id="shape:33b2f7c9-aed6-68c2-e992-2c6c0208edd4">
 
-<svg x="245.76000000000005px" y="291.84px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="46.08" height="46.08">
+<svg x="245.76000000000005px" y="194.83999999999997px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="46.08" height="46.08">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L46.08,0 L46.08,46.08 L0,46.08 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -604,9 +604,9 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="268.8" y="317.44" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">no more </text><text id="text:normal" x="268.8" y="328.704" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">blocks</text><text id="text:templateshape:33b2f7c9-aed6-68c2-e992-2c6c0208edd4" x="245.76" y="245.76" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#110;&#111;&#32;&#109;&#111;&#114;&#101;&#32;&#98;&#108;&#111;&#99;&#107;&#115;--></c:textData></g><g transform="rotate(0, 288.32, 361.28)" stroke-width="1" z-index="1158" id="shape:0d3c4c1b-0add-da75-f125-f143516cb91a">
+ <text id="text:normal" x="268.8" y="220.44" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">no more </text><text id="text:normal" x="268.8" y="231.704" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">blocks</text><text id="text:templateshape:33b2f7c9-aed6-68c2-e992-2c6c0208edd4" x="245.76" y="245.76" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#110;&#111;&#32;&#109;&#111;&#114;&#101;&#32;&#98;&#108;&#111;&#99;&#107;&#115;--></c:textData></g><g transform="rotate(0, 288.32, 264.28)" stroke-width="1" z-index="1158" id="shape:0d3c4c1b-0add-da75-f125-f143516cb91a">
 
-<svg x="288px" y="360.96px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
+<svg x="288px" y="263.96px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="0.64" height="0.64">
 <path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L0.64,0 L0.64,0.64 L0,0.64 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
@@ -623,10 +623,166 @@
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="300.5" y="363.84" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:0d3c4c1b-0add-da75-f125-f143516cb91a" x="288" y="288" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 545.28, 468.48)" stroke-width="1" z-index="1164" id="shape:3f1208ed-2aac-12a2-037a-9589b5c08909">
+ <text id="text:normal" x="300.5" y="266.84" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:0d3c4c1b-0add-da75-f125-f143516cb91a" x="288" y="288" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g type="line" z-index="343" id="connector:8d61d1bb-a1ec-04b6-e38f-39ccf600a5a3">
+<c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
+<svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="678" y1="441" x2="713" y2="441" marker-start="" marker-end="url(#MARKER_START7a0dc7fe-d6d1-47de-f4fd-0c105f192c91)"/>
+ </svg>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed" shapepoint="7"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:54a15cb2-2348-d72b-f067-bdb16b2413f0" shapepoint="6"/>
+<marker id="MARKER_START7a0dc7fe-d6d1-47de-f4fd-0c105f192c91" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z"/>
+ </marker>
+<marker id="MARKER_END22593f56-f459-b60c-9534-2069b53c22d4" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 10 0 L 0 5 L 10 10 z"/>
+ </marker>
 
-<svg x="506.88px" y="460.79999999999995px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="76.8" height="15.360000000000003">
-<path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L76.8,0 L76.8,15.36 L0,15.36 L0,0" fill-opacity="0.0"/>
+</g><g transform="rotate(0, 345.6, 303.36)" stroke-width="1" z-index="282" id="shape:cabe6384-fbaa-d77f-3ade-30fe0cd51de9">
+
+<svg x="291.84px" y="288px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000004" height="30.71999999999997">
+<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,30.72 L0,30.72 L0,0" fill-opacity="1.0"/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
+
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:61a393e8-ddbc-ccbc-c06d-defbfef8a610" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:00bb66bf-951f-0168-d638-336eb23becb9" type="from"/><c:connection lineid="connector:2063b0c2-ae3e-32ef-7886-fea0148384fc" type="from"/><c:connection lineid="connector:38632982-de22-e56b-2e07-e3f2b72d533d" type="to"/><c:connection lineid="connector:e821fa97-8223-aa7f-43a4-b2c8121099df" type="to"/></c:connection-point>
+<linearGradient id="Gradient01fb61a3db-a1ac-4a5e-250e-f350f68cdfcd" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ 
+ <text id="text:normal" x="345.6" y="305.92" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Parameter Search for</text><text id="text:templateshape:cabe6384-fbaa-d77f-3ade-30fe0cd51de9" x="291.84" y="291.84" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#80;&#97;&#114;&#97;&#109;&#101;&#116;&#101;&#114;&#32;&#83;&#101;&#97;&#114;&#99;&#104;&#32;&#102;&#111;&#114;--></c:textData></g><g transform="rotate(0, 486.12, 349.36)" stroke-width="1" z-index="282" id="shape:c6612170-d218-9172-3a8d-144051f2b6b2">
+
+<svg x="432.35999999999996px" y="334px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:a4d92aa1-e9a4-e2d7-dcb2-c9b8325191e1" Z-INDEX="203" width="107.52000000000004" height="30.71999999999997">
+<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,30.72 L0,30.72 L0,0" fill-opacity="1.0" stroke-dasharray=""/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0" stroke-dasharray=""/>
+
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:00bb66bf-951f-0168-d638-336eb23becb9" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:23433dfd-8934-ff75-353c-19638c087553" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:b687df4c-1fb5-c483-6a63-f97e87e1a8b5" type="to"/><c:connection lineid="connector:26464ec1-d9ee-c035-1f46-e4280406609a" type="to"/></c:connection-point>
+<linearGradient id="Gradient01da9c78ae-c00c-0862-dab7-d89b07ed9663" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ 
+ <text id="text:normal" x="486.12" y="351.92" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Parameter Search for</text><text id="text:templateshape:c6612170-d218-9172-3a8d-144051f2b6b2" x="432.36" y="432.36" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#80;&#97;&#114;&#97;&#109;&#101;&#116;&#101;&#114;&#32;&#83;&#101;&#97;&#114;&#99;&#104;&#32;&#102;&#111;&#114;--></c:textData></g><g transform="rotate(0, 624.36, 395.36)" stroke-width="1" z-index="282" id="shape:262aac46-4bfd-889e-60fe-5e3b7c9c58a2">
+
+<svg x="570.6px" y="380px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:47018df8-3b27-d6d2-4bad-813d5eed2f49" Z-INDEX="203" width="107.52000000000004" height="30.71999999999997">
+<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,30.72 L0,30.72 L0,0" fill-opacity="1.0" stroke-dasharray=""/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0" stroke-dasharray=""/>
+
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:b687df4c-1fb5-c483-6a63-f97e87e1a8b5" type="from"/><c:connection lineid="connector:38632982-de22-e56b-2e07-e3f2b72d533d" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:f0c4908c-b987-5206-b50a-96b514fa42c0" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:1f8dd846-00c0-938d-3f23-79427024d3f6" type="to"/></c:connection-point>
+<linearGradient id="Gradient01724ca1ac-a6d6-251d-57b6-414b8d30d78f" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ 
+ <text id="text:normal" x="624.36" y="397.92" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Parameter Search for</text><text id="text:templateshape:262aac46-4bfd-889e-60fe-5e3b7c9c58a2" x="570.6" y="570.6" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#80;&#97;&#114;&#97;&#109;&#101;&#116;&#101;&#114;&#32;&#83;&#101;&#97;&#114;&#99;&#104;&#32;&#102;&#111;&#114;--></c:textData></g><g type="line" z-index="792" id="shape:17d03baf-0718-b4d3-05e1-f50c7375a5a8">
+<c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
+<svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px" id="shape:63bfc72c-9e48-df30-9b27-248b971629a0">
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="767" y1="518" x2="768" y2="536" marker-start="" marker-end="url(#MARKER_START1b1a2f17-486a-bcb5-fdd0-7d9d5ee149a8)" stroke-dasharray="4,3"/>
+ </svg>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:57bbe532-7364-0b91-7450-47ff1510400f" shapepoint="4"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="xx" shapepoint="-1"/>
+<marker id="MARKER_START1b1a2f17-486a-bcb5-fdd0-7d9d5ee149a8" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z"/>
+ </marker>
+<marker id="MARKER_ENDc5082c31-fab0-d832-b367-4a3dce4f986b" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 10 0 L 0 5 L 10 10 z"/>
+ </marker>
+
+</g><g transform="rotate(0, 767.24, 487.16)" stroke-width="1" z-index="380" id="shape:57bbe532-7364-0b91-7450-47ff1510400f">
+
+<svg x="713.4800000000001px" y="456.44000000000005px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:52aa1fc9-da42-f651-0e4a-af9182afdd3b" Z-INDEX="203" width="107.52000000000001" height="61.44000000000001">
+<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
+
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="shape:17d03baf-0718-b4d3-05e1-f50c7375a5a8" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"><c:connection lineid="connector:fa8009e0-a3bf-ce20-f1eb-bd3d9484efe4" type="from"/></c:connection-point>
+<linearGradient id="Gradient01936b38bb-358b-5a48-3cbd-3ea28b3074b3" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ 
+ <text id="text:normal" x="767.24" y="489.72" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Multi</text><text id="text:normal" x="767.24" y="478.456" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Final Joint and/or </text><text id="text:normal" x="767.24" y="500.984" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Channel Coding</text><text id="text:templateshape:57bbe532-7364-0b91-7450-47ff1510400f" x="713.48" y="713.48" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#70;&#105;&#110;&#97;&#108;&#32;&#74;&#111;&#105;&#110;&#116;&#32;&#97;&#110;&#100;&#47;&#111;&#114;&#32;&#77;&#117;&#108;&#116;&#105;&#10;&#67;&#104;&#97;&#110;&#110;&#101;&#108;&#32;&#67;&#111;&#100;&#105;&#110;&#103;--></c:textData></g><g transform="rotate(0, 767, 441.2)" stroke-width="1" z-index="282" id="shape:54a15cb2-2348-d72b-f067-bdb16b2413f0">
+
+<svg x="713.2400000000001px" y="425.84000000000003px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:db867e2f-7056-8760-8de4-8647c7bd904c" Z-INDEX="203" width="107.52000000000004" height="30.71999999999997">
+<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,30.72 L0,30.72 L0,0" fill-opacity="1.0"/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
+
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"><c:connection lineid="connector:36002ce3-d316-dd42-d88c-6c6dffc14cd5" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:2063b0c2-ae3e-32ef-7886-fea0148384fc" type="to"/><c:connection lineid="connector:1f8dd846-00c0-938d-3f23-79427024d3f6" type="from"/><c:connection lineid="connector:26464ec1-d9ee-c035-1f46-e4280406609a" type="from"/><c:connection lineid="connector:e821fa97-8223-aa7f-43a4-b2c8121099df" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:8d61d1bb-a1ec-04b6-e38f-39ccf600a5a3" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
+<linearGradient id="Gradient01628e9429-f79b-fe9f-938a-9519ed54e232" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ 
+ <text id="text:normal" x="767" y="443.76" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Parameter Search for</text><text id="text:templateshape:54a15cb2-2348-d72b-f067-bdb16b2413f0" x="713.24" y="713.24" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#80;&#97;&#114;&#97;&#109;&#101;&#116;&#101;&#114;&#32;&#83;&#101;&#97;&#114;&#99;&#104;&#32;&#102;&#111;&#114;--></c:textData></g><g type="line" z-index="2545" id="connector:2f3e0217-f29c-5731-2ac3-6609ad3c094b">
+<c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
+<svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="230" y1="568" x2="10" y2="569" marker-start="" marker-end="url(#MARKER_STARTa49d8dd5-5aff-28d3-3b23-8e961ee9a6d9)"/>
+ </svg>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:a1d1ac9a-1eb6-1e41-a797-f2b1e8bd9459" shapepoint="6"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
+<marker id="MARKER_STARTa49d8dd5-5aff-28d3-3b23-8e961ee9a6d9" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z"/>
+ </marker>
+<marker id="MARKER_ENDa8629317-019b-87cc-83f8-4a5a6d233c02" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 10 0 L 0 5 L 10 10 z"/>
+ </marker>
+
+</g><g type="line" z-index="2547" id="connector:aae34e50-7443-e389-903b-3f55ed3b00e3">
+<c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
+<svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
+<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="215.04" y1="353.28" x2="215.04" y2="353.28"/>
+ </svg>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="123" shapepoint="0"/>
+<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
+<marker id="MARKER_START634ca987-f965-0f44-24e8-511aef765a7d" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z"/>
+ </marker>
+<marker id="MARKER_END2901c80b-9f6b-c1ee-f896-5904147b6a6d" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
+      <path d="M 10 0 L 0 5 L 10 10 z"/>
+ </marker>
+
+</g><g transform="rotate(0, 59.52, 44.16)" stroke-width="1" z-index="2549" id="shape:67930808-ed63-74c0-a281-b8d973a7f6e6">
+
+<svg x="13.4400000000px" y="21.1200000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="92.16" height="46.08">
+<path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L92.16,0 L92.16,46.08 L0,46.08 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
 </svg>
@@ -638,56 +794,65 @@
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
-<linearGradient id="Gradient01e8580808-7c90-b7cc-004a-18cf6a5e5f9e" y2="10%" x2="0%" y1="90%" x1="0%">
+<linearGradient id="Gradient018ed8dd46-266f-f204-fbd0-c2376ec93c0a" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- <text id="text:normal" x="545.28" y="471.04" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">next block</text><text id="text:templateshape:3f1208ed-2aac-12a2-037a-9589b5c08909" x="506.88" y="506.88" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#110;&#101;&#120;&#116;&#32;&#98;&#108;&#111;&#99;&#107;--></c:textData></g><g transform="rotate(0, 760.32, 430.08)" stroke-width="1" z-index="331" id="shape:1e2ea0da-ad46-15f7-4124-7a93b554bee2">
+ <text id="text:normal" x="59.52" y="46.72" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="italic" xml:space="preserve" text-anchor="middle">Raw Samples</text><text id="text:templateshape:67930808-ed63-74c0-a281-b8d973a7f6e6" x="13.44" y="13.44" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="italic" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#82;&#97;&#119;&#32;&#83;&#97;&#109;&#112;&#108;&#101;&#115;--></c:textData></g><g transform="rotate(0)" stroke-width="1" z-index="2550" id="shape:a44a9138-0cc9-ffae-492e-ab0c79bfc52b">
 
-<svg x="706.5600000000px" y="399.3600000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="107.52000000000004" height="61.44">
-<path stroke="black" stroke-width="1px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L107.52,0 L107.52,61.44 L0,61.44 L0,0" fill-opacity="1.0"/>
+<svg x="61.44px" y="138.24px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="1" height="1">
+<path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L1,0 L1,1 L0,1 L0,0" fill-opacity="0.0"/>
 <path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
 </svg>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"><c:connection lineid="connector:fa8009e0-a3bf-ce20-f1eb-bd3d9484efe4" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"><c:connection lineid="connector:b6beb729-dedd-a882-90d9-24b42b8c47c4" type="from"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
-<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"><c:connection lineid="connector:8d61d1bb-a1ec-04b6-e38f-39ccf600a5a3" type="to"/></c:connection-point>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
 <c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
-<linearGradient id="Gradient01ec9d6a31-f8d3-1d8b-cd5e-868d6f6b24cc" y2="10%" x2="0%" y1="90%" x1="0%">
+<linearGradient id="Gradient01cc9559ed-c93f-e7c4-6929-1e418f104b59" y2="10%" x2="0%" y1="90%" x1="0%">
       <stop offset="0%" stop-color="white"/>
       <stop offset="90%" stop-color="white"/>
 </linearGradient>
- 
- <text id="text:normal" x="760.32" y="432.64" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle">Entropy Coding</text><text id="text:templateshape:1e2ea0da-ad46-15f7-4124-7a93b554bee2" x="706.56" y="706.56" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#69;&#110;&#116;&#114;&#111;&#112;&#121;&#32;&#67;&#111;&#100;&#105;&#110;&#103;--></c:textData></g><g type="line" z-index="343" id="connector:8d61d1bb-a1ec-04b6-e38f-39ccf600a5a3">
-<c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
-<svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="676" y1="430" x2="707" y2="430" marker-start="" marker-end="url(#MARKER_START7a0dc7fe-d6d1-47de-f4fd-0c105f192c91)"/>
- </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:0da3628e-f5b0-4ab9-8849-336d55b6a4ed" shapepoint="7"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="shape:1e2ea0da-ad46-15f7-4124-7a93b554bee2" shapepoint="6"/>
-<marker id="MARKER_START7a0dc7fe-d6d1-47de-f4fd-0c105f192c91" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z"/>
- </marker>
-<marker id="MARKER_END22593f56-f459-b60c-9534-2069b53c22d4" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
-      <path d="M 10 0 L 0 5 L 10 10 z"/>
- </marker>
+ <text id="text:normal" x="73.94" y="141.3" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:a44a9138-0cc9-ffae-492e-ab0c79bfc52b" x="61.44" y="61.44" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><g transform="rotate(0, 125.44, 558.72)" stroke-width="1" z-index="2551" id="shape:056441c5-3488-7dec-1e1b-c5ea7f1abd16">
 
-</g><g type="line" z-index="584" id="connector:b6beb729-dedd-a882-90d9-24b42b8c47c4">
-<c:connector xmlns:c="urn:schemas-cumulatelabs-com:svg" type="line"/>
-<svg transform="rotate(0,0,0)" zIndex="203" position="absolute" stroke-width="1px">
-<line stroke="black" stroke-width="2px" stroke-opacity="1.0" fill-opacity="1.0" x1="760" y1="461" x2="760" y2="506" marker-start="" marker-end="url(#MARKER_STARTfbec8667-81c7-18f9-cabc-0e5edf7d47f4)" stroke-dasharray="4,3"/>
- </svg>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="from" shapeid="shape:1e2ea0da-ad46-15f7-4124-7a93b554bee2" shapepoint="4"/>
-<c:connection xmlns:c="urn:schemas-cumulatelabs-com:svg" type="to" shapeid="111" shapepoint="1"/>
-<marker id="MARKER_STARTfbec8667-81c7-18f9-cabc-0e5edf7d47f4" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z"/>
- </marker>
-<marker id="MARKER_ENDdf6e9861-aa85-6c4e-770e-2f7e10b3e06d" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="strokeWidth" markerWidth="5" markerHeight="4" orient="auto">
-      <path d="M 10 0 L 0 5 L 10 10 z"/>
- </marker>
+<svg x="64.0000000000px" y="543.3600000000px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="122.87999999999998" height="30.720000000000027">
+<path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L122.88,0 L122.88,30.72 L0,30.72 L0,0" fill-opacity="0.0"/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
 
-</g><zoom-factor factor="0.64000" xdpi="1.3333"/><page-size width="17in" height="11in"/></svg>
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
+<linearGradient id="Gradient0126bcb304-b91b-d9f3-d032-69907ba3a2a1" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ <text id="text:normal" x="125.44" y="561.28" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="italic" xml:space="preserve" text-anchor="middle">Encoded Bitstream</text><text id="text:templateshape:056441c5-3488-7dec-1e1b-c5ea7f1abd16" x="64" y="64" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="italic" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#69;&#110;&#99;&#111;&#100;&#101;&#100;&#32;&#66;&#105;&#116;&#115;&#116;&#114;&#101;&#97;&#109;--></c:textData></g><g transform="rotate(0)" stroke-width="1" z-index="2552" id="shape:624d2b95-2386-643b-dcd9-e1ae58956149">
+
+<svg x="122.88px" y="537.6px" position="absolute" overflow="visible" preserveAspectRatio="none" id="shape:535ed34a-2e4b-b5fe-1775-7c0b0c510f57" Z-INDEX="203" width="1" height="1">
+<path stroke="black" stroke-width="0px" stroke-opacity="1.0" fill="#ffffff" d="M0,0 L1,0 L1,1 L0,1 L0,0" fill-opacity="0.0"/>
+<path id="_template" transform="scale(0)" d="M 0,0L1000,0,1000,1000,0,1000,0,0" fill-opacity="1.0"/>
+
+</svg>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="0"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="500" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="1000"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="0" y="500"/>
+<c:connection-point xmlns:c="urn:schemas-cumulatelabs-com:svg" x="1000" y="500"/>
+<linearGradient id="Gradient018dd6b0a5-4d31-d264-313c-264463e92bd2" y2="10%" x2="0%" y1="90%" x1="0%">
+      <stop offset="0%" stop-color="white"/>
+      <stop offset="90%" stop-color="white"/>
+</linearGradient>
+ <text id="text:normal" x="135.38" y="540.66" style="position: absolute;" fill="black" font-size="10.24" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"> </text><text id="text:templateshape:624d2b95-2386-643b-dcd9-e1ae58956149" x="122.88" y="122.88" style="position: absolute;" fill="black" font-size="16" font-weight="normal" font-family="'Arial'" font-style="normal" xml:space="preserve" text-anchor="middle"/><c:textData xmlns:c="urn:schemas-cumulatelabs-com:svg" version="0.3.7"><!--&#32;--></c:textData></g><zoom-factor factor="0.64000" xdpi="1.3333"/><page-size width="17in" height="11in"/></svg>
