@@ -1,11 +1,6 @@
 Algorithm overview for the ALS encoder:
 
 
-Stage: Signal Preprocessing
-    Speed:          -
-    Compression:    -
-    Compromise:     -
-
 Stage: Channel Sorting
     Speed:          user defined sorting
     Compression:    user defined sorting
