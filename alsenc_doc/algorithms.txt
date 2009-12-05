@@ -27,14 +27,15 @@ Stage: Short-Term Prediction
     Compression:    Cholesky
     Compromise:     A) Levinson-Durbin
                     B) different window functions(?)
-                    C) different recusrion levels for Cholesky
+                    C) different recursion levels for Cholesky
 
     2: Selection of Prediction Order:
     Speed:          Fixed order determined at init by user and/or encoder
     Compression:    Full search using highest accuracy of all lower stages
     Compromise:     A) estimate order based on PARCOR threshold value
                     B) use less search steps
-                    C) use varying levels of accuracy for lower stages in the search
+                    C) use varying levels of accuracy for lower stages in the
+                       search
 
 Stage: Long-Term Prediction
     Speed:          Off
@@ -44,5 +45,7 @@ Stage: Long-Term Prediction
 Stage: Joint-/Multi-Channel Coding
     Speed:          Off
     Compression:    Full Search
-    Compromise:     Maybe channel layout dependant
+    Compromise:     A) Maybe channel layout dependant
+                    B) maybe an entropy-based bit estimate will be faster than
+                       exact bit count
 
