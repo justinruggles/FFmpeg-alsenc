@@ -1,0 +1,112 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<head>
+<style type="text/css">
+body {
+    margin-left: 2em;
+    width:       50em;
+    font-family: monospace;
+}
+p {
+    margin-left: 2em;
+}
+p,h3,h4,ol,ul {
+    margin-top:    0px;
+    margin-bottom: 0px;
+}
+</style>
+</head>
+<body>
+
+<h2>MPEG-4 ALS Encoder Algorithms</h2>
+
+<hr />
+
+<h3>Stage: Channel Sorting</h3>
+<dl>
+    <dt>Speed:      </dt><dd>Determined by user defined channel layout</dd>
+    <dt>Compression:</dt><dd>Determined by user defined channel layout</dd>
+    <dt>Compromise: </dt><dd>Determined by user defined channel layout</dd>
+</dl>
+
+<hr />
+<h3>Stage: Frame Partitioning</h3>
+<dl>
+    <dt>Speed:      </dt><dd>Fixed frame sizes for different encoding parameters</dd>
+    <dt>Compression:</dt><dd>Fixed frame sizes for different encoding parameters</dd>
+    <dt>Compromise: </dt><dd>Fixed frame sizes for different encoding parameters</dd>
+</dl>
+
+<hr />
+<h3>Stage: Block Partitioning</h3>
+<dl>
+    <dt>Speed:      </dt><dd>Off
+    <dt>Compression:</dt><dd>Trellis search for rate-optimal partitioning.</dd>
+    <dt>Compromise: </dt><dd>
+                    <ul>
+                    <li>a faster algorithm using difference of sum of simple
+                        prediction residual between adjacent sub-blocks
+                        (similar to the variable block size algorithm in Flake)</li>
+                    <li>varying amounts of speed/accuracy in the bit count part
+                        of the trellis search</li>
+                    <li>different maximum levels of partitioning</li>
+                    </ul>
+                    </dd>
+</dl>
+
+<hr />
+<h3>Stage: Short-Term Prediction</h3>
+    <h4>1: Calculation of Prediction Coefficients:</h4>
+<dl>
+    <dt>Speed:      </dt><dd>Pre-defined fixed coefficients</dd>
+    <dt>Compression:</dt><dd>Cholesky</dd>
+    <dt>Compromise: </dt><dd>
+                    <ul>
+                    <li>Levinson-Durbin</li>
+                    <li>different window functions(?)</li>
+                    <li>different recursion levels for Cholesky</li>
+                    </ul>
+                    </dd>
+</dl>
+
+    <h4>2: Selection of Prediction Order:</h4>
+<dl>
+    <dt>Speed:      </dt><dd>Fixed order determined at init by user and/or encoder</dd>
+    <dt>Compression:</dt><dd>Full search using highest accuracy of all lower stages</dd>
+    <dt>Compromise: </dt><dd>
+                    <ul>
+                    <li>estimate order based on PARCOR threshold value</li>
+                    <li>use less search steps</li>
+                    <li>use varying levels of accuracy for lower stages in the
+                       search</li>
+                    </ul>
+                    </dd>
+</dl>
+
+<hr />
+<h3>Stage: Long-Term Prediction</h3>
+<dl>
+    <dt>Speed:      </dt><dd>Off</dd>
+    <dt>Compression:</dt><dd>Full Search</dd>
+    <dt>Compromise: </dt><dd>Maybe full search is fast enough. Heuristics otherwise(?)</dd>
+</dl>
+
+<hr />
+<h3>Stage: Joint-/Multi-Channel Coding</h3>
+<dl>
+    <dt>Speed:      </dt><dd>Off</dd>
+    <dt>Compression:</dt><dd>Full Search</dd>
+    <dt>Compromise: </dt><dd>
+                    <ul>
+                    <li>Maybe channel layout dependant</li>
+                    <li>maybe an entropy-based bit estimate will be faster than
+                       exact bit count</li>
+                    </ul>
+                    </dd>
+</dl>
+
+
+</body>
+
+
