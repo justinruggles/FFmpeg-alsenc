@@ -1,0 +1,423 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<head>
+<style type="text/css">
+body {
+    margin-left: 2em;
+    width:       50em;
+    font-family: monospace;
+}
+p {
+    margin-left: 2em;
+}
+p,h3,h4,ol,ul {
+    margin-top:    0px;
+    margin-bottom: 0px;
+}
+</style>
+</head>
+<body>
+
+<h2>MPEG-4 ALS Encoder Stages</h2>
+
+<hr />
+
+<h3>Frame Partitioning</h3>
+<p>Determines the number of samples in each frame, which will be constant for
+the entire stream.</p>
+<h4>inputs:</h4>
+<ul>
+<li>encoding parameters, chosen by the user or by the encoder</li>
+<li>user-preferred frame size (optional)</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>frame size</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>The frame size is decided at encoder initialization.</li>
+<li>If we want, we can let the user set the frame size, maybe within certain
+boundaries.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>use the reference encoder default</li>
+<li>experiment with other values to see how they affect speed vs. compression
+with various encoding settings.  Most of the overhead is block data, not frame
+data, so it may end up that larger frames are better when more block switching
+is done.</li>
+</ol>
+
+<hr />
+
+<h3>Deinterleave Raw Samples</h3>
+<p>Converts an array of channel-interleaved samples into multiple arrays of
+samples, one for each channel.</p>
+<h4>inputs:</h4>
+<ul>
+<li>array of interleaved samples</li>
+<li>input sample format</li>
+<li>output sample format (maybe implicitly)</li>
+<li>number of channels</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>multiple arrays of samples, one for each channel</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>This stage could also convert the sample data type from the input type to
+the internal type (e.g. from 16-bit to 32-bit integer).
+<li>This could possibly be shared with other encoders.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>simple nested loop</li>
+<li>test speeding up with SIMD, at least for the 2-channel case.</li>
+</ol>
+
+<hr />
+
+<h3>Channel Sorting</h3>
+<p>Rearranges internal order of channels to optimize joint-channel coding.</p>
+<h4>inputs:</h4>
+<ul>
+<li>channel layout</li>
+<li>channel data pointers</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>array of original channel positions (chan_pos in ALSSpecificConfig)</li>
+<li>rearranged channel data pointers</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>This must be determined for the whole stream at encoder initialization.</li>
+<li>If we use chan_config_info to define the channel layout, we may need to
+rearrange channels from lavc native order to the chan_config_info order as
+defined in the ALS specification.</li>
+<li>We might consider the option of allowing the user to specify the desired
+original channel order, as compared to the lavc native order, as a separate
+pre-processing stage.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>If joint-channel coding is not used, channel sorting is not needed.</li>
+<li>The best grouping would likely be L/R, LS/RS, etc...</li>
+</ol>
+
+<hr />
+
+<h3>Block Partitioning</h3>
+<p>Sub-divides frames into smaller blocks of samples by recursively splitting
+the frames in half.</p>
+<h4>inputs:</h4>
+<ul>
+<li>input samples for each channel</li>
+<li>full frame size</li>
+<li>maximum partitioning depth</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>array of block sizes</li>
+<li>maybe also the bs_info bitmask</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>The full frame size, maximum partitioning depth, and algorithm are
+determined at encoder initialization.</li>
+<li>Jointly-coded channels must use the same block partitioning scheme for
+both channels (or all channel in the case of MCC).</li>
+<li>Independently-coded channels may either use the same partitioning scheme for
+the whole block or different schemes for each channel.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>Trellis search for rate-optimal partitioning. Trade-offs can be made here
+by using different algorithms for lower stages in the bit count part of the
+trellis search.</li>
+<li>A faster algorithm could be used which just uses a threshold value for the
+difference of sum of simple prediction residual between adjacent sub-blocks to
+determine whether or not to split each block.</li>
+</ol>
+
+<hr />
+
+<h3>Short-Term Prediction : Determination of LPC vs. RLS-LMS</h3>
+<p>Determines whether to use LPC (forward-adaptive) or RLS-LMS (backward-adaptive) short-term prediction.</p>
+<h4>inputs:</h4>
+<ul>
+<li>user-selected prediction type (optional)</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>type of prediction to use (RLSLMS parameter in ALSSpecificConfig)</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>This must be determined for the whole stream at encoder initialization.</li>
+<li>Implementation of RLS-LMS will likely be done at a later time since it
+is not required for ALS Simple Profile.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>The encoder can determine the short-term prediction type based on either
+explicit user selection or based on the compression level.</li>
+</ol>
+
+<hr />
+
+<h3>Short-Term Prediction : Calculation of LPC Coefficients</h3>
+<p>Calculates all required PARCOR and LPC coefficients for a single block of a
+single channel.</p>
+<h4>inputs:</h4>
+<ul>
+<li>minimum/maximum LPC filter order</li>
+<li>number of iterations for Cholesky</li>
+<li>sample data for the channel/block</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>quantized PARCOR coefficients, up to max LPC order</li>
+<li>quantized LPC coefficients, for each order from min to max LPC order</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>We have the option of computing LPC coeffs for multiple orders (for when we
+will do a search for optimal LPC order) or just PARCOR coeffs for the maximum
+order (for when we will use a fixed or estimated LPC order).</li>
+<li>As preliminary research, we should compare the final PARCOR coeffs
+generated from LPC coeffs for different LPC orders, as well as those
+generated by Schur recursion.</li>
+<li>ff_lpc_calc_coefs() in lpc.c always quantizes coefficients using a variable
+shift value.  This will need to be modified for use with ALS since it uses a
+very specific fixed 20-bit quantization for LPC coeffs and a final 7-bit
+quantization of PARCOR coeffs.  The best option might be to split
+ff_lpc_calc_coefs() into 2 functions, one which returns double-precision
+floating-point coefficients and another which quantizes them.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>Schur recursion to generate PARCOR coeffs when the prediction order is
+fixed or estimated based only on the PARCOR coeffs.  We could make
+trade-offs here by using different window functions prior to autocorrelation
+(currently FFmpeg always uses a Welch window).</li>
+<li>Levinson-Durbin to generate LPC coeffs for each order.  We could also use
+different window functions here.</li>
+<li>Cholesky to generate LPC coeffs for each order and/or PARCOR coeffs.  We
+can make trade-offs here by varying the number of iterations used.</li>
+</ol>
+
+<hr />
+
+<h3>Short-Term Prediction : Pre-Autocorrelation Window Function</h3>
+<p>Determines which window function(s) are used prior to autocorrelation.</p>
+<h4>inputs:</h4>
+<ul>
+<li>user-selected window function (optional)</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>which window function and/or functions to use</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>FFmpeg currently always uses a Welch window.</li>
+<li>Other window functions will likely require at least one SIMD implementation
+to accompany the C implementation.</li>
+<li>lpc.c and the dsputil autocorrelation functions will need to be modified
+to not always use the Welch window.</li>
+<li>Cholesky does not use autocorrelation, and thus does not need windowing.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>The user could select a different window to use instead of Welch.</li>
+<li>Other slower window functions, such as Tukey(0.5)+Flattop, could be used
+with higher compression levels.</li>
+<li>If it proves beneficial, we could store LPC coeffs as calculated using
+multiple window functions and select the one which gives best compression for
+each channel/block.</li>
+</ol>
+
+<hr />
+
+<h3>Short-Term Prediction : Selection of Prediction Order</h3>
+<p>Determines the final LPC prediction order.</p>
+<h4>inputs:</h4>
+<ul>
+<li>minimum/maximum LPC filter order</li>
+<li>sample data for the channel/block</li>
+<li>quantized PARCOR coefficients (up to max LPC order) and/or quantized LPC
+coefficients (for each order from min to max LPC order)</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>LPC prediction order</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>ff_lpc_calc_coefs() in lpc.c has the PARCOR threshold method built-in
+already when omethod == ORDER_METHOD_EST.</li>
+<li>Michael wrote a log search for the FLAC encoder that works pretty well.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>If min and max order are the same, a fixed order is used and no estimation
+or search needs to be done.</li>
+<li>Estimate optimal order using a PARCOR coefficient threshold value.  Testing
+has shown that 0.10 is a good threshold (104858 in 20-bit quantized form).</li>
+<li>Search for the optimal order by calculating or estimating the bit count
+for some or all orders from min to max.  Trade-offs can be made by using faster
+algorithms for lower levels and/or limiting the number of orders searched.</li>
+</ol>
+
+<hr />
+
+<h3>Long-Term Prediction</h3>
+<p>Determines LTP Parameters</p>
+<h4>inputs:</h4>
+<ul>
+<li>Short-term prediction residual samples</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>LTP on or off for the block</li>
+<li>LTP lag distance</li>
+<li>5 LTP filter coefficients</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>This is an optional stage.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>The simplest mode is off.</li>
+<li>Autocorrelation might be useful to estimate lag.</li>
+<li>I'm not sure yet what algorithm should be used to determine coefficients.</li>
+</ol>
+
+<hr />
+
+<h3>Joint-Channel Coding</h3>
+<p>Determines if joint-channel coding is used for a channel pair, and if so,
+which channel is the difference channel.</p>
+<h4>inputs:</h4>
+<ul>
+<li>Joint-Channel coding on/off</li>
+<li>Residual samples for a pair of channels in a block (after LTP if applicable)</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>js_block flag for each channel</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>In some cases it might not make sense to test for correlation in a pair,
+for example with the center and LFE channel in a 5.1-channel stream.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>Simplest solution is no joint-stereo.</li>
+<li>Next simplest solution is always using joint-stereo, with some simple fast
+algorithm for determining which of the two should be the difference channel.
+Maybe if the sum of difference or sum of squared difference is positive or
+negative.</li>
+<li>The best would be to try all 3 combinations and do a bit count, either
+estimated or actual.  Since this is the last step before entropy coding, an
+actual bit count might be close to or as fast as an estimated bit count.</li>
+</ol>
+
+<hr />
+
+<h3>Multi-Channel Coding</h3>
+<p>Determines if MCC or joint-channel coding should be used for a frame, and
+the MCC parameters if applicable.</p>
+<h4>inputs:</h4>
+<ul>
+<li>Multi-Channel Coding on/off</li>
+<li>Residual samples for all channels in all blocks of the frame (after LTP if applicable)</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>js_switch flag</li>
+<li>mcc parameters</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>This one could get really tricky.  In order to produce a rate-optimal
+solution, it basically will have to be a completely separate frame encode,
+which will be compared to the joint-channel frame case.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>Simple solution is no MCC.</li>
+<li>Next simple solution is always MCC.</li>
+<li>Beyond that, a comparison between a full frame encode with MCC vs.
+joint-channel coding will need to be done.  Trade-offs can be made in the
+accuracy of the algorithms used for the lower levels of the bit count used
+for this comparison.</li>
+</ol>
+
+<hr />
+
+<h3>Entropy Coding : Rice Coding</h3>
+<p>Calculates the bits used for entropy coding, Rice parameters, and entropy
+sub-block partitioning.</p>
+<h4>inputs:</h4>
+<ul>
+<li>final residual samples, after all prediction and channel correlation,
+for a single block and channel.</li>
+<li>entropy sub-block partitioning on/off</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>number of sub-blocks</li>
+<li>Rice parameter for each sub-block</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>The FLAC encoder uses Rice coding, but the algorithm is slightly different,
+so while the functions might be able to be shared, they may need some
+modification to give an exact bit count.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>Simple solution for partitioning: none.</li>
+<li>Simple solution for bit count and parameters: estimate from sum of residual.
+In FLAC, this is also the exact bit count, but that may not be the case for ALS.</li>
+<li>Optimal solution: do an exact bit count for partitioning vs. no partitioning</li>
+</ol>
+
+<hr />
+
+<h3>Entropy Coding : Arithmetic Coding</h3>
+<p>Calculates the bits used for entropy coding, BGMC parameters, and entropy
+sub-block partitioning.</p>
+<h4>inputs:</h4>
+<ul>
+<li>final residual samples, after all prediction and channel correlation,
+for a single block and channel.</li>
+<li>entropy sub-block partitioning on/off</li>
+</ul>
+<h4>outputs:</h4>
+<ul>
+<li>number of sub-blocks</li>
+<li>BGMC parameters for each sub-block</li>
+</ul>
+<h4>notes:</h4>
+<ul>
+<li>I don't know enough about this algorithm yet to say much about how it should
+be implemented other than to encode and count the bits.</li>
+</ul>
+<h4>algorithms/implementations:</h4>
+<ol>
+<li>Simple solution for partitioning: none.</li>
+<li>Optimal solution: do an exact bit count for partitioning vs. no partitioning</li>
+</ol>
+
+<hr />
+
+</body>
+</html>
