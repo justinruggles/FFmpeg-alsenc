@@ -46,7 +46,77 @@ typedef struct {
     AVCodecContext *avctx;
     ALSSpecificConfig sconf;
     PutBitContext pb;
+    unsigned int cur_frame_length; ///< length of the current frame
+    int32_t *raw_buffer;           ///< buffer containing all raw samples of the frame plut max_order samples from the previous frame (or zeroes) for all channels
+    int32_t **raw_samples;         ///< pointer to the beginning of this frames samples in the buffer for each channel
 } ALSEncContext;
+
+
+/** Converts an array of channel-interleaved samples into
+ *  multiple arrays of samples per sample
+ */
+static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
+{
+    unsigned int sample, c, shift;
+
+    // transform decoded frame into output format
+    #define DEINTERLEAVE_INPUT(bps)                                \
+    {                                                              \
+        int##bps##_t *src = (int##bps##_t*) data;                  \
+        shift = bps - ctx->avctx->bits_per_raw_sample;             \
+        for (sample = 0; sample < ctx->cur_frame_length; sample++) \
+            for (c = 0; c < ctx->avctx->channels; c++)             \
+                ctx->raw_samples[c][sample] = (*src++) << shift;   \
+    }
+
+    if (ctx->avctx->bits_per_raw_sample <= 16) {
+        DEINTERLEAVE_INPUT(16)
+    } else {
+        DEINTERLEAVE_INPUT(32)
+    }
+}
+
+
+static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
+                        int buf_size, void *data)
+{
+    ALSEncContext *ctx       = avctx->priv_data;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+
+    deinterleave_raw_samples(ctx, data);
+
+    memset(frame, 0, buf_size);
+
+    return (avctx->bits_per_raw_sample >> 3) *
+           avctx->channels *
+           sconf->frame_length; // to be replaced by #samples actually written
+}
+
+
+/** Determines the number of samples in each frame,
+ *  constant for all frames in the stream except the
+ *  very last one which may differ
+ */
+static void frame_partitioning(ALSEncContext *ctx)
+{
+    AVCodecContext *avctx    = ctx->avctx;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+
+    // choose standard value 2048 if not user-defined
+    if (avctx->frame_size <= 0)
+        avctx->frame_size = 2048;
+
+    // ensure a certain boundary for the frame size
+    // maximum value is 0xFFFF using 16 bit in ALSSpecificConf
+    av_clip(avctx->frame_size, 1024, 0xFFFF);
+
+    // enforce a frame length that is a power of 2?
+    // or discard block-switching if it is not?
+    // if block-switching is enabled by default
+    // then do check
+
+    sconf->frame_length = avctx->frame_size;
+}
 
 
 static av_cold int get_specific_config(AVCodecContext *avctx)
@@ -55,7 +125,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     ALSSpecificConfig *sconf = &ctx->sconf;
 
 
-    // don't know the total number of samples(?)
+    // total number of samples unknown
     sconf->samples = 0xFFFFFFFF;
 
 
@@ -79,17 +149,18 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // determine frame length
-    if (avctx->frame_size <= 0)
-        avctx->frame_size = 2048;
-
-    sconf->frame_length = avctx->frame_size;
+    frame_partitioning(ctx);
 
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
+    // default for now = 0. should be changed when implemented.
+    // should also be user-defineable
     sconf->ra_distance = 0;
 
 
     // determine where to store ra_flag (01: beginning of frame_data)
+    // default for now = RA_FLAG_FRAMES. Would make decoding more robust
+    // in case of seeking although not implemented in FFmpeg decoder yet
     sconf->ra_flag = RA_FLAG_FRAMES;
 
 
@@ -97,23 +168,35 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->adapt_order = 0;
 
 
-    // determine the coef_table to be used (no samples: not yet possible?)
+    // determine the coef_table to be used
+    // no samples: not yet possible?
+    // so FFmpeg has to choose one and live with it(?)
     sconf->coef_table = 0;
 
 
-    // determine if long-term prediction is used (user defined?)
+    // determine if long-term prediction is used
+    // should also be user-defineable
     sconf->long_term_prediction = 0;
 
 
-    // determine a maximum prediction order (no samples: not yet possible?)
+    // determine a maximum prediction order
+    // no samples: not yet possible to determine..
+    // do evaluation to find a suitable standard value?
     sconf->max_order = 10;
 
 
-    // determine if block-switching is used (user defined, no samples: ...?)
+    // determine if block-switching is used
+    // should be user-defineable
+    // may be always enable this by default,
+    // even simple profile supports up to 3 stages
+    // not user-defined -> 3
+    // user-defined otherwise
+    // should be set when implemented
     sconf->block_switching = 0;
 
 
-    // determine if BGMC mode is used (user defined)
+    // determine if BGMC mode is used
+    // should be user-defineable
     sconf->bgmc = 0;
 
 
@@ -121,15 +204,23 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->sb_part = 0;
 
 
-    // determine if joint-stereo is used (user defined, standard = yes?)
-    sconf->joint_stereo = 0; // = 0 for simplicity now
+    // determine if joint-stereo is used
+    // planned to be determined for each frame
+    // set = 1 if #channels > 1 (?)
+    // should be set when implemented
+    sconf->joint_stereo = 0;
 
 
-    // determine if multi-channel coding is used (user defined && sanity check: channels > 2 [although specs allow mc_coding for 2 channels... maybe give a warning])
+    // determine if multi-channel coding is used
+    // should be user-defineable
+    // may be sanity check: channels > 2
+    // (although specs allow mc_coding for 2 channels...
+    // maybe give a warning)
     sconf->mc_coding = 0;
 
 
-    // determine manual channel configuration (user defined?)
+    // determine manual channel configuration
+    // should be user-defineable
     sconf->chan_config = 0;
     sconf->chan_config_info = 0;
 
@@ -139,7 +230,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->chan_pos  = NULL;
 
 
-    // determine if backward adaptive is used (user defined)
+    // determine if backward adaptive is used
+    // user defined by explicit option and/or compression level
     sconf->rlslms = 0;
 
 
@@ -235,41 +327,60 @@ static int write_specific_config(AVCodecContext *avctx)
 }
 
 
-static av_cold int encode_init(AVCodecContext *avctx)
+static av_cold int encode_end(AVCodecContext *avctx)
 {
     ALSEncContext *ctx = avctx->priv_data;
-    int ret;
+
+    av_freep(&ctx->raw_buffer);
+    av_freep(&ctx->raw_samples);
+
+    return 0;
+}
+
+
+static av_cold int encode_init(AVCodecContext *avctx)
+{
+    ALSEncContext *ctx       = avctx->priv_data;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int channel_size;
+    int ret, c;
 
     ctx->avctx = avctx;
+
 
     // determine ALSSpecificConfig
     if (get_specific_config(avctx))
         return -1;
+
 
     // write AudioSpecificConfig & ALSSpecificConfig
     ret = write_specific_config(avctx);
     if (ret)
         return ret;
 
-    return 0;
-}
+
+    channel_size = sconf->frame_length + sconf->max_order;
 
 
-static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
-                        int buf_size, void *data)
-{
-    ALSEncContext *ctx       = avctx->priv_data;
-    ALSSpecificConfig *sconf = &ctx->sconf;
-
-    memset(frame, 0, buf_size);
-    return (avctx->bits_per_raw_sample >> 3) *
-           avctx->channels *
-           sconf->frame_length; // to be replaced by #samples actually written
-}
+    // allocate buffers
+    ctx->raw_buffer  = av_mallocz(sizeof(*ctx->raw_buffer)  * avctx->channels * channel_size);
+    ctx->raw_samples = av_malloc (sizeof(*ctx->raw_samples) * avctx->channels);
 
 
-static av_cold int encode_end(AVCodecContext *avctx)
-{
+    // check buffers
+    if (!ctx->raw_buffer|| !ctx->raw_samples) {
+        av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+        encode_end(avctx);
+        return AVERROR(ENOMEM);
+    }
+
+
+    // assign raw samples buffers
+    ctx->raw_samples[0] = ctx->raw_buffer + sconf->max_order;
+    for (c = 1; c < avctx->channels; c++)
+        ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
+
+
     return 0;
 }
 

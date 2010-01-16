@@ -29,6 +29,8 @@
 //#define DEBUG
 
 
+#include "als.h"
+
 #include "avcodec.h"
 #include "get_bits.h"
 #include "unary.h"
@@ -107,39 +109,6 @@ static const uint8_t ltp_gain_values [4][4] = {
     {64, 70, 76,  82},
     {88, 92, 96, 100}
 };
-
-
-enum RA_Flag {
-    RA_FLAG_NONE,
-    RA_FLAG_FRAMES,
-    RA_FLAG_HEADER
-};
-
-
-typedef struct {
-    uint32_t samples;         ///< number of samples, 0xFFFFFFFF if unknown
-    int resolution;           ///< 000 = 8-bit; 001 = 16-bit; 010 = 24-bit; 011 = 32-bit
-    int floating;             ///< 1 = IEEE 32-bit floating-point, 0 = integer
-    int frame_length;         ///< frame length for each frame (last frame may differ)
-    int ra_distance;          ///< distance between RA frames (in frames, 0...255)
-    enum RA_Flag ra_flag;     ///< indicates where the size of ra units is stored
-    int adapt_order;          ///< adaptive order: 1 = on, 0 = off
-    int coef_table;           ///< table index of Rice code parameters
-    int long_term_prediction; ///< long term prediction (LTP): 1 = on, 0 = off
-    int max_order;            ///< maximum prediction order (0..1023)
-    int block_switching;      ///< number of block switching levels
-    int bgmc;                 ///< "Block Gilbert-Moore Code": 1 = on, 0 = off (Rice coding only)
-    int sb_part;              ///< sub-block partition
-    int joint_stereo;         ///< joint stereo: 1 = on, 0 = off
-    int mc_coding;            ///< extended inter-channel coding (multi channel coding): 1 = on, 0 = off
-    int chan_config;          ///< indicates that a chan_config_info field is present
-    int chan_sort;            ///< channel rearrangement: 1 = on, 0 = off
-    int rlslms;               ///< use "Recursive Least Square-Least Mean Square" predictor: 1 = on, 0 = off
-    int chan_config_info;     ///< mapping of channels to loudspeaker locations. Unused until setting channel configuration is implemented.
-    int *chan_pos;            ///< original channel positions
-    uint32_t header_size;     ///< header size of original audio file in bytes, provided for debugging
-    uint32_t trailer_size;    ///< trailer size of original audio file in bytes, provided for debugging
-} ALSSpecificConfig;
 
 
 typedef struct {
