@@ -59,7 +59,7 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 {
     unsigned int sample, c, shift;
 
-    // transform decoded frame into output format
+    // transform input into internal format
     #define DEINTERLEAVE_INPUT(bps)                                \
     {                                                              \
         int##bps##_t *src = (int##bps##_t*) data;                  \
