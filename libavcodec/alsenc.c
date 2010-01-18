@@ -46,9 +46,13 @@ typedef struct {
     AVCodecContext *avctx;
     ALSSpecificConfig sconf;
     PutBitContext pb;
-    unsigned int cur_frame_length; ///< length of the current frame
-    int32_t *raw_buffer;           ///< buffer containing all raw samples of the frame plut max_order samples from the previous frame (or zeroes) for all channels
-    int32_t **raw_samples;         ///< pointer to the beginning of this frames samples in the buffer for each channel
+    unsigned int cur_frame_length;   ///< length of the current frame
+    int js_switch;                   ///< force joint-stereo in case of MCC
+    int *independent_bs;             ///< array containing independent_bs flag for each channel
+    int32_t *raw_buffer;             ///< buffer containing all raw samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
+    int32_t **raw_samples;           ///< pointer to the beginning of this frames samples in the buffer for each channel
+    unsigned int *block_size_buffer; ///< buffer containing all block sizes for all channels
+    unsigned int **block_size;       ///< pointer to all block sizes of all channels in this frame
 } ALSEncContext;
 
 
@@ -77,19 +81,119 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 }
 
 
+/** Chooses the appropriate method for difference channel coding
+ */
+static void select_difference_coding_mode(ALSEncContext *ctx)
+{
+    AVCodecContext *avctx = ctx->avctx;
+    unsigned int c;
+
+    // to be implemented
+    // depends on sconf->joint_stereo and sconf->mc_coding
+    // selects either joint_stereo or mcc mode
+    // sets js_switch (js && mcc) and/or independent_bs
+    // both parameters to be added to the context...
+
+    // while not implemented, output most simple mode:
+
+    ctx->js_switch = 0;
+
+    for (c = 0; c < avctx->channels; c++)
+        ctx->independent_bs[c] = 1;
+}
+
+
+/** Subdivide the frame into smaller blocks for entropy coding
+ */
+static void block_partitioning(ALSEncContext *ctx)
+{
+    AVCodecContext *avctx    = ctx->avctx;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int b, c;
+
+    if (sconf->block_switching) {
+
+        // sconf->block_switching might be set to -1 in init
+        // and be overridden by the user defined value
+        // so if block-switching should be used, go in here and do
+        // parameter search and divide the frame
+        //
+        // set sconf->block_switching if needed (previously == -1)
+        // set block_size[c][x] to appropriate sizes
+        //
+        // maybe set a bs_info[c] in the context, but maybe
+        // this should be generated when needed in bitstream assembly
+        // becuase it should not be needed elsewhere in the encoder
+        // if block_size[c] is there
+
+    } else {
+
+        // generate result for no block-switching,
+        // one block per channel as long as the frame
+
+        for (c = 0; c < avctx->channels; c++) {
+            ctx->block_size[c][0] = ctx->cur_frame_length;
+
+            for (b = 1; b < 32; b++)
+                ctx->block_size[c][b] = 0;
+        }
+    }
+}
+
+
 static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                         int buf_size, void *data)
 {
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int b, c;
 
+    ctx->cur_frame_length = avctx->frame_size;
+
+
+    // preprocessing
     deinterleave_raw_samples(ctx, data);
+    select_difference_coding_mode(ctx);
+    block_partitioning(ctx);
 
+
+    // encoding loop
+    if (sconf->mc_coding && !ctx->js_switch) {
+
+        // to be implemented
+
+    } else {
+        for (b= 0; b < 32; b++) {
+            for (c = 0; c < avctx->channels; c++) {
+                if (!ctx->block_size[c])
+                    continue;
+
+                if (ctx->independent_bs[c]) {
+                    // encode channel
+                } else {
+                    // encode channel & channel+1
+                }
+            }
+        }
+    }
+
+
+    // bitstream assembly
     memset(frame, 0, buf_size);
 
     return (avctx->bits_per_raw_sample >> 3) *
            avctx->channels *
-           sconf->frame_length; // to be replaced by #samples actually written
+           ctx->cur_frame_length;
+}
+
+
+/** Rearranges internal order of channels to optimize joint-channel coding
+ */
+static void channel_sorting(ALSEncContext *ctx)
+{
+    // to be implemented...
+    // just arrange ctx->raw_samples array
+    // according to specific channel order
 }
 
 
@@ -193,8 +297,9 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // should be user-defineable
     // may be always enable this by default,
     // even simple profile supports up to 3 stages
-    // not user-defined -> 3
-    // user-defined otherwise
+    // set to -> -1 (do parameter search)
+    //     or ->  X (user defined value)
+    // set to ->  0 (no block switching (later: only possible if user-defined))
     // should be set when implemented
     sconf->block_switching = 0;
 
@@ -335,8 +440,11 @@ static av_cold int encode_end(AVCodecContext *avctx)
 {
     ALSEncContext *ctx = avctx->priv_data;
 
+    av_freep(&ctx->independent_bs);
     av_freep(&ctx->raw_buffer);
     av_freep(&ctx->raw_samples);
+    av_freep(&ctx->block_size_buffer);
+    av_freep(&ctx->block_size);
 
     return 0;
 }
@@ -367,22 +475,35 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
 
     // allocate buffers
-    ctx->raw_buffer  = av_mallocz(sizeof(*ctx->raw_buffer)  * avctx->channels * channel_size);
-    ctx->raw_samples = av_malloc (sizeof(*ctx->raw_samples) * avctx->channels);
-
+    ctx->raw_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)        * avctx->channels * channel_size);
+    ctx->raw_samples       = av_malloc (sizeof(*ctx->raw_samples)       * avctx->channels);
+    ctx->block_size_buffer = av_mallocz(sizeof(*ctx->block_size_buffer) * avctx->channels * 32);
+    ctx->block_size        = av_mallocz(sizeof(*ctx->block_size)        * avctx->channels);
+    ctx->independent_bs    = av_malloc (sizeof(*ctx->independent_bs)    * avctx->channels);
 
     // check buffers
-    if (!ctx->raw_buffer|| !ctx->raw_samples) {
+    if (!ctx->raw_buffer        || !ctx->raw_samples ||
+        !ctx->block_size_buffer || !ctx->block_size  ||
+        !ctx->independent_bs) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
         return AVERROR(ENOMEM);
     }
 
 
-    // assign raw samples buffers
+    // assign buffer pointers
     ctx->raw_samples[0] = ctx->raw_buffer + sconf->max_order;
-    for (c = 1; c < avctx->channels; c++)
+    ctx->block_size [0] = ctx->block_size_buffer;
+
+    for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
+        ctx->block_size [c] = ctx->block_size [c - 1] + 32;
+    }
+
+
+    // channel sorting
+    if ((sconf->joint_stereo || sconf->mc_coding) && sconf->chan_sort)
+        channel_sorting(ctx);
 
 
     return 0;
