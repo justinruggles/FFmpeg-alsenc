@@ -114,6 +114,10 @@ static void frame_partitioning(ALSEncContext *ctx)
     // or discard block-switching if it is not?
     // if block-switching is enabled by default
     // then do check
+    // exceptions for last frame which might consist
+    // of an arbitrary number of samples
+    // do special block-switching in that case like the
+    // reference enc? (2-2-1-0, refer to decoder)
 
     sconf->frame_length = avctx->frame_size;
 }
