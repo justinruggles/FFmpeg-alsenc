@@ -894,7 +894,7 @@ int MPV_frame_start(MpegEncContext *s, AVCodecContext *avctx)
         }
       }
     }
-alloc:
+
     if(!s->encoding){
         /* release non reference frames */
         for(i=0; i<MAX_PICTURE_COUNT; i++){
@@ -946,14 +946,26 @@ alloc:
         s->current_picture_ptr ? s->current_picture_ptr->data[0] : NULL,
         s->pict_type, s->dropable);*/
 
+    if(s->codec_id != CODEC_ID_H264){
+        if((s->last_picture_ptr==NULL || s->last_picture_ptr->data[0]==NULL) && s->pict_type!=FF_I_TYPE){
+            av_log(avctx, AV_LOG_ERROR, "warning: first frame is no keyframe\n");
+            /* Allocate a dummy frame */
+            i= ff_find_unused_picture(s, 0);
+            s->last_picture_ptr= &s->picture[i];
+            if(ff_alloc_picture(s, s->last_picture_ptr, 0) < 0)
+                return -1;
+        }
+        if((s->next_picture_ptr==NULL || s->next_picture_ptr->data[0]==NULL) && s->pict_type==FF_B_TYPE){
+            /* Allocate a dummy frame */
+            i= ff_find_unused_picture(s, 0);
+            s->next_picture_ptr= &s->picture[i];
+            if(ff_alloc_picture(s, s->next_picture_ptr, 0) < 0)
+                return -1;
+        }
+    }
+
     if(s->last_picture_ptr) ff_copy_picture(&s->last_picture, s->last_picture_ptr);
     if(s->next_picture_ptr) ff_copy_picture(&s->next_picture, s->next_picture_ptr);
-
-    if(s->pict_type != FF_I_TYPE && (s->last_picture_ptr==NULL || s->last_picture_ptr->data[0]==NULL) && !s->dropable && s->codec_id != CODEC_ID_H264){
-        av_log(avctx, AV_LOG_ERROR, "warning: first frame is no keyframe\n");
-        assert(s->pict_type != FF_B_TYPE); //these should have been dropped if we don't have a reference
-        goto alloc;
-    }
 
     assert(s->pict_type == FF_I_TYPE || (s->last_picture_ptr && s->last_picture_ptr->data[0]));
 
@@ -1404,6 +1416,7 @@ static inline int hpel_motion_lowres(MpegEncContext *s,
                                   int motion_x, int motion_y)
 {
     const int lowres= s->avctx->lowres;
+    const int op_index= FFMIN(lowres, 2);
     const int s_mask= (2<<lowres)-1;
     int emu=0;
     int sx, sy;
@@ -1428,11 +1441,11 @@ static inline int hpel_motion_lowres(MpegEncContext *s,
         emu=1;
     }
 
-    sx <<= 2 - lowres;
-    sy <<= 2 - lowres;
+    sx= (sx << 2) >> lowres;
+    sy= (sy << 2) >> lowres;
     if(field_select)
         src += s->linesize;
-    pix_op[lowres](dest, src, stride, h, sx, sy);
+    pix_op[op_index](dest, src, stride, h, sx, sy);
     return emu;
 }
 
@@ -1441,11 +1454,12 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
                                uint8_t *dest_y, uint8_t *dest_cb, uint8_t *dest_cr,
                                int field_based, int bottom_field, int field_select,
                                uint8_t **ref_picture, h264_chroma_mc_func *pix_op,
-                               int motion_x, int motion_y, int h)
+                               int motion_x, int motion_y, int h, int mb_y)
 {
     uint8_t *ptr_y, *ptr_cb, *ptr_cr;
     int mx, my, src_x, src_y, uvsrc_x, uvsrc_y, uvlinesize, linesize, sx, sy, uvsx, uvsy;
     const int lowres= s->avctx->lowres;
+    const int op_index= FFMIN(lowres, 2);
     const int block_s= 8>>lowres;
     const int s_mask= (2<<lowres)-1;
     const int h_edge_pos = s->h_edge_pos >> lowres;
@@ -1465,7 +1479,7 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
     sx= motion_x & s_mask;
     sy= motion_y & s_mask;
     src_x = s->mb_x*2*block_s               + (motion_x >> (lowres+1));
-    src_y =(s->mb_y*2*block_s>>field_based) + (motion_y >> (lowres+1));
+    src_y =(   mb_y*2*block_s>>field_based) + (motion_y >> (lowres+1));
 
     if (s->out_format == FMT_H263) {
         uvsx = ((motion_x>>1) & s_mask) | (sx&1);
@@ -1478,14 +1492,14 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
         uvsx = (2*mx) & s_mask;
         uvsy = (2*my) & s_mask;
         uvsrc_x = s->mb_x*block_s               + (mx >> lowres);
-        uvsrc_y = s->mb_y*block_s               + (my >> lowres);
+        uvsrc_y =    mb_y*block_s               + (my >> lowres);
     } else {
         mx = motion_x / 2;
         my = motion_y / 2;
         uvsx = mx & s_mask;
         uvsy = my & s_mask;
         uvsrc_x = s->mb_x*block_s               + (mx >> (lowres+1));
-        uvsrc_y =(s->mb_y*block_s>>field_based) + (my >> (lowres+1));
+        uvsrc_y =(   mb_y*block_s>>field_based) + (my >> (lowres+1));
     }
 
     ptr_y  = ref_picture[0] + src_y * linesize + src_x;
@@ -1520,15 +1534,15 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
         ptr_cr+= s->uvlinesize;
     }
 
-    sx <<= 2 - lowres;
-    sy <<= 2 - lowres;
+    sx= (sx << 2) >> lowres;
+    sy= (sy << 2) >> lowres;
     pix_op[lowres-1](dest_y, ptr_y, linesize, h, sx, sy);
 
     if(!CONFIG_GRAY || !(s->flags&CODEC_FLAG_GRAY)){
-        uvsx <<= 2 - lowres;
-        uvsy <<= 2 - lowres;
-        pix_op[lowres](dest_cb, ptr_cb, uvlinesize, h >> s->chroma_y_shift, uvsx, uvsy);
-        pix_op[lowres](dest_cr, ptr_cr, uvlinesize, h >> s->chroma_y_shift, uvsx, uvsy);
+        uvsx= (uvsx << 2) >> lowres;
+        uvsy= (uvsy << 2) >> lowres;
+        pix_op[op_index](dest_cb, ptr_cb, uvlinesize, h >> s->chroma_y_shift, uvsx, uvsy);
+        pix_op[op_index](dest_cr, ptr_cr, uvlinesize, h >> s->chroma_y_shift, uvsx, uvsy);
     }
     //FIXME h261 lowres loop filter
 }
@@ -1539,6 +1553,7 @@ static inline void chroma_4mv_motion_lowres(MpegEncContext *s,
                                      h264_chroma_mc_func *pix_op,
                                      int mx, int my){
     const int lowres= s->avctx->lowres;
+    const int op_index= FFMIN(lowres, 2);
     const int block_s= 8>>lowres;
     const int s_mask= (2<<lowres)-1;
     const int h_edge_pos = s->h_edge_pos >> (lowres+1);
@@ -1571,16 +1586,16 @@ static inline void chroma_4mv_motion_lowres(MpegEncContext *s,
             emu=1;
         }
     }
-    sx <<= 2 - lowres;
-    sy <<= 2 - lowres;
-    pix_op[lowres](dest_cb, ptr, s->uvlinesize, block_s, sx, sy);
+    sx= (sx << 2) >> lowres;
+    sy= (sy << 2) >> lowres;
+    pix_op[op_index](dest_cb, ptr, s->uvlinesize, block_s, sx, sy);
 
     ptr = ref_picture[2] + offset;
     if(emu){
         ff_emulated_edge_mc(s->edge_emu_buffer, ptr, s->uvlinesize, 9, 9, src_x, src_y, h_edge_pos, v_edge_pos);
         ptr= s->edge_emu_buffer;
     }
-    pix_op[lowres](dest_cr, ptr, s->uvlinesize, block_s, sx, sy);
+    pix_op[op_index](dest_cr, ptr, s->uvlinesize, block_s, sx, sy);
 }
 
 /**
@@ -1612,7 +1627,7 @@ static inline void MPV_motion_lowres(MpegEncContext *s,
         mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                     0, 0, 0,
                     ref_picture, pix_op,
-                    s->mv[dir][0][0], s->mv[dir][0][1], 2*block_s);
+                    s->mv[dir][0][0], s->mv[dir][0][1], 2*block_s, mb_y);
         break;
     case MV_TYPE_8X8:
         mx = 0;
@@ -1639,12 +1654,12 @@ static inline void MPV_motion_lowres(MpegEncContext *s,
             mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                         1, 0, s->field_select[dir][0],
                         ref_picture, pix_op,
-                        s->mv[dir][0][0], s->mv[dir][0][1], block_s);
+                        s->mv[dir][0][0], s->mv[dir][0][1], block_s, mb_y);
             /* bottom field */
             mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                         1, 1, s->field_select[dir][1],
                         ref_picture, pix_op,
-                        s->mv[dir][1][0], s->mv[dir][1][1], block_s);
+                        s->mv[dir][1][0], s->mv[dir][1][1], block_s, mb_y);
         } else {
             if(s->picture_structure != s->field_select[dir][0] + 1 && s->pict_type != FF_B_TYPE && !s->first_field){
                 ref_picture= s->current_picture_ptr->data;
@@ -1653,7 +1668,7 @@ static inline void MPV_motion_lowres(MpegEncContext *s,
             mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                         0, 0, s->field_select[dir][0],
                         ref_picture, pix_op,
-                        s->mv[dir][0][0], s->mv[dir][0][1], 2*block_s);
+                        s->mv[dir][0][0], s->mv[dir][0][1], 2*block_s, mb_y>>1);
         }
         break;
     case MV_TYPE_16X8:
@@ -1669,7 +1684,7 @@ static inline void MPV_motion_lowres(MpegEncContext *s,
             mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                         0, 0, s->field_select[dir][i],
                         ref2picture, pix_op,
-                        s->mv[dir][i][0], s->mv[dir][i][1] + 2*block_s*i, block_s);
+                        s->mv[dir][i][0], s->mv[dir][i][1] + 2*block_s*i, block_s, mb_y>>1);
 
             dest_y += 2*block_s*s->linesize;
             dest_cb+= (2*block_s>>s->chroma_y_shift)*s->uvlinesize;
@@ -1684,7 +1699,7 @@ static inline void MPV_motion_lowres(MpegEncContext *s,
                     mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                                 1, j, j^i,
                                 ref_picture, pix_op,
-                                s->mv[dir][2*i + j][0], s->mv[dir][2*i + j][1], block_s);
+                                s->mv[dir][2*i + j][0], s->mv[dir][2*i + j][1], block_s, mb_y);
                 }
                 pix_op = s->dsp.avg_h264_chroma_pixels_tab;
             }
@@ -1693,7 +1708,7 @@ static inline void MPV_motion_lowres(MpegEncContext *s,
                 mpeg_motion_lowres(s, dest_y, dest_cb, dest_cr,
                             0, 0, s->picture_structure != i+1,
                             ref_picture, pix_op,
-                            s->mv[dir][2*i][0],s->mv[dir][2*i][1],2*block_s);
+                            s->mv[dir][2*i][0],s->mv[dir][2*i][1],2*block_s, mb_y>>1);
 
                 // after put we make avg of the same block
                 pix_op = s->dsp.avg_h264_chroma_pixels_tab;
@@ -1954,7 +1969,7 @@ void MPV_decode_mb_internal(MpegEncContext *s, DCTELEM block[12][64],
                     }
                 }//fi gray
             }
-            else if (CONFIG_WMV2) {
+            else if (CONFIG_WMV2_DECODER || CONFIG_WMV2_ENCODER) {
                 ff_wmv2_add_mb(s, block, dest_y, dest_cb, dest_cr);
             }
         } else {
@@ -2034,15 +2049,16 @@ void MPV_decode_mb(MpegEncContext *s, DCTELEM block[12][64]){
 void ff_draw_horiz_band(MpegEncContext *s, int y, int h){
     if (s->avctx->draw_horiz_band) {
         AVFrame *src;
+        const int field_pic= s->picture_structure != PICT_FRAME;
         int offset[4];
 
-        if(s->picture_structure != PICT_FRAME){
+        h= FFMIN(h, (s->avctx->height>>field_pic) - y);
+
+        if(field_pic && !(s->avctx->slice_flags&SLICE_FLAG_ALLOW_FIELD)){
             h <<= 1;
             y <<= 1;
-            if(s->first_field  && !(s->avctx->slice_flags&SLICE_FLAG_ALLOW_FIELD)) return;
+            if(s->first_field) return;
         }
-
-        h= FFMIN(h, s->avctx->height - y);
 
         if(s->pict_type==FF_B_TYPE || s->low_delay || (s->avctx->slice_flags&SLICE_FLAG_CODED_ORDER))
             src= (AVFrame*)s->current_picture_ptr;
@@ -2089,9 +2105,16 @@ void ff_init_block_index(MpegEncContext *s){ //FIXME maybe rename
 
     if(!(s->pict_type==FF_B_TYPE && s->avctx->draw_horiz_band && s->picture_structure==PICT_FRAME))
     {
+        if(s->picture_structure==PICT_FRAME){
         s->dest[0] += s->mb_y *   linesize << mb_size;
         s->dest[1] += s->mb_y * uvlinesize << (mb_size - s->chroma_y_shift);
         s->dest[2] += s->mb_y * uvlinesize << (mb_size - s->chroma_y_shift);
+        }else{
+            s->dest[0] += (s->mb_y>>1) *   linesize << mb_size;
+            s->dest[1] += (s->mb_y>>1) * uvlinesize << (mb_size - s->chroma_y_shift);
+            s->dest[2] += (s->mb_y>>1) * uvlinesize << (mb_size - s->chroma_y_shift);
+            assert((s->mb_y&1) == (s->picture_structure == PICT_BOTTOM_FIELD));
+        }
     }
 }
 

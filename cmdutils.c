@@ -50,7 +50,7 @@ AVCodecContext *avcodec_opts[CODEC_TYPE_NB];
 AVFormatContext *avformat_opts;
 struct SwsContext *sws_opts;
 
-const int this_year = 2009;
+const int this_year = 2010;
 
 double parse_number_or_die(const char *context, const char *numstr, int type, double min, double max)
 {
@@ -130,10 +130,11 @@ void parse_options(int argc, char **argv, const OptionDef *options,
                 handleoptions = 0;
                 continue;
             }
-            po= find_option(options, opt + 1);
-            if (!po->name && opt[1] == 'n' && opt[2] == 'o') {
+            opt++;
+            po= find_option(options, opt);
+            if (!po->name && opt[0] == 'n' && opt[1] == 'o') {
                 /* handle 'no' bool option */
-                po = find_option(options, opt + 3);
+                po = find_option(options, opt + 2);
                 if (!(po->name && (po->flags & OPT_BOOL)))
                     goto unknown_opt;
                 bool_val = 0;
@@ -160,13 +161,13 @@ unknown_opt:
             } else if (po->flags & OPT_BOOL) {
                 *po->u.int_arg = bool_val;
             } else if (po->flags & OPT_INT) {
-                *po->u.int_arg = parse_number_or_die(opt+1, arg, OPT_INT64, INT_MIN, INT_MAX);
+                *po->u.int_arg = parse_number_or_die(opt, arg, OPT_INT64, INT_MIN, INT_MAX);
             } else if (po->flags & OPT_INT64) {
-                *po->u.int64_arg = parse_number_or_die(opt+1, arg, OPT_INT64, INT64_MIN, INT64_MAX);
+                *po->u.int64_arg = parse_number_or_die(opt, arg, OPT_INT64, INT64_MIN, INT64_MAX);
             } else if (po->flags & OPT_FLOAT) {
-                *po->u.float_arg = parse_number_or_die(opt+1, arg, OPT_FLOAT, -1.0/0.0, 1.0/0.0);
+                *po->u.float_arg = parse_number_or_die(opt, arg, OPT_FLOAT, -1.0/0.0, 1.0/0.0);
             } else if (po->flags & OPT_FUNC2) {
-                if(po->u.func2_arg(opt+1, arg)<0)
+                if(po->u.func2_arg(opt, arg)<0)
                     goto unknown_opt;
             } else {
                 po->u.func_arg(arg);
@@ -413,6 +414,16 @@ void show_license(void)
     );
 }
 
+void list_fmts(void (*get_fmt_string)(char *buf, int buf_size, int fmt), int nb_fmts)
+{
+    int i;
+    char fmt_str[128];
+    for (i=-1; i < nb_fmts; i++) {
+        get_fmt_string (fmt_str, sizeof(fmt_str), i);
+        fprintf(stdout, "%s\n", fmt_str);
+    }
+}
+
 void show_formats(void)
 {
     AVInputFormat *ifmt=NULL;
@@ -558,6 +569,22 @@ void show_protocols(void)
     printf("\n");
 
     printf("Frame size, frame rate abbreviations:\n ntsc pal qntsc qpal sntsc spal film ntsc-film sqcif qcif cif 4cif\n");
+}
+
+void show_filters(void)
+{
+    AVFilter av_unused(**filter) = NULL;
+
+    printf("Filters:\n");
+#if CONFIG_AVFILTER
+    while ((filter = av_filter_next(filter)) && *filter)
+        printf("%-16s %s\n", (*filter)->name, (*filter)->description);
+#endif
+}
+
+void show_pix_fmts(void)
+{
+    list_fmts(avcodec_pix_fmt_string, PIX_FMT_NB);
 }
 
 int read_yesno(void)

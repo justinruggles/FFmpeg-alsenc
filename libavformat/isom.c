@@ -67,6 +67,7 @@ const AVCodecTag codec_movvideo_tags[] = {
     { CODEC_ID_RAWVIDEO, MKTAG('2', 'v', 'u', 'y') }, /* UNCOMPRESSED 8BIT 4:2:2 */
     { CODEC_ID_RAWVIDEO, MKTAG('y', 'u', 'v', 's') }, /* same as 2vuy but byte swapped */
 
+    { CODEC_ID_R210,   MKTAG('r', '2', '1', '0') }, /* UNCOMPRESSED 10BIT RGB */
     { CODEC_ID_V210,   MKTAG('v', '2', '1', '0') }, /* UNCOMPRESSED 10BIT 4:2:2 */
 
     { CODEC_ID_MJPEG,  MKTAG('j', 'p', 'e', 'g') }, /* PhotoJPEG */
@@ -170,6 +171,8 @@ const AVCodecTag codec_movvideo_tags[] = {
 
     { CODEC_ID_DIRAC, MKTAG('d', 'r', 'a', 'c') },
     { CODEC_ID_DNXHD, MKTAG('A', 'V', 'd', 'n') }, /* AVID DNxHD */
+    { CODEC_ID_RAWVIDEO, MKTAG('A', 'V', '1', 'x') }, /* AVID 1:1x */
+    { CODEC_ID_RAWVIDEO, MKTAG('A', 'V', 'u', 'p') },
     { CODEC_ID_SGI,   MKTAG('s', 'g', 'i', ' ') }, /* SGI  */
     { CODEC_ID_DPX,   MKTAG('d', 'p', 'x', ' ') }, /* DPX */
 
@@ -185,7 +188,9 @@ const AVCodecTag codec_movaudio_tags[] = {
     { CODEC_ID_PCM_S16LE, MKTAG('s', 'o', 'w', 't') }, /*  */
     { CODEC_ID_PCM_S16LE, MKTAG('l', 'p', 'c', 'm') },
     { CODEC_ID_PCM_F32BE, MKTAG('f', 'l', '3', '2') },
+    { CODEC_ID_PCM_F32LE, MKTAG('f', 'l', '3', '2') },
     { CODEC_ID_PCM_F64BE, MKTAG('f', 'l', '6', '4') },
+    { CODEC_ID_PCM_F64LE, MKTAG('f', 'l', '6', '4') },
     { CODEC_ID_PCM_S8,    MKTAG('s', 'o', 'w', 't') },
     { CODEC_ID_PCM_U8,    MKTAG('r', 'a', 'w', ' ') }, /* 8 bits unsigned */
     { CODEC_ID_PCM_U8,    MKTAG('N', 'O', 'N', 'E') }, /* uncompressed */

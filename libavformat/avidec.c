@@ -230,14 +230,19 @@ static void clean_index(AVFormatContext *s){
 static int avi_read_tag(AVFormatContext *s, const char *key, unsigned int size)
 {
     ByteIOContext *pb = s->pb;
-    uint8_t value[1024];
+    char *value;
 
-    int64_t i = url_ftell(pb);
     size += (size & 1);
-    get_strz(pb, value, sizeof(value));
-    url_fseek(pb, i+size, SEEK_SET);
 
-    return av_metadata_set(&s->metadata, key, value);
+    if (size == UINT_MAX)
+        return -1;
+    value = av_malloc(size+1);
+    if (!value)
+        return -1;
+    get_strz(pb, value, size);
+
+    return av_metadata_set2(&s->metadata, key, value,
+                                  AV_METADATA_DONT_STRDUP_VAL);
 }
 
 static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
@@ -513,6 +518,11 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
                     st->codec->codec_tag = tag1;
                     st->codec->codec_id = ff_codec_get_id(ff_codec_bmp_tags, tag1);
                     st->need_parsing = AVSTREAM_PARSE_HEADERS; // This is needed to get the pict type which is necessary for generating correct pts.
+                    // Support "Resolution 1:1" for Avid AVI Codec
+                    if(tag1 == MKTAG('A', 'V', 'R', 'n') &&
+                       st->codec->extradata_size >= 31 &&
+                       !memcmp(&st->codec->extradata[28], "1:1", 3))
+                        st->codec->codec_id = CODEC_ID_RAWVIDEO;
 
                     if(st->codec->codec_tag==0 && st->codec->height > 0 && st->codec->extradata_size < 1U<<30){
                         st->codec->extradata_size+= 9;

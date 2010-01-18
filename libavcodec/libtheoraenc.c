@@ -46,6 +46,7 @@ typedef struct TheoraContext {
     int         stats_offset;
     int         uv_hshift;
     int         uv_vshift;
+    int         keyframe_mask;
 } TheoraContext;
 
 /*!
@@ -86,6 +87,7 @@ static int concatenate_packet(unsigned int* offset,
 
 static int get_stats(AVCodecContext *avctx, int eos)
 {
+#ifdef TH_ENCCTL_2PASS_OUT
     TheoraContext *h = avctx->priv_data;
     uint8_t *buf;
     int bytes;
@@ -108,12 +110,17 @@ static int get_stats(AVCodecContext *avctx, int eos)
         av_base64_encode(avctx->stats_out, b64_size, h->stats, h->stats_offset);
     }
     return 0;
+#else
+    av_log(avctx, AV_LOG_ERROR, "libtheora too old to support 2pass\n");
+    return -1;
+#endif
 }
 
 // libtheora won't read the entire buffer we give it at once, so we have to
 // repeatedly submit it...
 static int submit_stats(AVCodecContext *avctx)
 {
+#ifdef TH_ENCCTL_2PASS_IN
     TheoraContext *h = avctx->priv_data;
     int bytes;
     if (!h->stats) {
@@ -138,6 +145,10 @@ static int submit_stats(AVCodecContext *avctx)
         h->stats_offset += bytes;
     }
     return 0;
+#else
+    av_log(avctx, AV_LOG_ERROR, "libtheora too old to support 2pass\n");
+    return -1;
+#endif
 }
 
 static av_cold int encode_init(AVCodecContext* avc_context)
@@ -208,6 +219,7 @@ static av_cold int encode_init(AVCodecContext* avc_context)
         return -1;
     }
 
+    h->keyframe_mask = (1 << t_info.keyframe_granule_shift) - 1;
     /* Clear up theora_info struct */
     th_info_clear(&t_info);
 
@@ -324,8 +336,10 @@ static int encode_frame(AVCodecContext* avc_context, uint8_t *outbuf,
     }
     memcpy(outbuf, o_packet.packet, o_packet.bytes);
 
-    // HACK: does not take codec delay into account (neither does the decoder though)
+    // HACK: assumes no encoder delay, this is true until libtheora becomes
+    // multithreaded (which will be disabled unless explictly requested)
     avc_context->coded_frame->pts = frame->pts;
+    avc_context->coded_frame->key_frame = !(o_packet.granulepos & h->keyframe_mask);
 
     return o_packet.bytes;
 }

@@ -77,6 +77,8 @@ const AVCodecTag ff_codec_bmp_tags[] = {
     { CODEC_ID_MPEG4,        MKTAG('E', 'M', '4', 'A') },
     { CODEC_ID_MPEG4,        MKTAG('M', '4', 'C', 'C') }, /* Divio MPEG-4 */
     { CODEC_ID_MPEG4,        MKTAG('S', 'N', '4', '0') },
+    { CODEC_ID_MPEG4,        MKTAG('V', 'S', 'P', 'X') },
+    { CODEC_ID_MPEG4,        MKTAG('U', 'L', 'D', 'X') },
     { CODEC_ID_MSMPEG4V3,    MKTAG('D', 'I', 'V', '3') }, /* default signature when using MSMPEG4 */
     { CODEC_ID_MSMPEG4V3,    MKTAG('M', 'P', '4', '3') },
     { CODEC_ID_MSMPEG4V3,    MKTAG('M', 'P', 'G', '3') },
@@ -102,6 +104,7 @@ const AVCodecTag ff_codec_bmp_tags[] = {
     { CODEC_ID_DVVIDEO,      MKTAG('c', 'd', 'v', 'c') }, /* Canopus DV */
     { CODEC_ID_DVVIDEO,      MKTAG('C', 'D', 'V', 'H') }, /* Canopus DV */
     { CODEC_ID_DVVIDEO,      MKTAG('d', 'v', 'c', ' ') },
+    { CODEC_ID_DVVIDEO,      MKTAG('d', 'v', 'c', 's') },
     { CODEC_ID_DVVIDEO,      MKTAG('d', 'v', 'h', '1') },
     { CODEC_ID_MPEG1VIDEO,   MKTAG('m', 'p', 'g', '1') },
     { CODEC_ID_MPEG1VIDEO,   MKTAG('m', 'p', 'g', '2') },
@@ -116,6 +119,8 @@ const AVCodecTag ff_codec_bmp_tags[] = {
     { CODEC_ID_MPEG2VIDEO,   MKTAG('D', 'V', 'R', ' ') },
     { CODEC_ID_MPEG2VIDEO,   MKTAG('M', 'M', 'E', 'S') },
     { CODEC_ID_MPEG2VIDEO,   MKTAG('L', 'M', 'P', '2') }, /* Lead MPEG2 in avi */
+    { CODEC_ID_MPEG2VIDEO,   MKTAG('s', 'l', 'i', 'f') },
+    { CODEC_ID_MPEG2VIDEO,   MKTAG('E', 'M', '2', 'V') },
     { CODEC_ID_MJPEG,        MKTAG('M', 'J', 'P', 'G') },
     { CODEC_ID_MJPEG,        MKTAG('L', 'J', 'P', 'G') },
     { CODEC_ID_MJPEG,        MKTAG('d', 'm', 'b', '1') },
@@ -133,6 +138,10 @@ const AVCodecTag ff_codec_bmp_tags[] = {
     { CODEC_ID_MJPEG,        MKTAG('C', 'J', 'P', 'G') }, /* Creative Webcam JPEG */
     { CODEC_ID_MJPEG,        MKTAG('I', 'J', 'L', 'V') }, /* Intel JPEG Library Video Codec */
     { CODEC_ID_MJPEG,        MKTAG('M', 'V', 'J', 'P') }, /* Midvid JPEG Video Codec */
+    { CODEC_ID_MJPEG,        MKTAG('A', 'V', 'I', '1') },
+    { CODEC_ID_MJPEG,        MKTAG('A', 'V', 'I', '2') },
+    { CODEC_ID_MJPEG,        MKTAG('M', 'T', 'S', 'J') },
+    { CODEC_ID_MJPEG,        MKTAG('Z', 'J', 'P', 'G') }, /* Paradigm Matrix M-JPEG Codec */
     { CODEC_ID_HUFFYUV,      MKTAG('H', 'F', 'Y', 'U') },
     { CODEC_ID_FFVHUFF,      MKTAG('F', 'F', 'V', 'H') },
     { CODEC_ID_CYUV,         MKTAG('C', 'Y', 'U', 'V') },
@@ -156,7 +165,9 @@ const AVCodecTag ff_codec_bmp_tags[] = {
     { CODEC_ID_RAWVIDEO,     MKTAG('Y', '8', '0', '0') },
     { CODEC_ID_RAWVIDEO,     MKTAG('H', 'D', 'Y', 'C') },
     { CODEC_ID_RAWVIDEO,     MKTAG('Y', 'V', 'U', '9') },
+    { CODEC_ID_RAWVIDEO,     MKTAG('V', 'D', 'T', 'Z') }, /* SoftLab-NSK VideoTizer */
     { CODEC_ID_FRWU,         MKTAG('F', 'R', 'W', 'U') },
+    { CODEC_ID_R210,         MKTAG('r', '2', '1', '0') },
     { CODEC_ID_V210,         MKTAG('v', '2', '1', '0') },
     { CODEC_ID_INDEO3,       MKTAG('I', 'V', '3', '1') },
     { CODEC_ID_INDEO3,       MKTAG('I', 'V', '3', '2') },
@@ -315,7 +326,9 @@ int ff_put_wav_header(ByteIOContext *pb, AVCodecContext *enc)
 
     if(!enc->codec_tag || enc->codec_tag > 0xffff)
         return -1;
-    waveformatextensible = enc->channels > 2 && enc->channel_layout;
+    waveformatextensible =   (enc->channels > 2 && enc->channel_layout)
+                          || enc->sample_rate > 48000
+                          || av_get_bits_per_sample(enc->codec_id) > 16;
 
     if (waveformatextensible) {
         put_le16(pb, 0xfffe);
@@ -326,7 +339,7 @@ int ff_put_wav_header(ByteIOContext *pb, AVCodecContext *enc)
     put_le32(pb, enc->sample_rate);
     if (enc->codec_id == CODEC_ID_MP2 || enc->codec_id == CODEC_ID_MP3 || enc->codec_id == CODEC_ID_GSM_MS) {
         bps = 0;
-    } else if (enc->codec_id == CODEC_ID_ADPCM_IMA_WAV || enc->codec_id == CODEC_ID_ADPCM_MS || enc->codec_id == CODEC_ID_ADPCM_G726 || enc->codec_id == CODEC_ID_ADPCM_YAMAHA) { //
+    } else if (enc->codec_id == CODEC_ID_ADPCM_G726) {
         bps = 4;
     } else {
         if (!(bps = av_get_bits_per_sample(enc->codec_id)))

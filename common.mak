@@ -9,6 +9,7 @@ vpath %.c   $(SRC_DIR)
 vpath %.h   $(SRC_DIR)
 vpath %.S   $(SRC_DIR)
 vpath %.asm $(SRC_DIR)
+vpath %.v   $(SRC_DIR)
 
 ifeq ($(SRC_DIR),$(SRC_PATH_BARE))
 BUILD_ROOT_REL = .
@@ -33,6 +34,9 @@ CPPFLAGS := -DHAVE_AV_CONFIG_H -I$(BUILD_ROOT_REL) -I$(SRC_PATH) $(CPPFLAGS)
 
 %$(EXESUF): %.c
 
+%.ver: %.v
+	sed 's/$$MAJOR/$($(basename $(@F))_VERSION_MAJOR)/' $^ > $@
+
 SVN_ENTRIES = $(SRC_PATH_BARE)/.svn/entries
 ifeq ($(wildcard $(SVN_ENTRIES)),$(SVN_ENTRIES))
 $(BUILD_ROOT_REL)/version.h: $(SVN_ENTRIES)
@@ -43,9 +47,7 @@ $(BUILD_ROOT_REL)/version.h: $(SRC_PATH_BARE)/version.sh config.mak
 
 install: install-libs install-headers
 
-uninstall: uninstall-libs uninstall-headers
-
-.PHONY: all depend dep *clean install* uninstall* examples testprogs
+.PHONY: all depend dep *clean install* uninstall examples testprogs
 endif
 
 OBJS-$(HAVE_MMX) +=  $(MMX-OBJS-yes)
@@ -79,7 +81,7 @@ $(HOSTPROGS): %$(HOSTEXESUF): %.o
 DEPS := $(OBJS:.o=.d)
 depend dep: $(DEPS)
 
-CLEANSUFFIXES     = *.d *.o *~ *.ho *.map
+CLEANSUFFIXES     = *.d *.o *~ *.ho *.map *.ver
 DISTCLEANSUFFIXES = *.pc
 LIBSUFFIXES       = *.a *.lib *.so *.so.* *.dylib *.dll *.def *.dll.a *.exp
 

@@ -110,16 +110,8 @@ install-man: $(MANPAGES)
 	install -d "$(MANDIR)/man1"
 	install -m 644 $(MANPAGES) "$(MANDIR)/man1"
 
-uninstall: uninstall-progs uninstall-data uninstall-man
-
-uninstall-progs:
-	rm -f $(addprefix "$(BINDIR)/", $(ALLPROGS))
-
-uninstall-data:
-	rm -rf "$(DATADIR)"
-
-uninstall-man:
-	rm -f $(addprefix "$(MANDIR)/man1/",$(ALLMANPAGES))
+uninstall:
+	@echo "I'm sorry, Dave. I'm afraid I can't do that"
 
 testclean:
 	rm -rf tests/vsynth1 tests/vsynth2 tests/data tests/*~
@@ -146,163 +138,125 @@ check: test checkheaders
 fulltest test: codectest lavftest seektest
 
 FFSERVER_REFFILE = $(SRC_PATH)/tests/ffserver.regression.ref
-LAVF_REFFILE     = $(SRC_PATH)/tests/lavf.regression.ref
-LAVFI_REFFILE    = $(SRC_PATH)/tests/lavfi.regression.ref
-ROTOZOOM_REFFILE = $(SRC_PATH)/tests/rotozoom.regression.ref
 SEEK_REFFILE     = $(SRC_PATH)/tests/seek.regression.ref
-VSYNTH_REFFILE   = $(SRC_PATH)/tests/vsynth.regression.ref
 
-CODEC_TESTS = $(addprefix regtest-,             \
-        mpeg                                    \
-        mpeg2                                   \
-        mpeg2thread                             \
-        msmpeg4v2                               \
-        msmpeg4                                 \
-        wmv1                                    \
-        wmv2                                    \
-        h261                                    \
-        h263                                    \
-        h263p                                   \
-        mpeg4                                   \
-        huffyuv                                 \
-        rc                                      \
-        mpeg4adv                                \
-        mpeg4thread                             \
-        error                                   \
-        mpeg4nr                                 \
-        mpeg1b                                  \
-        mjpeg                                   \
-        ljpeg                                   \
-        jpegls                                  \
-        rv10                                    \
-        rv20                                    \
-        asv1                                    \
-        asv2                                    \
-        flv                                     \
-        ffv1                                    \
-        snow                                    \
-        snowll                                  \
-        dv                                      \
-        dv50                                    \
-        dnxhd_1080i                             \
-        dnxhd_720p                              \
-        dnxhd_720p_rd                           \
-        svq1                                    \
-        flashsv                                 \
-        mp2                                     \
-        ac3                                     \
-        g726                                    \
-        adpcm_ima_wav                           \
-        adpcm_ima_qt                            \
-        adpcm_ms                                \
-        adpcm_yam                               \
-        adpcm_swf                               \
-        alac                                    \
-        flac                                    \
-        wma                                     \
-        pcm                                     \
-    )
+ENCDEC = $(and $(CONFIG_$(1)_ENCODER),$(CONFIG_$(1)_DECODER))
+MUXDEM = $(and $(CONFIG_$(1)_MUXER),$(CONFIG_$(or $(2),$(1))_DEMUXER))
 
-LAVF_TESTS = $(addprefix regtest-,              \
-        avi                                     \
-        asf                                     \
-        rm                                      \
-        mpg                                     \
-        mxf                                     \
-        ts                                      \
-        swf                                     \
-        ffm                                     \
-        flv_fmt                                 \
-        mov                                     \
-        dv_fmt                                  \
-        gxf                                     \
-        nut                                     \
-        mkv                                     \
-        pbmpipe                                 \
-        pgmpipe                                 \
-        ppmpipe                                 \
-        gif                                     \
-        yuv4mpeg                                \
-        pgm                                     \
-        ppm                                     \
-        bmp                                     \
-        tga                                     \
-        tiff                                    \
-        sgi                                     \
-        jpg                                     \
-        wav                                     \
-        alaw                                    \
-        mulaw                                   \
-        au                                      \
-        mmf                                     \
-        aiff                                    \
-        voc                                     \
-        ogg                                     \
-        pixfmt                                  \
-        pcx                                     \
-    )
+CODEC_TESTS =
+CODEC_TESTS-$(call ENCDEC,AC3)               += ac3
+CODEC_TESTS-$(call ENCDEC,ADPCM_G726)        += g726
+CODEC_TESTS-$(call ENCDEC,ADPCM_IMA_QT)      += adpcm_ima_qt
+CODEC_TESTS-$(call ENCDEC,ADPCM_IMA_WAV)     += adpcm_ima_wav
+CODEC_TESTS-$(call ENCDEC,ADPCM_MS)          += adpcm_ms
+CODEC_TESTS-$(call ENCDEC,ADPCM_SWF)         += adpcm_swf
+CODEC_TESTS-$(call ENCDEC,ADPCM_YAMAHA)      += adpcm_yam
+CODEC_TESTS-$(call ENCDEC,ALAC)              += alac
+CODEC_TESTS-$(call ENCDEC,ASV1)              += asv1
+CODEC_TESTS-$(call ENCDEC,ASV2)              += asv2
+CODEC_TESTS-$(call ENCDEC,DNXHD)             += dnxhd_1080i dnxhd_720p dnxhd_720p_rd
+CODEC_TESTS-$(call ENCDEC,DVVIDEO)           += dv dv50
+CODEC_TESTS-$(call ENCDEC,FFV1)              += ffv1
+CODEC_TESTS-$(call ENCDEC,FLAC)              += flac
+CODEC_TESTS-$(call ENCDEC,FLASHSV)           += flashsv
+CODEC_TESTS-$(call ENCDEC,FLV)               += flv
+CODEC_TESTS-$(call ENCDEC,H261)              += h261
+CODEC_TESTS-$(call ENCDEC,H263)              += h263 h263p
+CODEC_TESTS-$(call ENCDEC,HUFFYUV)           += huffyuv
+CODEC_TESTS-$(call ENCDEC,JPEGLS)            += jpegls
+CODEC_TESTS-$(call ENCDEC,MJPEG)             += mjpeg ljpeg
+CODEC_TESTS-$(call ENCDEC,MP2)               += mp2
+CODEC_TESTS-$(call ENCDEC,MPEG1VIDEO)        += mpeg mpeg1b
+CODEC_TESTS-$(call ENCDEC,MPEG2VIDEO)        += mpeg2 mpeg2thread
+CODEC_TESTS-$(call ENCDEC,MPEG4)             += mpeg4 mpeg4adv mpeg4nr mpeg4thread error rc
+CODEC_TESTS-$(call ENCDEC,MSMPEG4V1)         += msmpeg4
+CODEC_TESTS-$(call ENCDEC,MSMPEG4V2)         += msmpeg4v2
+CODEC_TESTS-$(call ENCDEC,PCM_S16LE)         += pcm         # fixme
+CODEC_TESTS-$(call ENCDEC,ROQ)               += roq
+CODEC_TESTS-$(call ENCDEC,RV10)              += rv10
+CODEC_TESTS-$(call ENCDEC,RV20)              += rv20
+CODEC_TESTS-$(call ENCDEC,SNOW)              += snow snowll
+CODEC_TESTS-$(call ENCDEC,SVQ1)              += svq1
+CODEC_TESTS-$(call ENCDEC,WMAV1)             += wmav1
+CODEC_TESTS-$(call ENCDEC,WMAV1)             += wmav2
+CODEC_TESTS-$(call ENCDEC,WMV1)              += wmv1
+CODEC_TESTS-$(call ENCDEC,WMV2)              += wmv2
 
-LAVFI_TESTS = $(addprefix regtest-,             \
-    )
+LAVF_TESTS =
+LAVF_TESTS-$(call MUXDEM,AIFF)               += aiff
+LAVF_TESTS-$(call MUXDEM,PCM_ALAW)           += alaw
+LAVF_TESTS-$(call MUXDEM,ASF)                += asf
+LAVF_TESTS-$(call MUXDEM,AU)                 += au
+LAVF_TESTS-$(call MUXDEM,AVI)                += avi
+LAVF_TESTS-$(call ENCDEC,BMP)                += bmp
+LAVF_TESTS-$(call MUXDEM,DV)                 += dv_fmt
+LAVF_TESTS-$(call MUXDEM,FFM)                += ffm
+LAVF_TESTS-$(call MUXDEM,FLV)                += flv_fmt
+LAVF_TESTS-$(call ENCDEC,GIF)                += gif
+LAVF_TESTS-$(call MUXDEM,GXF)                += gxf
+LAVF_TESTS-$(call ENCDEC,MJPEG)              += jpg
+LAVF_TESTS-$(call MUXDEM,MATROSKA)           += mkv
+LAVF_TESTS-$(call MUXDEM,MMF)                += mmf
+LAVF_TESTS-$(call MUXDEM,MOV)                += mov
+LAVF_TESTS-$(call MUXDEM,MPEG1SYSTEM,MPEGPS) += mpg
+LAVF_TESTS-$(call MUXDEM,PCM_MULAW)          += mulaw
+LAVF_TESTS-$(call MUXDEM,MXF)                += mxf
+LAVF_TESTS-$(call MUXDEM,NUT)                += nut
+LAVF_TESTS-$(call MUXDEM,OGG)                += ogg
+LAVF_TESTS-$(call ENCDEC,PBM)                += pbmpipe
+LAVF_TESTS-$(call ENCDEC,PCX)                += pcx
+LAVF_TESTS-$(call ENCDEC,PGM)                += pgm pgmpipe
+LAVF_TESTS-$(call MUXDEM,RAWVIDEO)           += pixfmt
+LAVF_TESTS-$(call ENCDEC,PPM)                += ppm ppmpipe
+LAVF_TESTS-$(call MUXDEM,RM)                 += rm
+LAVF_TESTS-$(call ENCDEC,SGI)                += sgi
+LAVF_TESTS-$(call MUXDEM,SWF)                += swf
+LAVF_TESTS-$(call ENCDEC,TARGA)              += tga
+LAVF_TESTS-$(call ENCDEC,TIFF)               += tiff
+LAVF_TESTS-$(call MUXDEM,MPEGTS)             += ts
+LAVF_TESTS-$(call MUXDEM,VOC)                += voc
+LAVF_TESTS-$(call MUXDEM,WAV)                += wav
+LAVF_TESTS-$(call MUXDEM,YUV4MPEGPIPE)       += yuv4mpeg
 
-RESFILES = $(addprefix tests/data/,$(addsuffix .$(1),$(2:regtest-%=%)))
+LAVFI_TESTS =
 
-ROTOZOOM_RESFILES = $(call RESFILES,rotozoom.regression,$(CODEC_TESTS))
-VSYNTH_RESFILES   = $(call RESFILES,vsynth.regression,$(CODEC_TESTS))
+CODEC_TESTS := $(addprefix regtest-, $(CODEC_TESTS) $(CODEC_TESTS-yes))
+LAVF_TESTS  := $(addprefix regtest-, $(LAVF_TESTS)  $(LAVF_TESTS-yes))
+LAVFI_TESTS := $(addprefix regtest-, $(LAVFI_TESTS) $(LAVFI_TESTS-yes))
 
-LAVF_RESFILES = $(call RESFILES,lavf.regression,$(LAVF_TESTS))
-LAVFI_RESFILES = $(call RESFILES,lavfi.regression,$(LAVFI_TESTS))
+codectest: $(CODEC_TESTS)
+lavftest:  $(LAVF_TESTS)
 
-LAVF_RESFILE     = tests/data/lavf.regression
-LAVFI_RESFILE    = tests/data/lavfi.regression
-ROTOZOOM_RESFILE = tests/data/rotozoom.regression
-VSYNTH_RESFILE   = tests/data/vsynth.regression
-
-ifneq ($(CONFIG_ZLIB),yes)
-regtest-flashsv codectest: zlib-error
-endif
-zlib-error:
-	@echo
-	@echo "This regression test requires zlib."
-	@echo
-	@exit 1
-
-codectest: $(VSYNTH_RESFILE) $(ROTOZOOM_RESFILE)
-	diff -u -w $(VSYNTH_REFFILE)   $(VSYNTH_RESFILE)
-	diff -u -w $(ROTOZOOM_REFFILE) $(ROTOZOOM_RESFILE)
-
-lavftest: $(LAVF_RESFILE)
-	diff -u -w $(LAVF_REFFILE) $(LAVF_RESFILE)
-
-# lavfitest: $(LAVFI_RESFILE)
-# 	diff -u -w $(LAVFI_REFFILE) $(LAVFI_RESFILE)
-
-$(VSYNTH_RESFILE) $(ROTOZOOM_RESFILE) $(LAVF_RESFILE) $(LAVFI_RESFILE):
-	cat $^ > $@
-
-$(LAVF_RESFILE):     $(LAVF_RESFILES)
-$(LAVFI_RESFILE):    $(LAVFI_RESFILES)
-$(ROTOZOOM_RESFILE): $(ROTOZOOM_RESFILES)
-$(VSYNTH_RESFILE):   $(VSYNTH_RESFILES)
-
-$(VSYNTH_RESFILES) $(ROTOZOOM_RESFILES): $(CODEC_TESTS)
-
-$(LAVF_RESFILES): $(LAVF_TESTS)
-$(LAVFI_RESFILES): $(LAVFI_TESTS)
+# lavfitest: $(LAVFI_TESTS)
 
 $(CODEC_TESTS) $(LAVF_TESTS) $(LAVFI_TESTS): regtest-ref
 
-regtest-ref: ffmpeg$(EXESUF) tests/vsynth1/00.pgm tests/vsynth2/00.pgm tests/data/asynth1.sw
+REFFILE = $(SRC_PATH)/tests/ref/$(1)/$(2:regtest-%=%)
+RESFILE = tests/data/$(2:regtest-%=%).$(1).regression
 
-$(CODEC_TESTS) regtest-ref: tests/tiny_psnr$(HOSTEXESUF)
-	$(SRC_PATH)/tests/codec-regression.sh $@ vsynth   tests/vsynth1 a "$(TARGET_EXEC)" "$(TARGET_PATH)"
-	$(SRC_PATH)/tests/codec-regression.sh $@ rotozoom tests/vsynth2 a "$(TARGET_EXEC)" "$(TARGET_PATH)"
+define CODECTEST_CMD
+	$(SRC_PATH)/tests/codec-regression.sh $@ vsynth1 tests/vsynth1 a "$(TARGET_EXEC)" "$(TARGET_PATH)"
+	$(SRC_PATH)/tests/codec-regression.sh $@ vsynth2 tests/vsynth2 a "$(TARGET_EXEC)" "$(TARGET_PATH)"
+endef
+
+regtest-ref: ffmpeg$(EXESUF) tests/vsynth1/00.pgm tests/vsynth2/00.pgm tests/data/asynth1.sw
+	$(CODECTEST_CMD)
+
+$(CODEC_TESTS): tests/tiny_psnr$(HOSTEXESUF)
+	@echo "TEST CODEC $(@:regtest-%=%)"
+	@$(CODECTEST_CMD)
+	@diff -u -w $(call REFFILE,vsynth1,$@) $(call RESFILE,vsynth1,$@)
+	@diff -u -w $(call REFFILE,vsynth2,$@) $(call RESFILE,vsynth2,$@)
 
 $(LAVF_TESTS):
-	$(SRC_PATH)/tests/lavf-regression.sh $@ lavf tests/vsynth1 b "$(TARGET_EXEC)" "$(TARGET_PATH)"
+	@echo "TEST LAVF  $(@:regtest-%=%)"
+	@$(SRC_PATH)/tests/lavf-regression.sh $@ lavf tests/vsynth1 b "$(TARGET_EXEC)" "$(TARGET_PATH)"
+	@diff -u -w $(call REFFILE,lavf,$@) $(call RESFILE,lavf,$@)
 
 $(LAVFI_TESTS):
-	$(SRC_PATH)/tests/lavfi-regression.sh $@ lavfi tests/vsynth1 b "$(TARGET_EXEC)" "$(TARGET_PATH)"
+	@echo "TEST LAVFI $(@:regtest-%=%)"
+	@$(SRC_PATH)/tests/lavfi-regression.sh $@ lavfi tests/vsynth1 b "$(TARGET_EXEC)" "$(TARGET_PATH)"
+	@diff -u -w $(call REFFILE,lavfi,$@) $(call RESFILE,lavfi,$@)
 
 seektest: codectest lavftest tests/seek_test$(EXESUF)
 	$(SRC_PATH)/tests/seek-regression.sh $(SEEK_REFFILE) "$(TARGET_EXEC)" "$(TARGET_PATH)"

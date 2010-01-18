@@ -72,13 +72,13 @@ void avfilter_default_start_frame(AVFilterLink *link, AVFilterPicRef *picref)
         out = link->dst->outputs[0];
 
     if(out) {
-        out->outpic      = avfilter_get_video_buffer(out, AV_PERM_WRITE, link->w, link->h);
+        out->outpic      = avfilter_get_video_buffer(out, AV_PERM_WRITE, out->w, out->h);
         out->outpic->pts = picref->pts;
         avfilter_start_frame(out, avfilter_ref_pic(out->outpic, ~0));
     }
 }
 
-void avfilter_default_draw_slice(AVFilterLink *link, int y, int h)
+void avfilter_default_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     AVFilterLink *out = NULL;
 
@@ -86,7 +86,7 @@ void avfilter_default_draw_slice(AVFilterLink *link, int y, int h)
         out = link->dst->outputs[0];
 
     if(out)
-        avfilter_draw_slice(out, y, h);
+        avfilter_draw_slice(out, y, h, slice_dir);
 }
 
 void avfilter_default_end_frame(AVFilterLink *link)

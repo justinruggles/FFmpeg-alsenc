@@ -97,8 +97,6 @@ Generic Parts:
     simple_idct.c, simple_idct.h        Michael Niedermayer
   postprocessing:
     libpostproc/*                       Michael Niedermayer
-  vdpau:
-    vdpau*                              Carl Eugen Hoyos
 
 Codecs:
   4xm.c                                 Michael Niedermayer
@@ -114,6 +112,7 @@ Codecs:
   atrac3*                               Benjamin Larsson
   bmp.c                                 Mans Rullgard, Kostya Shishkov
   cavs*                                 Stefan Gehrer
+  celp_filters.*                        Vitor Sessak
   cinepak.c                             Roberto Togni
   cljr                                  Alex Beregszaszi
   cook.c, cookdata.h                    Benjamin Larsson
@@ -142,8 +141,11 @@ Codecs:
   kmvc.c                                Kostya Shishkov
   lcl*.c                                Roberto Togni, Reimar Doeffinger
   libgsm.c                              Michel Bardiaux
+  libdirac*                             David Conrad
   libopenjpeg.c                         Jaikrishnan Menon
+  libschroedinger*                      David Conrad
   libspeexdec.c                         Justin Ruggles
+  libtheoraenc.c                        David Conrad
   libx264.c                             Mans Rullgard, Jason Garrett-Glaser
   loco.c                                Kostya Shishkov
   lzo.h, lzo.c                          Reimar Doeffinger
@@ -210,6 +212,10 @@ Codecs:
   xvmc.c                                Ivan Kalvachev
   zmbv*                                 Kostya Shishkov
 
+Hardware acceleration:
+  vaapi*                                Gwenole Beauchesne
+  vdpau*                                Carl Eugen Hoyos
+
 
 libavdevice
 ===========
@@ -242,6 +248,7 @@ Muxers/Demuxers:
   daud.c                                Reimar Doeffinger
   dv.c                                  Roman Shaposhnik
   dxa.c                                 Kostya Shishkov
+  electronicarts.c                      Peter Ross
   ffm*                                  Baptiste Coudurier
   flac*                                 Justin Ruggles
   flic.c                                Mike Melanson
@@ -302,6 +309,7 @@ Muxers/Demuxers:
   wv.c                                  Kostya Shishkov
 
 Protocols:
+  http.c                                Ronald S. Bultje
   udp.c                                 Luca Abeni
 
 

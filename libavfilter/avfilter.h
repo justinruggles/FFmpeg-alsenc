@@ -25,7 +25,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVFILTER_VERSION_MAJOR  1
-#define LIBAVFILTER_VERSION_MINOR 10
+#define LIBAVFILTER_VERSION_MINOR 17
 #define LIBAVFILTER_VERSION_MICRO  0
 
 #define LIBAVFILTER_VERSION_INT AV_VERSION_INT(LIBAVFILTER_VERSION_MAJOR, \
@@ -47,12 +47,12 @@ unsigned avfilter_version(void);
 /**
  * Returns the libavfilter build-time configuration.
  */
-const char * avfilter_configuration(void);
+const char *avfilter_configuration(void);
 
 /**
  * Returns the libavfilter license.
  */
-const char * avfilter_license(void);
+const char *avfilter_license(void);
 
 
 typedef struct AVFilterContext AVFilterContext;
@@ -192,6 +192,16 @@ struct AVFilterFormats
 AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts);
 
 /**
+ * Adds pix_fmt to the list of pixel formats contained in *avff.
+ * If *avff is NULL the function allocates the filter formats struct
+ * and puts its pointer in *avff.
+ *
+ * @return a non negative value in case of success, or a negative
+ * value corresponding to an AVERROR code in case of error
+ */
+int avfilter_add_colorspace(AVFilterFormats **avff, enum PixelFormat pix_fmt);
+
+/**
  * Returns a list of all colorspaces supported by FFmpeg.
  */
 AVFilterFormats *avfilter_all_colorspaces(void);
@@ -221,8 +231,9 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b);
 void avfilter_formats_ref(AVFilterFormats *formats, AVFilterFormats **ref);
 
 /**
- * Removes *ref as a reference to the format list it currently points to,
- * deallocates that list if this was the last reference, and sets *ref to NULL.
+ * If *ref is non-NULL, removes *ref as a reference to the format list
+ * it currently points to, deallocates that list if this was the last
+ * reference, and sets *ref to NULL.
  *
  *         Before                                 After
  *   ________                               ________         NULL
@@ -322,7 +333,7 @@ struct AVFilterPad
      *
      * Input video pads only.
      */
-    void (*draw_slice)(AVFilterLink *link, int y, int height);
+    void (*draw_slice)(AVFilterLink *link, int y, int height, int slice_dir);
 
     /**
      * Frame poll callback. This returns the number of immediately available
@@ -364,7 +375,7 @@ struct AVFilterPad
 /** default handler for start_frame() for video inputs */
 void avfilter_default_start_frame(AVFilterLink *link, AVFilterPicRef *picref);
 /** default handler for draw_slice() for video inputs */
-void avfilter_default_draw_slice(AVFilterLink *link, int y, int h);
+void avfilter_default_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 /** default handler for end_frame() for video inputs */
 void avfilter_default_end_frame(AVFilterLink *link);
 /** default handler for config_props() for video outputs */
@@ -409,11 +420,12 @@ typedef struct AVFilter
     void (*uninit)(AVFilterContext *ctx);
 
     /**
-     * Query formats supported by the filter and its pads. Should set the
+     * Queries formats supported by the filter and its pads, and sets the
      * in_formats for links connected to its output pads, and out_formats
      * for links connected to its input pads.
      *
-     * Should return zero on success.
+     * @return zero on success, a negative value corresponding to an
+     * AVERROR code otherwise
      */
     int (*query_formats)(AVFilterContext *);
 
@@ -425,11 +437,6 @@ typedef struct AVFilter
      * NULL_IF_CONFIG_SMALL() macro to define it.
      */
     const char *description;
-
-    /**
-     * The next registered filter, NULL if this is the last one.
-     */
-    struct AVFilter *next;
 } AVFilter;
 
 /** An instance of a filter */
@@ -563,11 +570,20 @@ void avfilter_end_frame(AVFilterLink *link);
 
 /**
  * Sends a slice to the next filter.
+ *
+ * Slices have to be provided in sequential order, either in
+ * top-bottom or bottom-top order. If slices are provided in
+ * non-sequential order the behavior of the function is undefined.
+ *
  * @param link the output link over which the frame is being sent
  * @param y    offset in pixels from the top of the image for this slice
  * @param h    height of this slice in pixels
+ * @param slice_dir the assumed direction for sending slices,
+ *             from the top slice to the bottom slice if the value is 1,
+ *             from the bottom slice to the top slice if the value is -1,
+ *             for other values the behavior of the function is undefined.
  */
-void avfilter_draw_slice(AVFilterLink *link, int y, int h);
+void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 
 /** Initializes the filter system. Registers all builtin filters. */
 void avfilter_register_all(void);

@@ -28,12 +28,12 @@ unsigned avfilter_version(void) {
     return LIBAVFILTER_VERSION_INT;
 }
 
-const char * avfilter_configuration(void)
+const char *avfilter_configuration(void)
 {
     return FFMPEG_CONFIGURATION;
 }
 
-const char * avfilter_license(void)
+const char *avfilter_license(void)
 {
 #define LICENSE_PREFIX "libavfilter license: "
     return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
@@ -104,8 +104,9 @@ int avfilter_link(AVFilterContext *src, unsigned srcpad,
 int avfilter_insert_filter(AVFilterLink *link, AVFilterContext *filt,
                            unsigned in, unsigned out)
 {
-    av_log(link->dst, AV_LOG_INFO, "auto-inserting filter '%s'\n",
-            filt->filter->name);
+    av_log(link->dst, AV_LOG_INFO, "auto-inserting filter '%s' "
+           "between the filter '%s' and the filter '%s'\n",
+           filt->name, link->src->name, link->dst->name);
 
     link->dst->inputs[link->dstpad] = NULL;
     if(avfilter_link(filt, out, link->dst, link->dstpad)) {
@@ -287,13 +288,13 @@ void avfilter_end_frame(AVFilterLink *link)
 
 }
 
-void avfilter_draw_slice(AVFilterLink *link, int y, int h)
+void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     uint8_t *src[4], *dst[4];
     int i, j, hsub, vsub;
-    void (*draw_slice)(AVFilterLink *, int, int);
+    void (*draw_slice)(AVFilterLink *, int, int, int);
 
-    DPRINTF_START(NULL, draw_slice); dprintf_link(NULL, link, 0); dprintf(NULL, " y:%d h:%d\n", y, h);
+    DPRINTF_START(NULL, draw_slice); dprintf_link(NULL, link, 0); dprintf(NULL, " y:%d h:%d dir:%d\n", y, h, slice_dir);
 
     /* copy the slice if needed for permission reasons */
     if(link->srcpic) {
@@ -325,7 +326,7 @@ void avfilter_draw_slice(AVFilterLink *link, int y, int h)
 
     if(!(draw_slice = link_dpad(link).draw_slice))
         draw_slice = avfilter_default_draw_slice;
-    draw_slice(link, y, h);
+    draw_slice(link, y, h, slice_dir);
 }
 
 #define MAX_REGISTERED_AVFILTERS_NB 64

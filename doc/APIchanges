@@ -12,6 +12,43 @@ libavutil:   2009-03-08
 
 API changes, most recent first:
 
+2010-01-10 - r21121 - lavfi 1.15.0 - avfilter_graph_config_links()
+  Add a log_ctx parameter to avfilter_graph_config_links().
+
+2010-01-07 - r30236 - lsws 0.8.0 - sws_isSupported{In,Out}put
+  Add sws_isSupportedInput and sws_isSupportedOutput() functions.
+
+2010-01-06 - r21035 - lavfi 1.14.0 - avfilter_add_colorspace()
+  Change the avfilter_add_colorspace() signature, make it accept an
+  (AVFilterFormats **) rather than an (AVFilterFormats *) as before.
+
+2010-01-03 - r21007 - lavfi 1.13.0 - avfilter_add_colorspace()
+  Add avfilter_add_colorspace().
+
+2010-01-02 - r20998 - lavf 52.46.0 - av_match_ext()
+  Add av_match_ext(), it should be used in place of match_ext().
+
+2010-01-01 - r20991 - lavf 52.45.0 - av_guess_format()
+  Add av_guess_format(), it should be used in place of guess_format().
+
+2009-12-13 - r20834 - lavf 52.43.0 - metadata API
+  Add av_metadata_set2(), AV_METADATA_DONT_STRDUP_KEY and AV_METADATA_DONT_STRDUP_VAL.
+
+2009-12-13 - r20829 - lavu 50.7.0 - avstring.h API
+  Add av_d2str().
+
+2009-12-13 - r20826 - lavc 52.42.0 - AVStream
+  Add avg_frame_rate.
+
+2009-12-12 - r20808 - lavu 50.6.0 - av_bmg_next()
+  Introduce the av_bmg_next() function.
+
+2009-12-05 - r20734 - lavfi 1.12.0 - avfilter_draw_slice()
+  Add a slice_dir parameter to avfilter_draw_slice().
+
+2009-11-26 - r20611 - lavfi 1.11.0 - AVFilter
+  Remove the next field from AVFilter, this is not anymore required.
+
 2009-11-25 - r20607 - lavfi 1.10.0 - avfilter_next()
   Introduce the avfilter_next() function.
 

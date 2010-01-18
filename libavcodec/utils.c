@@ -367,8 +367,10 @@ int avcodec_default_reget_buffer(AVCodecContext *s, AVFrame *pic){
     }
 
     /* If internal buffer type return the same buffer */
-    if(pic->type == FF_BUFFER_TYPE_INTERNAL)
+    if(pic->type == FF_BUFFER_TYPE_INTERNAL) {
+        pic->reordered_opaque= s->reordered_opaque;
         return 0;
+    }
 
     /*
      * Not internal type and reget_buffer not overridden, emulate cr buffer
@@ -660,7 +662,7 @@ int avcodec_decode_subtitle2(AVCodecContext *avctx, AVSubtitle *sub,
     return ret;
 }
 
-int avcodec_close(AVCodecContext *avctx)
+av_cold int avcodec_close(AVCodecContext *avctx)
 {
     /* If there is a user-supplied mutex locking routine, call it. */
     if (ff_lockmgr_cb) {
@@ -893,12 +895,12 @@ unsigned avcodec_version( void )
   return LIBAVCODEC_VERSION_INT;
 }
 
-const char * avcodec_configuration(void)
+const char *avcodec_configuration(void)
 {
     return FFMPEG_CONFIGURATION;
 }
 
-const char * avcodec_license(void)
+const char *avcodec_license(void)
 {
 #define LICENSE_PREFIX "libavcodec license: "
     return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
@@ -961,6 +963,9 @@ int av_get_bits_per_sample(enum CodecID codec_id){
         return 3;
     case CODEC_ID_ADPCM_SBPRO_4:
     case CODEC_ID_ADPCM_CT:
+    case CODEC_ID_ADPCM_IMA_WAV:
+    case CODEC_ID_ADPCM_MS:
+    case CODEC_ID_ADPCM_YAMAHA:
         return 4;
     case CODEC_ID_PCM_ALAW:
     case CODEC_ID_PCM_MULAW:
@@ -1193,6 +1198,12 @@ int av_parse_video_frame_rate(AVRational *frame_rate, const char *arg)
         return -1;
     else
         return 0;
+}
+
+int ff_match_2uint16(const uint16_t (*tab)[2], int size, int a, int b){
+    int i;
+    for(i=0; i<size && !(tab[i][0]==a && tab[i][1]==b); i++);
+    return i;
 }
 
 void av_log_missing_feature(void *avc, const char *feature, int want_sample)

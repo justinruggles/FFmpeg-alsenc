@@ -38,7 +38,6 @@ typedef struct {
 
     int hsub, vsub;             ///< chroma subsampling
     int slice_y;                ///< top of current output slice
-    int slice_dir;              ///< detected slice direction order for the current frame
     int input_is_pal;           ///< set to 1 if the input format is paletted
 } ScaleContext;
 
@@ -70,13 +69,27 @@ static av_cold void uninit(AVFilterContext *ctx)
 static int query_formats(AVFilterContext *ctx)
 {
     AVFilterFormats *formats;
+    enum PixelFormat pix_fmt;
+    int ret;
 
     if (ctx->inputs[0]) {
-        formats = avfilter_all_colorspaces();
+        formats = NULL;
+        for (pix_fmt = 0; pix_fmt < PIX_FMT_NB; pix_fmt++)
+            if (   sws_isSupportedInput(pix_fmt)
+                && (ret = avfilter_add_colorspace(&formats, pix_fmt)) < 0) {
+                avfilter_formats_unref(&formats);
+                return ret;
+            }
         avfilter_formats_ref(formats, &ctx->inputs[0]->out_formats);
     }
     if (ctx->outputs[0]) {
-        formats = avfilter_all_colorspaces();
+        formats = NULL;
+        for (pix_fmt = 0; pix_fmt < PIX_FMT_NB; pix_fmt++)
+            if (    sws_isSupportedOutput(pix_fmt)
+                && (ret = avfilter_add_colorspace(&formats, pix_fmt)) < 0) {
+                avfilter_formats_unref(&formats);
+                return ret;
+            }
         avfilter_formats_ref(formats, &ctx->outputs[0]->in_formats);
     }
 
@@ -115,8 +128,6 @@ static int config_props(AVFilterLink *outlink)
     av_log(ctx, AV_LOG_INFO, "w:%d h:%d fmt:%s\n",
            outlink->w, outlink->h, avcodec_get_pix_fmt_name(outlink->format));
 
-    avcodec_get_chroma_sub_sample(outlink->format, &scale->hsub, &scale->vsub);
-
     scale->input_is_pal = inlink->format == PIX_FMT_PAL8      ||
                           inlink->format == PIX_FMT_BGR4_BYTE ||
                           inlink->format == PIX_FMT_RGB4_BYTE ||
@@ -132,6 +143,8 @@ static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFilterPicRef *outpicref;
 
+    avcodec_get_chroma_sub_sample(link->format, &scale->hsub, &scale->vsub);
+
     outpicref = avfilter_get_video_buffer(outlink, AV_PERM_WRITE, outlink->w, outlink->h);
     outpicref->pts = picref->pts;
     outlink->outpic = outpicref;
@@ -141,25 +154,19 @@ static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
               (int64_t)picref->pixel_aspect.den * outlink->w * link->h,
               INT_MAX);
 
-    scale->slice_dir = 0;
+    scale->slice_y = 0;
     avfilter_start_frame(outlink, avfilter_ref_pic(outpicref, ~0));
 }
 
-static void draw_slice(AVFilterLink *link, int y, int h)
+static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     ScaleContext *scale = link->dst->priv;
     int out_h;
     AVFilterPicRef *cur_pic = link->cur_pic;
     uint8_t *data[4];
 
-    if (!scale->slice_dir) {
-        if (y != 0 && y + h != link->h) {
-            av_log(scale, AV_LOG_ERROR, "Slices start in the middle!\n");
-            return;
-        }
-        scale->slice_dir = y ?                       -1 : 1;
-        scale->slice_y   = y ? link->dst->outputs[0]->h : y;
-    }
+    if (scale->slice_y == 0 && slice_dir == -1)
+        scale->slice_y = link->dst->outputs[0]->h;
 
     data[0] = cur_pic->data[0] +  y               * cur_pic->linesize[0];
     data[1] = scale->input_is_pal ?
@@ -172,10 +179,10 @@ static void draw_slice(AVFilterLink *link, int y, int h)
                       link->dst->outputs[0]->outpic->data,
                       link->dst->outputs[0]->outpic->linesize);
 
-    if (scale->slice_dir == -1)
+    if (slice_dir == -1)
         scale->slice_y -= out_h;
-    avfilter_draw_slice(link->dst->outputs[0], scale->slice_y, out_h);
-    if (scale->slice_dir == 1)
+    avfilter_draw_slice(link->dst->outputs[0], scale->slice_y, out_h, slice_dir);
+    if (slice_dir == 1)
         scale->slice_y += out_h;
 }
 

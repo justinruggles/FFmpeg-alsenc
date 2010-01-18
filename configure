@@ -355,11 +355,15 @@ disable_weak(){
 }
 
 enable_safe(){
-    enable $(echo "$*" | sed 's/[^A-Za-z0-9_ ]/_/g')
+    for var; do
+        enable $(echo "$var" | sed 's/[^A-Za-z0-9_]/_/g')
+    done
 }
 
 disable_safe(){
-    disable $(echo "$*" | sed 's/[^A-Za-z0-9_ ]/_/g')
+    for var; do
+        disable $(echo "$var" | sed 's/[^A-Za-z0-9_]/_/g')
+    done
 }
 
 do_enable_deep(){
@@ -446,11 +450,15 @@ check_deps(){
         eval dep_any="\$${cfg}_deps_any"
         eval dep_sel="\$${cfg}_select"
         eval dep_sgs="\$${cfg}_suggest"
+        eval dep_ifa="\$${cfg}_if"
+        eval dep_ifn="\$${cfg}_if_any"
 
-        pushvar cfg dep_all dep_any dep_sel dep_sgs
-        check_deps $dep_all $dep_any $dep_sel $dep_sgs
-        popvar cfg dep_all dep_any dep_sel dep_sgs
+        pushvar cfg dep_all dep_any dep_sel dep_sgs dep_ifa dep_ifn
+        check_deps $dep_all $dep_any $dep_sel $dep_sgs $dep_ifa $dep_ifn
+        popvar cfg dep_all dep_any dep_sel dep_sgs dep_ifa dep_ifn
 
+        [ -n "$dep_ifa" ] && { enabled_all $dep_ifa && enable_weak $cfg; }
+        [ -n "$dep_ifn" ] && { enabled_any $dep_ifn && enable_weak $cfg; }
         enabled_all  $dep_all || disable $cfg
         enabled_any  $dep_any || disable $cfg
         disabled_any $dep_sel && disable $cfg
@@ -478,6 +486,7 @@ print_config(){
             echo "${pfx}${ucname}=yes" >> $makefile
         else
             echo "#define ${pfx}${ucname} 0" >> $header
+            echo "!${pfx}${ucname}=yes" >> $makefile
         fi
     done
 }
@@ -592,12 +601,12 @@ check_yasm(){
 
 check_ld(){
     log check_ld "$@"
-    check_cc || return
     flags=''
     libs=''
     for f; do
         test "${f}" = "${f#-l}" && flags="$flags $f" || libs="$libs $f"
     done
+    check_cc $($filter_cflags $flags) || return
     check_cmd $ld $LDFLAGS $flags -o $TMPE $TMPO $extralibs $libs
 }
 
@@ -617,11 +626,16 @@ int x;
 EOF
 }
 
-check_ldflags(){
-    log check_ldflags "$@"
-    check_ld "$@" <<EOF && add_ldflags "$@"
+test_ldflags(){
+    log test_ldflags "$@"
+    check_ld "$@" <<EOF
 int main(void){ return 0; }
 EOF
+}
+
+check_ldflags(){
+    log check_ldflags "$@"
+    test_ldflags "$@" && add_ldflags "$@"
 }
 
 check_header(){
@@ -669,7 +683,8 @@ check_cpp_condition(){
     log check_cpp_condition "$@"
     header=$1
     condition=$2
-    check_cpp <<EOF
+    shift 2
+    check_cpp $($filter_cppflags "$@") <<EOF
 #include <$header>
 #if !($condition)
 #error "unsatisfied condition: $condition"
@@ -694,11 +709,7 @@ check_lib2(){
     headers="$1"
     func="$2"
     shift 2
-    temp_extralibs "$@"
-    check_func_headers "$headers" $func && add_extralibs "$@"
-    err=$?
-    restore_flags
-    return $err
+    check_func_headers "$headers" $func "$@" && add_extralibs "$@"
 }
 
 check_exec(){
@@ -736,15 +747,33 @@ check_type(){
     headers=$1
     type=$2
     shift 2
-    disable $type
+    disable_safe "$type"
     incs=""
     for hdr in $headers; do
         incs="$incs
 #include <$hdr>"
     done
-    check_cc "$@" <<EOF && enable $type
+    check_cc "$@" <<EOF && enable_safe "$type"
 $incs
 $type v;
+EOF
+}
+
+check_struct(){
+    log check_type "$@"
+    headers=$1
+    struct=$2
+    member=$3
+    shift 3
+    disable_safe "${struct}_${member}"
+    incs=""
+    for hdr in $headers; do
+        incs="$incs
+#include <$hdr>"
+    done
+    check_cc "$@" <<EOF && enable_safe "${struct}_${member}"
+$incs
+const void *p = &(($struct *)0)->$member;
 EOF
 }
 
@@ -950,10 +979,14 @@ HAVE_LIST="
     dos_paths
     ebp_available
     ebx_available
+    exp2
+    exp2f
     fast_64bit
+    fast_clz
     fast_cmov
     fast_unaligned
     fork
+    getaddrinfo
     gethrtime
     GetProcessTimes
     getrusage
@@ -965,6 +998,7 @@ HAVE_LIST="
     libdc1394_2
     llrint
     log2
+    log2f
     loongson
     lrint
     lrintf
@@ -984,6 +1018,8 @@ HAVE_LIST="
     socklen_t
     soundcard_h
     poll_h
+    struct_addrinfo
+    struct_sockaddr_storage
     sys_mman_h
     sys_resource_h
     sys_select_h
@@ -1079,13 +1115,15 @@ sse_deps="mmx"
 ssse3_deps="sse"
 vis_deps="sparc"
 
+fast_clz_if_any="alpha armv5te avr32 mips ppc x86"
+
 need_memalign="altivec neon sse"
 inline_asm_deps="!tms470"
 
 # decoders / encoders / hardware accelerators
-aac_decoder_select="fft mdct"
+aac_decoder_select="fft mdct aac_parser"
 aac_encoder_select="fft mdct"
-ac3_decoder_select="fft mdct"
+ac3_decoder_select="fft mdct ac3_parser"
 alac_encoder_select="lpc"
 atrac3_decoder_select="fft mdct"
 cavs_decoder_select="golomb"
@@ -1103,11 +1141,14 @@ flac_decoder_select="golomb"
 flac_encoder_select="golomb lpc"
 flashsv_decoder_select="zlib"
 flashsv_encoder_select="zlib"
+flv_decoder_select="h263_decoder"
 flv_encoder_select="h263_encoder"
 h261_encoder_select="aandct"
+h263_decoder_select="h263_parser"
 h263_encoder_select="aandct"
 h263_vaapi_hwaccel_deps="va_va_h"
 h263_vaapi_hwaccel_select="vaapi h263_decoder"
+h263i_decoder_select="h263_decoder"
 h263p_encoder_select="h263_encoder"
 h264_decoder_select="golomb"
 h264_vaapi_hwaccel_deps="va_va_h"
@@ -1120,8 +1161,10 @@ jpegls_encoder_select="golomb"
 ljpeg_encoder_select="aandct"
 loco_decoder_select="golomb"
 mjpeg_encoder_select="aandct"
+mlp_decoder_select="mlp_parser"
 mpeg1video_encoder_select="aandct"
 mpeg2video_encoder_select="aandct"
+mpeg4_decoder_select="h263_decoder mpeg4video_parser"
 mpeg4_encoder_select="h263_encoder"
 mpeg_vdpau_decoder_deps="vdpau_vdpau_h vdpau_vdpau_x11_h"
 mpeg_vdpau_decoder_select="vdpau mpegvideo_decoder"
@@ -1135,15 +1178,20 @@ mpeg4_vdpau_decoder_deps="vdpau_vdpau_h vdpau_vdpau_x11_h"
 mpeg4_vdpau_decoder_select="vdpau mpeg4_decoder"
 mpeg_xvmc_decoder_deps="X11_extensions_XvMClib_h"
 mpeg_xvmc_decoder_select="mpegvideo_decoder"
+msmpeg4v1_decoder_select="h263_decoder"
 msmpeg4v1_encoder_select="h263_encoder"
+msmpeg4v2_decoder_select="h263_decoder"
 msmpeg4v2_encoder_select="h263_encoder"
+msmpeg4v3_decoder_select="h263_decoder"
 msmpeg4v3_encoder_select="h263_encoder"
 nellymoser_decoder_select="fft mdct"
 nellymoser_encoder_select="fft mdct"
 png_decoder_select="zlib"
 png_encoder_select="zlib"
 qdm2_decoder_select="fft mdct rdft"
+rv10_decoder_select="h263_decoder"
 rv10_encoder_select="h263_encoder"
+rv20_decoder_select="h263_decoder"
 rv20_encoder_select="h263_encoder"
 rv30_decoder_select="golomb"
 rv40_decoder_select="golomb"
@@ -1156,7 +1204,9 @@ svq3_decoder_suggest="zlib"
 theora_decoder_select="vp3_decoder"
 tiff_decoder_suggest="zlib"
 tiff_encoder_suggest="zlib"
+truehd_decoder_select="mlp_decoder"
 tscc_decoder_select="zlib"
+vc1_decoder_select="h263_decoder"
 vc1_vaapi_hwaccel_deps="va_va_h"
 vc1_vaapi_hwaccel_select="vaapi vc1_decoder"
 vc1_vdpau_decoder_deps="vdpau_vdpau_h vdpau_vdpau_x11_h"
@@ -1169,7 +1219,9 @@ wmav1_decoder_select="fft mdct"
 wmav1_encoder_select="fft mdct"
 wmav2_decoder_select="fft mdct"
 wmav2_encoder_select="fft mdct"
+wmv1_decoder_select="h263_decoder"
 wmv1_encoder_select="h263_encoder"
+wmv2_decoder_select="h263_decoder"
 wmv2_encoder_select="h263_encoder"
 wmv3_decoder_select="vc1_decoder"
 wmv3_vaapi_hwaccel_select="vc1_vaapi_hwaccel"
@@ -1181,6 +1233,9 @@ zmbv_encoder_select="zlib"
 
 # parsers
 h264_parser_select="golomb"
+
+# bitstream_filters
+aac_adtstoasc_bsf_select="aac_parser"
 
 # external libraries
 libdirac_decoder_deps="libdirac !libschroedinger"
@@ -1210,6 +1265,7 @@ ac3_demuxer_deps="ac3_parser"
 asf_stream_muxer_select="asf_muxer"
 avisynth_demuxer_deps="avisynth"
 dirac_demuxer_deps="dirac_parser"
+eac3_demuxer_select="ac3_parser"
 ipod_muxer_select="mov_muxer"
 libnut_demuxer_deps="libnut"
 libnut_muxer_deps="libnut"
@@ -1220,10 +1276,11 @@ mp3_demuxer_deps="mpegaudio_parser"
 mp4_muxer_select="mov_muxer"
 mpegtsraw_demuxer_select="mpegts_demuxer"
 mxf_d10_muxer_select="mxf_muxer"
+ogg_demuxer_select="golomb"
 psp_muxer_select="mov_muxer"
-rtp_muxer_deps="network rtp_protocol"
 rtsp_demuxer_deps="sdp_demuxer"
 sdp_demuxer_deps="rtp_protocol mpegts_demuxer"
+spdif_muxer_select="aac_parser"
 tg2_muxer_select="mov_muxer"
 tgp_muxer_select="mov_muxer"
 w64_demuxer_deps="wav_demuxer"
@@ -1249,7 +1306,7 @@ v4l2_indev_deps_any="linux_videodev2_h sys_videoio_h"
 vfwcap_indev_deps="capCreateCaptureWindow"
 vfwcap_indev_extralibs="-lvfw32"
 x11_grab_device_indev_deps="x11grab XShmCreateImage"
-x11_grab_device_indev_extralibs="-lX11 -lXext"
+x11_grab_device_indev_extralibs="-lX11 -lXext -lXfixes"
 
 # protocols
 gopher_protocol_deps="network"
@@ -1519,6 +1576,7 @@ tmpfile TMPE  $EXESUF
 tmpfile TMPH  .h
 tmpfile TMPO  .o
 tmpfile TMPS  .S
+tmpfile TMPV  .ver
 tmpfile TMPSH .sh
 
 unset -f mktemp
@@ -1731,8 +1789,12 @@ case $cpu in
         cpuflags="-mcpu=cell"
         enable ldbrx
     ;;
+    i[345]86|pentium)
+        cpuflags="-march=$cpu"
+        disable mmx
+    ;;
     # targets that do NOT support conditional mov (cmov)
-    i[345]86|pentium|pentium-mmx|k6|k6-[23]|winchip-c6|winchip2|c3)
+    pentium-mmx|k6|k6-[23]|winchip-c6|winchip2|c3)
         cpuflags="-march=$cpu"
         disable cmov
     ;;
@@ -1986,6 +2048,8 @@ case $target_os in
             { check_cflags -mdynamic-no-pic && add_asflags -mdynamic-no-pic; }
         ;;
     mingw32*)
+        # Only WinXP or greater are supported
+        add_cflags -D_WIN32_WINNT=0x0501
         if test $target_os = "mingw32ce"; then
             disable network
         else
@@ -2278,6 +2342,12 @@ EOF
     esac
     disabled yasm || { check_yasm "pabsw xmm0, xmm0" && enable yasm; }
 
+    case "$cpu" in
+        athlon*|opteron*|k8*|pentium|pentium-mmx|prescott|nocona|atom|geode)
+            disable fast_clz
+        ;;
+    esac
+
 fi
 
 if check_func dlopen; then
@@ -2290,6 +2360,7 @@ fi
 check_func nanosleep || { check_func nanosleep -lrt && add_extralibs -lrt; }
 
 check_func  fork
+check_func  getaddrinfo $network_extralibs
 check_func  gethrtime
 check_func  getrusage
 check_func  inet_aton $network_extralibs
@@ -2351,8 +2422,11 @@ done
 check_lib math.h sin -lm
 check_lib va/va.h vaInitialize -lva
 
+check_func exp2
+check_func exp2f
 check_func llrint
 check_func log2
+check_func log2f
 check_func lrint
 check_func lrintf
 check_func round
@@ -2392,37 +2466,22 @@ if enabled libdc1394; then
     die "ERROR: No version of libdc1394 found "
 fi
 
-disable sdl_too_old
-disable sdl
 SDL_CONFIG="${cross_prefix}sdl-config"
 if "${SDL_CONFIG}" --version > /dev/null 2>&1; then
     sdl_cflags=$("${SDL_CONFIG}" --cflags)
     sdl_libs=$("${SDL_CONFIG}" --libs)
-    temp_cflags $sdl_cflags
-    temp_extralibs $sdl_libs
-    if check_lib2 SDL.h SDL_Init; then
-        _sdlversion=$("${SDL_CONFIG}" --version | sed 's/[^0-9]//g')
-        if test "$_sdlversion" -lt 121 ; then
-            enable sdl_too_old
-        else
-            enable sdl
-            check_cc $sdl_cflags <<EOF && enable sdl_video_size
-#include <SDL.h>
-int main(int argc, char **argv){
-    const SDL_VideoInfo *vi = SDL_GetVideoInfo();
-    int w = vi->current_w;
-    return 0;
-}
-EOF
-        fi
-    fi
-    restore_flags
+    check_func_headers SDL.h SDL_Init $sdl_cflags $sdl_libs &&
+    check_cpp_condition SDL.h "(SDL_MAJOR_VERSION<<16 | SDL_MINOR_VERSION<<8 | SDL_PATCHLEVEL) >= 0x010201" $sdl_cflags &&
+    enable sdl &&
+    check_struct SDL.h SDL_VideoInfo current_w $sdl_cflags && enable sdl_video_size
 fi
 
 texi2html -version > /dev/null 2>&1 && enable texi2html || disable texi2html
 
 if enabled network; then
     check_type "sys/types.h sys/socket.h" socklen_t
+    check_type netdb.h "struct addrinfo"
+    check_type sys/socket.h "struct sockaddr_storage"
     # Prefer arpa/inet.h over winsock2
     if check_header arpa/inet.h ; then
         check_func closesocket
@@ -2432,6 +2491,8 @@ if enabled network; then
         { check_func_headers winsock2.h closesocket -lws2_32 && \
             network_extralibs="-lws2_32"; }
         check_type ws2tcpip.h socklen_t
+        check_type ws2tcpip.h "struct addrinfo"
+        check_type ws2tcpip.h "struct sockaddr_storage"
     else
         disable network
     fi
@@ -2476,8 +2537,17 @@ enabled jack_indev && check_lib2 jack/jack.h jack_client_open -ljack
 enabled x11grab                         &&
 check_header X11/Xlib.h                 &&
 check_header X11/extensions/XShm.h      &&
+check_header X11/extensions/Xfixes.h    &&
 check_func XOpenDisplay -lX11           &&
-check_func XShmCreateImage -lX11 -lXext
+check_func XShmCreateImage -lX11 -lXext &&
+check_func XFixesGetCursorImage -lX11 -lXext -lXfixes
+
+if ! disabled vdpau && enabled vdpau_vdpau_h; then
+check_cpp_condition \
+    vdpau/vdpau.h "defined VDP_DECODER_PROFILE_MPEG4_PART2_ASP" ||
+    { echolog "Please upgrade to libvdpau >= 0.2 if you would like vdpau support." &&
+      disable vdpau; }
+fi
 
 enabled debug && add_cflags -g"$debuglevel" && add_asflags -g"$debuglevel"
 
@@ -2500,6 +2570,10 @@ check_ldflags -Wl,--warn-common
 check_ldflags -Wl,--as-needed
 check_ldflags '-Wl,-rpath-link,\$(BUILD_ROOT)/libpostproc -Wl,-rpath-link,\$(BUILD_ROOT)/libswscale -Wl,-rpath-link,\$(BUILD_ROOT)/libavfilter -Wl,-rpath-link,\$(BUILD_ROOT)/libavdevice -Wl,-rpath-link,\$(BUILD_ROOT)/libavformat -Wl,-rpath-link,\$(BUILD_ROOT)/libavcodec -Wl,-rpath-link,\$(BUILD_ROOT)/libavutil'
 check_ldflags -Wl,-Bsymbolic
+
+echo "X{};" > $TMPV
+test_ldflags -Wl,--version-script,$TMPV &&
+    append SHFLAGS '-Wl,--version-script,\$(SUBDIR)lib\$(NAME).ver'
 
 if enabled small; then
     check_cflags -Os            # not all compilers support -Os
@@ -2646,9 +2720,6 @@ if enabled network; then
 fi
 echo "threading support         ${thread_type-no}"
 echo "SDL support               ${sdl-no}"
-if enabled sdl_too_old; then
-    echo "-> Your SDL version is too old - please upgrade to have FFplay/SDL support."
-fi
 echo "Sun medialib support      ${mlib-no}"
 echo "AVISynth enabled          ${avisynth-no}"
 echo "libdc1394 support         ${libdc1394-no}"

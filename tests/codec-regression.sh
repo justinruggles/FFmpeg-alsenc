@@ -217,17 +217,17 @@ fi
 
 if [ -n "$do_dnxhd_1080i" ] ; then
 # FIXME: interlaced raw DNxHD decoding is broken
-do_video_encoding dnxhd-1080i.mov "" "-vcodec dnxhd -flags +ildct -s hd1080 -b 120Mb -pix_fmt yuv422p -an"
+do_video_encoding dnxhd-1080i.mov "" "-vcodec dnxhd -flags +ildct -s hd1080 -b 120Mb -pix_fmt yuv422p -vframes 5 -an"
 do_video_decoding "-r 25" "-s cif -pix_fmt yuv420p"
 fi
 
 if [ -n "$do_dnxhd_720p" ] ; then
-do_video_encoding dnxhd-720p.dnxhd "" "-s hd720 -b 90Mb -pix_fmt yuv422p -an"
+do_video_encoding dnxhd-720p.dnxhd "" "-s hd720 -b 90Mb -pix_fmt yuv422p -vframes 5 -an"
 do_video_decoding "-r 25" "-s cif -pix_fmt yuv420p"
 fi
 
 if [ -n "$do_dnxhd_720p_rd" ] ; then
-do_video_encoding dnxhd-720p-rd.dnxhd "" "-threads 4 -mbd rd -s hd720 -b 90Mb -pix_fmt yuv422p -an"
+do_video_encoding dnxhd-720p-rd.dnxhd "" "-threads 4 -mbd rd -s hd720 -b 90Mb -pix_fmt yuv422p -vframes 5 -an"
 do_video_decoding "-r 25" "-s cif -pix_fmt yuv420p"
 fi
 
@@ -239,6 +239,11 @@ fi
 if [ -n "$do_flashsv" ] ; then
 do_video_encoding flashsv.flv "" "-an -vcodec flashsv -sws_flags neighbor+full_chroma_int+accurate_rnd+bitexact"
 do_video_decoding "" "-pix_fmt yuv420p -sws_flags area+accurate_rnd+bitexact"
+fi
+
+if [ -n "$do_roq" ] ; then
+do_video_encoding roqav.roq "" "-vframes 5"
+do_video_decoding "" "-pix_fmt yuv420p"
 fi
 
 if [ -n "$do_mp2" ] ; then
@@ -294,12 +299,12 @@ do_audio_encoding flac.flac "-ar 44100" "-acodec flac -compression_level 2"
 do_audio_decoding
 fi
 
-if [ -n "$do_wma" ] ; then
-# wmav1
+if [ -n "$do_wmav1" ] ; then
 do_audio_encoding wmav1.asf "-ar 44100" "-acodec wmav1"
 do_ffmpeg_nomd5 $pcm_dst -i $target_path/$file -f wav
 $tiny_psnr $pcm_dst $pcm_ref 2 8192 >> $logfile
-# wmav2
+fi
+if [ -n "$do_wmav2" ] ; then
 do_audio_encoding wmav2.asf "-ar 44100" "-acodec wmav2"
 do_ffmpeg_nomd5 $pcm_dst -i $target_path/$file -f wav
 $tiny_psnr $pcm_dst $pcm_ref 2 8192 >> $logfile

@@ -30,7 +30,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 52
-#define LIBAVCODEC_VERSION_MINOR 42
+#define LIBAVCODEC_VERSION_MINOR 48
 #define LIBAVCODEC_VERSION_MICRO  0
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
@@ -200,6 +200,9 @@ enum CodecID {
     CODEC_ID_MAD,
     CODEC_ID_FRWU,
     CODEC_ID_FLASHSV2,
+    CODEC_ID_CDGRAPHICS,
+    CODEC_ID_R210,
+    CODEC_ID_ANM,
 
     /* various PCM "codecs" */
     CODEC_ID_PCM_S16LE= 0x10000,
@@ -580,6 +583,7 @@ typedef struct RcOverride{
 #define CODEC_FLAG2_CHUNKS        0x00008000 ///< Input bitstream might be truncated at a packet boundaries instead of only at frame boundaries.
 #define CODEC_FLAG2_NON_LINEAR_QUANT 0x00010000 ///< Use MPEG-2 nonlinear quantizer.
 #define CODEC_FLAG2_BIT_RESERVOIR 0x00020000 ///< Use a bit reservoir when encoding if possible
+#define CODEC_FLAG2_MBTREE        0x00040000 ///< Use macroblock tree ratecontrol (x264 only)
 
 /* Unsupported options :
  *              Syntax Arithmetic coding (SAC)
@@ -2981,7 +2985,13 @@ void avcodec_set_dimensions(AVCodecContext *s, int width, int height);
  * Finally if no pixel format has been found, returns PIX_FMT_NONE.
  */
 enum PixelFormat avcodec_get_pix_fmt(const char* name);
-unsigned int avcodec_pix_fmt_to_codec_tag(enum PixelFormat p);
+
+/**
+ * Returns a value representing the fourCC code associated to the
+ * pixel format pix_fmt, or 0 if no associated fourCC code can be
+ * found.
+ */
+unsigned int avcodec_pix_fmt_to_codec_tag(enum PixelFormat pix_fmt);
 
 #define FF_LOSS_RESOLUTION  0x0001 /**< loss due to resolution change */
 #define FF_LOSS_DEPTH       0x0002 /**< loss due to color depth change */
@@ -3080,12 +3090,12 @@ unsigned avcodec_version(void);
 /**
  * Returns the libavcodec build-time configuration.
  */
-const char * avcodec_configuration(void);
+const char *avcodec_configuration(void);
 
 /**
  * Returns the libavcodec license.
  */
-const char * avcodec_license(void);
+const char *avcodec_license(void);
 
 /**
  * Initializes libavcodec.
@@ -3335,7 +3345,7 @@ attribute_deprecated int avcodec_decode_video(AVCodecContext *avctx, AVFrame *pi
  * In practice, avpkt->data should have 4 byte alignment at minimum.
  *
  * @note Some codecs have a delay between input and output, these need to be
- * feeded with avpkt->data=NULL, avpkt->size=0 at the end to return the remaining frames.
+ * fed with avpkt->data=NULL, avpkt->size=0 at the end to return the remaining frames.
  *
  * @param avctx the codec context
  * @param[out] picture The AVFrame in which the decoded video frame will be stored.

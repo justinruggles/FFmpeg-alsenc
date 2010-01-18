@@ -350,7 +350,7 @@ typedef struct DSPContext {
     void (*sub_hfyu_median_prediction)(uint8_t *dst, const uint8_t *src1, const uint8_t *src2, int w, int *left, int *left_top);
     void (*add_hfyu_median_prediction)(uint8_t *dst, const uint8_t *top, const uint8_t *diff, int w, int *left, int *left_top);
     int  (*add_hfyu_left_prediction)(uint8_t *dst, const uint8_t *src, int w, int left);
-    void (*add_hfyu_left_prediction_bgr32)(uint8_t *dst, const uint8_t *src, int w, int *red, int *green, int *blue);
+    void (*add_hfyu_left_prediction_bgr32)(uint8_t *dst, const uint8_t *src, int w, int *red, int *green, int *blue, int *alpha);
     /* this might write to dst[w] */
     void (*add_png_paeth_prediction)(uint8_t *dst, uint8_t *src, uint8_t *top, int w, int bpp);
     void (*bswap_buf)(uint32_t *dst, const uint32_t *src, int w);
@@ -560,23 +560,19 @@ typedef struct DSPContext {
     void (*x8_setup_spatial_compensation)(uint8_t *src, uint8_t *dst, int linesize,
            int * range, int * sum,  int edges);
 
-    /* ape functions */
-    /**
-     * Add contents of the second vector to the first one.
-     * @param len length of vectors, should be multiple of 16
-     */
-    void (*add_int16)(int16_t *v1/*align 16*/, int16_t *v2, int len);
-    /**
-     * Add contents of the second vector to the first one.
-     * @param len length of vectors, should be multiple of 16
-     */
-    void (*sub_int16)(int16_t *v1/*align 16*/, int16_t *v2, int len);
     /**
      * Calculate scalar product of two vectors.
      * @param len length of vectors, should be multiple of 16
      * @param shift number of bits to discard from product
      */
     int32_t (*scalarproduct_int16)(int16_t *v1, int16_t *v2/*align 16*/, int len, int shift);
+    /* ape functions */
+    /**
+     * Calculate scalar product of v1 and v2,
+     * and v1[i] += v3[i] * mul
+     * @param len length of vectors, should be multiple of 16
+     */
+    int32_t (*scalarproduct_and_madd_int16)(int16_t *v1/*align 16*/, int16_t *v2, int16_t *v3, int len, int mul);
 
     /* rv30 functions */
     qpel_mc_func put_rv30_tpel_pixels_tab[4][16];
@@ -745,15 +741,19 @@ typedef struct FFTContext {
 #if CONFIG_HARDCODED_TABLES
 #define COSTABLE_CONST const
 #define SINTABLE_CONST const
+#define SINETABLE_CONST const
 #else
 #define COSTABLE_CONST
 #define SINTABLE_CONST
+#define SINETABLE_CONST
 #endif
 
 #define COSTABLE(size) \
     COSTABLE_CONST DECLARE_ALIGNED_16(FFTSample, ff_cos_##size[size/2])
 #define SINTABLE(size) \
     SINTABLE_CONST DECLARE_ALIGNED_16(FFTSample, ff_sin_##size[size/2])
+#define SINETABLE(size) \
+    SINETABLE_CONST DECLARE_ALIGNED_16(float, ff_sine_##size[size])
 extern COSTABLE(16);
 extern COSTABLE(32);
 extern COSTABLE(64);
@@ -850,15 +850,19 @@ void ff_kbd_window_init(float *window, float alpha, int n);
  * @param   n       size of half window
  */
 void ff_sine_window_init(float *window, int n);
-extern float ff_sine_32  [  32];
-extern float ff_sine_64  [  64];
-extern float ff_sine_128 [ 128];
-extern float ff_sine_256 [ 256];
-extern float ff_sine_512 [ 512];
-extern float ff_sine_1024[1024];
-extern float ff_sine_2048[2048];
-extern float ff_sine_4096[4096];
-extern float * const ff_sine_windows[13];
+/**
+ * initialize the specified entry of ff_sine_windows
+ */
+void ff_init_ff_sine_windows(int index);
+extern SINETABLE(  32);
+extern SINETABLE(  64);
+extern SINETABLE( 128);
+extern SINETABLE( 256);
+extern SINETABLE( 512);
+extern SINETABLE(1024);
+extern SINETABLE(2048);
+extern SINETABLE(4096);
+extern SINETABLE_CONST float * const ff_sine_windows[13];
 
 int ff_mdct_init(FFTContext *s, int nbits, int inverse, double scale);
 void ff_imdct_calc_c(FFTContext *s, FFTSample *output, const FFTSample *input);

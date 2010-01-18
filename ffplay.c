@@ -40,6 +40,8 @@
 #endif
 
 #undef exit
+#undef printf
+#undef fprintf
 
 const char program_name[] = "FFplay";
 const int program_birth_year = 2003;
@@ -1720,6 +1722,8 @@ static int stream_component_open(VideoState *is, int stream_index)
     enc->skip_loop_filter= skip_loop_filter;
     enc->error_recognition= error_recognition;
     enc->error_concealment= error_concealment;
+    if (thread_count > 1)
+        avcodec_thread_init(enc, thread_count);
 
     set_context_opts(enc, avcodec_opts[enc->codec_type], 0);
 
@@ -1744,9 +1748,6 @@ static int stream_component_open(VideoState *is, int stream_index)
         is->audio_src_fmt= SAMPLE_FMT_S16;
     }
 
-    if(thread_count>1)
-        avcodec_thread_init(enc, thread_count);
-    enc->thread_count= thread_count;
     ic->streams[stream_index]->discard = AVDISCARD_DEFAULT;
     switch(enc->codec_type) {
     case CODEC_TYPE_AUDIO:
@@ -2453,13 +2454,7 @@ static int opt_thread_count(const char *opt, const char *arg)
 }
 
 static const OptionDef options[] = {
-    { "h", OPT_EXIT, {(void*)show_help}, "show help" },
-    { "version", OPT_EXIT, {(void*)show_version}, "show version" },
-    { "L", OPT_EXIT, {(void*)show_license}, "show license" },
-    { "formats"  , OPT_EXIT, {(void*)show_formats  }, "show available formats" },
-    { "codecs"   , OPT_EXIT, {(void*)show_codecs   }, "show available codecs" },
-    { "bsfs"     , OPT_EXIT, {(void*)show_bsfs     }, "show available bit stream filters" },
-    { "protocols", OPT_EXIT, {(void*)show_protocols}, "show available protocols" },
+#include "cmdutils_common_opts.h"
     { "x", HAS_ARG | OPT_FUNC2, {(void*)opt_width}, "force displayed width", "width" },
     { "y", HAS_ARG | OPT_FUNC2, {(void*)opt_height}, "force displayed height", "height" },
     { "s", HAS_ARG | OPT_VIDEO, {(void*)opt_frame_size}, "set frame size (WxH or abbreviation)", "size" },
@@ -2491,15 +2486,19 @@ static const OptionDef options[] = {
     { "sync", HAS_ARG | OPT_FUNC2 | OPT_EXPERT, {(void*)opt_sync}, "set audio-video sync. type (type=audio/video/ext)", "type" },
     { "threads", HAS_ARG | OPT_FUNC2 | OPT_EXPERT, {(void*)opt_thread_count}, "thread count", "count" },
     { "default", OPT_FUNC2 | HAS_ARG | OPT_AUDIO | OPT_VIDEO | OPT_EXPERT, {(void*)opt_default}, "generic catch all option", "" },
-    { "loglevel", HAS_ARG | OPT_FUNC2, {(void*)opt_loglevel}, "set libav* logging level", "loglevel" },
     { NULL, },
 };
 
+static void show_usage(void)
+{
+    printf("Simple media player\n");
+    printf("usage: ffplay [options] input_file\n");
+    printf("\n");
+}
+
 static void show_help(void)
 {
-    printf("usage: ffplay [options] input_file\n"
-           "Simple media player\n");
-    printf("\n");
+    show_usage();
     show_help_options(options, "Main options:\n",
                       OPT_EXPERT, 0);
     show_help_options(options, "\nAdvanced options:\n",
@@ -2546,7 +2545,9 @@ int main(int argc, char **argv)
     parse_options(argc, argv, options, opt_input_file);
 
     if (!input_filename) {
+        show_usage();
         fprintf(stderr, "An input file must be specified\n");
+        fprintf(stderr, "Use -h to get full help or, even better, run 'man ffplay'\n");
         exit(1);
     }
 

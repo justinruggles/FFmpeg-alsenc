@@ -48,11 +48,11 @@ static AVFilterPicRef *get_video_buffer(AVFilterLink *link, int perms,
     AVFilterPicRef *picref = avfilter_get_video_buffer(link->dst->outputs[0],
                                                        perms, w, h);
 
-    picref->data[0] += (h-1) * picref->linesize[0];
-    picref->linesize[0] = -picref->linesize[0];
-    for (i = 1; i < 4; i ++) {
+    for (i = 0; i < 4; i ++) {
+        int vsub = i == 1 || i == 2 ? flip->vsub : 0;
+
         if (picref->data[i]) {
-            picref->data[i] += ((h >> flip->vsub)-1) * picref->linesize[i];
+            picref->data[i] += ((h >> vsub)-1) * picref->linesize[i];
             picref->linesize[i] = -picref->linesize[i];
         }
     }
@@ -66,11 +66,11 @@ static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
     AVFilterPicRef *ref2 = avfilter_ref_pic(picref, ~0);
     int i;
 
-    ref2->data[0] += (link->h-1) * ref2->linesize[0];
-    ref2->linesize[0] = -ref2->linesize[0];
-    for (i = 1; i < 4; i ++) {
+    for (i = 0; i < 4; i ++) {
+        int vsub = i == 1 || i == 2 ? flip->vsub : 0;
+
         if (ref2->data[i]) {
-            ref2->data[i] += ((link->h >> flip->vsub)-1) * ref2->linesize[i];
+            ref2->data[i] += ((link->h >> vsub)-1) * ref2->linesize[i];
             ref2->linesize[i] = -ref2->linesize[i];
         }
     }
@@ -78,11 +78,11 @@ static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
     avfilter_start_frame(link->dst->outputs[0], ref2);
 }
 
-static void draw_slice(AVFilterLink *link, int y, int h)
+static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 {
     AVFilterContext *ctx = link->dst;
 
-    avfilter_draw_slice(ctx->outputs[0], link->h - (y+h), h);
+    avfilter_draw_slice(ctx->outputs[0], link->h - (y+h), h, -1 * slice_dir);
 }
 
 AVFilter avfilter_vf_vflip = {

@@ -263,6 +263,16 @@ if ((y) < (x)) {\
     }\
 }
 
+#if !HAVE_EXP2
+#undef exp2
+#define exp2(x) exp((x) * 0.693147180559945)
+#endif /* HAVE_EXP2 */
+
+#if !HAVE_EXP2F
+#undef exp2f
+#define exp2f(x) exp2(x)
+#endif /* HAVE_EXP2F */
+
 #if !HAVE_LLRINT
 static av_always_inline av_const long long llrint(double x)
 {
@@ -271,11 +281,14 @@ static av_always_inline av_const long long llrint(double x)
 #endif /* HAVE_LLRINT */
 
 #if !HAVE_LOG2
-static av_always_inline av_const double log2(double x)
-{
-    return log(x) * 1.44269504088896340736;
-}
+#undef log2
+#define log2(x) (log(x) * 1.44269504088896340736)
 #endif /* HAVE_LOG2 */
+
+#if !HAVE_LOG2F
+#undef log2f
+#define log2f(x) log2(x)
+#endif /* HAVE_LOG2F */
 
 #if !HAVE_LRINT
 static av_always_inline av_const long int lrint(double x)

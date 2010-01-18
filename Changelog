@@ -43,6 +43,13 @@ version <next>:
 - RF64 support in WAV demuxer
 - MPEG-4 Audio Lossless Coding (ALS) decoder
 - -formats option split into -formats, -codecs, -bsfs, and -protocols
+- IV8 demuxer
+- CDG demuxer and decoder
+- R210 decoder
+- Auravision Aura 1 and 2 decoders
+- Deluxe Paint Animation playback system
+- SIPR decoder
+- Adobe Filmstrip muxer and demuxer
 
 
 

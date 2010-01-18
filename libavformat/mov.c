@@ -181,13 +181,10 @@ static int mov_read_default(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     int64_t total_size = 0;
     MOVAtom a;
     int i;
-    int err = 0;
-
-    a.offset = atom.offset;
 
     if (atom.size < 0)
         atom.size = INT64_MAX;
-    while(((total_size + 8) < atom.size) && !url_feof(pb) && !err) {
+    while (total_size + 8 < atom.size && !url_feof(pb)) {
         int (*parse)(MOVContext*, ByteIOContext*, MOVAtom) = NULL;
         a.size = atom.size;
         a.type=0;
@@ -196,12 +193,10 @@ static int mov_read_default(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
             a.type = get_le32(pb);
         }
         total_size += 8;
-        a.offset += 8;
         dprintf(c->fc, "type: %08x  %.4s  sz: %"PRIx64"  %"PRIx64"   %"PRIx64"\n",
                 a.type, (char*)&a.type, a.size, atom.size, total_size);
         if (a.size == 1) { /* 64 bit extended size */
             a.size = get_be64(pb) - 8;
-            a.offset += 8;
             total_size += 8;
         }
         if (a.size == 0) {
@@ -230,22 +225,24 @@ static int mov_read_default(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
         } else {
             int64_t start_pos = url_ftell(pb);
             int64_t left;
-            err = parse(c, pb, a);
-            if (url_is_streamed(pb) && c->found_moov && c->found_mdat)
-                break;
+            int err = parse(c, pb, a);
+            if (err < 0)
+                return err;
+            if (c->found_moov && c->found_mdat &&
+                (url_is_streamed(pb) || start_pos + a.size == url_fsize(pb)))
+                return 0;
             left = a.size - url_ftell(pb) + start_pos;
             if (left > 0) /* skip garbage at atom end */
                 url_fskip(pb, left);
         }
 
-        a.offset += a.size;
         total_size += a.size;
     }
 
-    if (!err && total_size < atom.size && atom.size < 0x7ffff)
+    if (total_size < atom.size && atom.size < 0x7ffff)
         url_fskip(pb, atom.size - total_size);
 
-    return err;
+    return 0;
 }
 
 static int mov_read_dref(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
@@ -383,10 +380,6 @@ static int mov_read_hdlr(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     get_be32(pb); /* component flags */
     get_be32(pb); /* component flags mask */
 
-    if(atom.size <= 24)
-        return 0; /* nothing left to read */
-
-    url_fskip(pb, atom.size - (url_ftell(pb) - atom.offset));
     return 0;
 }
 
@@ -866,7 +859,7 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
         //Parsing Sample description table
         enum CodecID id;
         int dref_id = 1;
-        MOVAtom a = { 0, 0, 0 };
+        MOVAtom a = { 0 };
         int64_t start_pos = url_ftell(pb);
         int size = get_be32(pb); /* size */
         uint32_t format = get_le32(pb); /* data format */
@@ -931,6 +924,16 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
 
             st->codec->width = get_be16(pb); /* width */
             st->codec->height = get_be16(pb); /* height */
+
+            if (st->codec->width != sc->width || st->codec->height != sc->height) {
+                AVRational r = av_d2q(
+                    ((double)st->codec->height * sc->width) /
+                    ((double)st->codec->width * sc->height), INT_MAX);
+                if (st->sample_aspect_ratio.num)
+                    st->sample_aspect_ratio = av_mul_q(st->sample_aspect_ratio, r);
+                else
+                    st->sample_aspect_ratio = r;
+            }
 
             get_be32(pb); /* horiz resolution */
             get_be32(pb); /* vert resolution */
@@ -1054,7 +1057,7 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
                     st->codec->channels = get_be32(pb);
                     get_be32(pb); /* always 0x7F000000 */
                     st->codec->bits_per_coded_sample = get_be32(pb); /* bits per channel if sound is uncompressed */
-                    flags = get_be32(pb); /* lcpm format specific flag */
+                    flags = get_be32(pb); /* lpcm format specific flag */
                     sc->bytes_per_frame = get_be32(pb); /* bytes per audio packet if constant */
                     sc->samples_per_frame = get_be32(pb); /* lpcm frames per audio packet if constant */
                     if (format == MKTAG('l','p','c','m'))
@@ -1939,7 +1942,6 @@ static int mov_read_wide(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
         return 0;
     }
     atom.type = get_le32(pb);
-    atom.offset += 8;
     atom.size -= 8;
     if (atom.type != MKTAG('m','d','a','t')) {
         url_fskip(pb, atom.size);
@@ -1985,7 +1987,6 @@ static int mov_read_cmov(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     if(init_put_byte(&ctx, moov_data, moov_len, 0, NULL, NULL, NULL, NULL) != 0)
         goto free_and_return;
     atom.type = MKTAG('m','o','o','v');
-    atom.offset = 0;
     atom.size = moov_len;
 #ifdef DEBUG
 //    { int fd = open("/tmp/uncompheader.mov", O_WRONLY | O_CREAT); write(fd, moov_data, moov_len); close(fd); }
@@ -2137,7 +2138,7 @@ static int mov_read_header(AVFormatContext *s, AVFormatParameters *ap)
     MOVContext *mov = s->priv_data;
     ByteIOContext *pb = s->pb;
     int err;
-    MOVAtom atom = { 0, 0, 0 };
+    MOVAtom atom = { 0 };
 
     mov->fc = s;
     /* .mov and .mp4 aren't streamable anyway (only progressive download if moov is before mdat) */
@@ -2198,7 +2199,7 @@ static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)
     if (!sample) {
         mov->found_mdat = 0;
         if (!url_is_streamed(s->pb) ||
-            mov_read_default(mov, s->pb, (MOVAtom){ 0, 0, INT64_MAX }) < 0 ||
+            mov_read_default(mov, s->pb, (MOVAtom){ 0, INT64_MAX }) < 0 ||
             url_feof(s->pb))
             return AVERROR_EOF;
         dprintf(s, "read fragments, offset 0x%llx\n", url_ftell(s->pb));

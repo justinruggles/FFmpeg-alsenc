@@ -41,12 +41,12 @@ unsigned avformat_version(void)
     return LIBAVFORMAT_VERSION_INT;
 }
 
-const char * avformat_configuration(void)
+const char *avformat_configuration(void)
 {
     return FFMPEG_CONFIGURATION;
 }
 
-const char * avformat_license(void)
+const char *avformat_license(void)
 {
 #define LICENSE_PREFIX "libavformat license: "
     return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
@@ -137,7 +137,14 @@ void av_register_output_format(AVOutputFormat *format)
     format->next = NULL;
 }
 
+#if LIBAVFORMAT_VERSION_MAJOR < 53
 int match_ext(const char *filename, const char *extensions)
+{
+    return av_match_ext(filename, extensions);
+}
+#endif
+
+int av_match_ext(const char *filename, const char *extensions)
 {
     const char *ext, *p;
     char ext1[32], *q;
@@ -182,8 +189,16 @@ static int match_format(const char *name, const char *names)
     return !strcasecmp(name, names);
 }
 
+#if LIBAVFORMAT_VERSION_MAJOR < 53
 AVOutputFormat *guess_format(const char *short_name, const char *filename,
                              const char *mime_type)
+{
+    return av_guess_format(short_name, filename, mime_type);
+}
+#endif
+
+AVOutputFormat *av_guess_format(const char *short_name, const char *filename,
+                                const char *mime_type)
 {
     AVOutputFormat *fmt, *fmt_found;
     int score_max, score;
@@ -193,7 +208,7 @@ AVOutputFormat *guess_format(const char *short_name, const char *filename,
     if (!short_name && filename &&
         av_filename_number_test(filename) &&
         av_guess_image2_codec(filename) != CODEC_ID_NONE) {
-        return guess_format("image2", NULL, NULL);
+        return av_guess_format("image2", NULL, NULL);
     }
 #endif
     /* Find the proper file type. */
@@ -207,7 +222,7 @@ AVOutputFormat *guess_format(const char *short_name, const char *filename,
         if (fmt->mime_type && mime_type && !strcmp(fmt->mime_type, mime_type))
             score += 10;
         if (filename && fmt->extensions &&
-            match_ext(filename, fmt->extensions)) {
+            av_match_ext(filename, fmt->extensions)) {
             score += 5;
         }
         if (score > score_max) {
@@ -219,17 +234,18 @@ AVOutputFormat *guess_format(const char *short_name, const char *filename,
     return fmt_found;
 }
 
+#if LIBAVFORMAT_VERSION_MAJOR < 53
 AVOutputFormat *guess_stream_format(const char *short_name, const char *filename,
                              const char *mime_type)
 {
-    AVOutputFormat *fmt = guess_format(short_name, filename, mime_type);
+    AVOutputFormat *fmt = av_guess_format(short_name, filename, mime_type);
 
     if (fmt) {
         AVOutputFormat *stream_fmt;
         char stream_format_name[64];
 
         snprintf(stream_format_name, sizeof(stream_format_name), "%s_stream", fmt->name);
-        stream_fmt = guess_format(stream_format_name, NULL, NULL);
+        stream_fmt = av_guess_format(stream_format_name, NULL, NULL);
 
         if (stream_fmt)
             fmt = stream_fmt;
@@ -237,6 +253,7 @@ AVOutputFormat *guess_stream_format(const char *short_name, const char *filename
 
     return fmt;
 }
+#endif
 
 enum CodecID av_guess_codec(AVOutputFormat *fmt, const char *short_name,
                             const char *filename, const char *mime_type, enum CodecType type){
@@ -308,7 +325,7 @@ static AVInputFormat *av_probe_input_format2(AVProbeData *pd, int is_opened, int
         if (fmt1->read_probe) {
             score = fmt1->read_probe(pd);
         } else if (fmt1->extensions) {
-            if (match_ext(pd->filename, fmt1->extensions)) {
+            if (av_match_ext(pd->filename, fmt1->extensions)) {
                 score = 50;
             }
         }
@@ -609,7 +626,7 @@ int av_read_packet(AVFormatContext *s, AVPacket *pkt)
 
         if(st->codec->codec_id == CODEC_ID_PROBE){
             AVProbeData *pd = &st->probe_data;
-
+            av_log(s, AV_LOG_DEBUG, "probing stream %d\n", st->index);
             --st->probe_packets;
 
             pd->buf = av_realloc(pd->buf, pd->buf_size+pkt->size+AVPROBE_PADDING_SIZE);
@@ -622,6 +639,7 @@ int av_read_packet(AVFormatContext *s, AVPacket *pkt)
                 if(st->codec->codec_id != CODEC_ID_PROBE){
                     pd->buf_size=0;
                     av_freep(&pd->buf);
+                    av_log(s, AV_LOG_DEBUG, "probed stream %d\n", st->index);
                 }
             }
         }
@@ -1177,7 +1195,7 @@ int av_find_default_stream_index(AVFormatContext *s)
 void av_read_frame_flush(AVFormatContext *s)
 {
     AVStream *st;
-    int i;
+    int i, j;
 
     flush_packet_queue(s);
 
@@ -1200,6 +1218,9 @@ void av_read_frame_flush(AVFormatContext *s)
         st->cur_len = 0;
 
         st->probe_packets = MAX_PROBE_PACKETS;
+
+        for(j=0; j<MAX_REORDER_DELAY+1; j++)
+            st->pts_buffer[j]= AV_NOPTS_VALUE;
     }
 }
 
@@ -1311,6 +1332,7 @@ int av_seek_frame_binary(AVFormatContext *s, int stream_index, int64_t target_ts
     int64_t av_uninit(pos_min), av_uninit(pos_max), pos, pos_limit;
     int64_t ts_min, ts_max, ts;
     int index;
+    int64_t ret;
     AVStream *st;
 
     if (stream_index < 0)
@@ -1363,7 +1385,8 @@ int av_seek_frame_binary(AVFormatContext *s, int stream_index, int64_t target_ts
         return -1;
 
     /* do the seek */
-    url_fseek(s->pb, pos, SEEK_SET);
+    if ((ret = url_fseek(s->pb, pos, SEEK_SET)) < 0)
+        return ret;
 
     av_update_cur_dts(s, st, ts);
 
@@ -1513,7 +1536,8 @@ static int av_seek_frame_byte(AVFormatContext *s, int stream_index, int64_t pos,
 static int av_seek_frame_generic(AVFormatContext *s,
                                  int stream_index, int64_t timestamp, int flags)
 {
-    int index, ret;
+    int index;
+    int64_t ret;
     AVStream *st;
     AVIndexEntry *ie;
 
@@ -1751,7 +1775,7 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
     AVPacket pkt1, *pkt = &pkt1;
     AVStream *st;
     int read_size, i, ret;
-    int64_t end_time;
+    int64_t end_time, start_time[MAX_STREAMS];
     int64_t filesize, offset, duration;
 
     ic->cur_st = NULL;
@@ -1761,41 +1785,18 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
 
     for(i=0;i<ic->nb_streams;i++) {
         st = ic->streams[i];
+        if(st->start_time != AV_NOPTS_VALUE){
+            start_time[i]= st->start_time;
+        }else if(st->first_dts != AV_NOPTS_VALUE){
+            start_time[i]= st->first_dts;
+        }else
+            av_log(st->codec, AV_LOG_WARNING, "start time is not set in av_estimate_timings_from_pts\n");
+
         if (st->parser) {
             av_parser_close(st->parser);
             st->parser= NULL;
             av_free_packet(&st->cur_pkt);
         }
-    }
-
-    /* we read the first packets to get the first PTS (not fully
-       accurate, but it is enough now) */
-    url_fseek(ic->pb, 0, SEEK_SET);
-    read_size = 0;
-    for(;;) {
-        if (read_size >= DURATION_MAX_READ_SIZE)
-            break;
-        /* if all info is available, we can stop */
-        for(i = 0;i < ic->nb_streams; i++) {
-            st = ic->streams[i];
-            if (st->start_time == AV_NOPTS_VALUE)
-                break;
-        }
-        if (i == ic->nb_streams)
-            break;
-
-        do{
-            ret = av_read_packet(ic, pkt);
-        }while(ret == AVERROR(EAGAIN));
-        if (ret != 0)
-            break;
-        read_size += pkt->size;
-        st = ic->streams[pkt->stream_index];
-        if (pkt->pts != AV_NOPTS_VALUE) {
-            if (st->start_time == AV_NOPTS_VALUE)
-                st->start_time = pkt->pts;
-        }
-        av_free_packet(pkt);
     }
 
     /* estimate the end time (duration) */
@@ -1819,9 +1820,9 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
         read_size += pkt->size;
         st = ic->streams[pkt->stream_index];
         if (pkt->pts != AV_NOPTS_VALUE &&
-            st->start_time != AV_NOPTS_VALUE) {
+            start_time[pkt->stream_index] != AV_NOPTS_VALUE) {
             end_time = pkt->pts;
-            duration = end_time - st->start_time;
+            duration = end_time - start_time[pkt->stream_index];
             if (duration > 0) {
                 if (st->duration == AV_NOPTS_VALUE ||
                     st->duration < duration)
@@ -1865,6 +1866,7 @@ static void av_estimate_timings(AVFormatContext *ic, int64_t old_offset)
            the components */
         fill_all_stream_timings(ic);
     } else {
+        av_log(ic, AV_LOG_WARNING, "Estimating duration from bitrate, this may be inaccurate\n");
         /* less precise: use bitrate info */
         av_estimate_timings_from_bit_rate(ic);
     }
@@ -2202,21 +2204,7 @@ int av_find_stream_info(AVFormatContext *ic)
            decompress the frame. We try to avoid that in most cases as
            it takes longer and uses more memory. For MPEG-4, we need to
            decompress for QuickTime. */
-        if (!has_codec_parameters(st->codec) /*&&
-            (st->codec->codec_id == CODEC_ID_FLV1 ||
-             st->codec->codec_id == CODEC_ID_H264 ||
-             st->codec->codec_id == CODEC_ID_H263 ||
-             st->codec->codec_id == CODEC_ID_H261 ||
-             st->codec->codec_id == CODEC_ID_VORBIS ||
-             st->codec->codec_id == CODEC_ID_MJPEG ||
-             st->codec->codec_id == CODEC_ID_PNG ||
-             st->codec->codec_id == CODEC_ID_PAM ||
-             st->codec->codec_id == CODEC_ID_PGM ||
-             st->codec->codec_id == CODEC_ID_PGMYUV ||
-             st->codec->codec_id == CODEC_ID_PBM ||
-             st->codec->codec_id == CODEC_ID_PPM ||
-             st->codec->codec_id == CODEC_ID_SHORTEN ||
-             (st->codec->codec_id == CODEC_ID_MPEG4 && !st->need_parsing))*/)
+        if (!has_codec_parameters(st->codec))
             try_decode_frame(st, pkt);
 
         count++;
@@ -2230,6 +2218,10 @@ int av_find_stream_info(AVFormatContext *ic)
     }
     for(i=0;i<ic->nb_streams;i++) {
         st = ic->streams[i];
+        if(codec_info_nb_frames[i]>2)
+            av_reduce(&st->avg_frame_rate.num, &st->avg_frame_rate.den,
+                     (codec_info_nb_frames[i]-2)*(int64_t)st->time_base.den,
+                      codec_info_duration[i]    *(int64_t)st->time_base.num, 60000);
         if (st->codec->codec_type == CODEC_TYPE_VIDEO) {
             if(st->codec->codec_id == CODEC_ID_RAWVIDEO && !st->codec->codec_tag && !st->codec->bits_per_coded_sample)
                 st->codec->codec_tag= avcodec_pix_fmt_to_codec_tag(st->codec->pix_fmt);
@@ -2509,6 +2501,11 @@ int av_write_header(AVFormatContext *s)
     AVStream *st;
 
     // some sanity checks
+    if (s->nb_streams == 0) {
+        av_log(s, AV_LOG_ERROR, "no streams\n");
+        return -1;
+    }
+
     for(i=0;i<s->nb_streams;i++) {
         st = s->streams[i];
 
@@ -2595,11 +2592,11 @@ int av_write_header(AVFormatContext *s)
 }
 
 //FIXME merge with compute_pkt_fields
-static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
+static int compute_pkt_fields2(AVFormatContext *s, AVStream *st, AVPacket *pkt){
     int delay = FFMAX(st->codec->has_b_frames, !!st->codec->max_b_frames);
     int num, den, frame_size, i;
 
-//    av_log(st->codec, AV_LOG_DEBUG, "av_write_frame: pts:%"PRId64" dts:%"PRId64" cur_dts:%"PRId64" b:%d size:%d st:%d\n", pkt->pts, pkt->dts, st->cur_dts, delay, pkt->size, pkt->stream_index);
+//    av_log(s, AV_LOG_DEBUG, "av_write_frame: pts:%"PRId64" dts:%"PRId64" cur_dts:%"PRId64" b:%d size:%d st:%d\n", pkt->pts, pkt->dts, st->cur_dts, delay, pkt->size, pkt->stream_index);
 
 /*    if(pkt->pts == AV_NOPTS_VALUE && pkt->dts == AV_NOPTS_VALUE)
         return -1;*/
@@ -2634,15 +2631,17 @@ static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
     }
 
     if(st->cur_dts && st->cur_dts != AV_NOPTS_VALUE && st->cur_dts >= pkt->dts){
-        av_log(st->codec, AV_LOG_ERROR, "error, non monotone timestamps %"PRId64" >= %"PRId64"\n", st->cur_dts, pkt->dts);
+        av_log(s, AV_LOG_ERROR,
+               "st:%d error, non monotone timestamps %"PRId64" >= %"PRId64"\n",
+               st->index, st->cur_dts, pkt->dts);
         return -1;
     }
     if(pkt->dts != AV_NOPTS_VALUE && pkt->pts != AV_NOPTS_VALUE && pkt->pts < pkt->dts){
-        av_log(st->codec, AV_LOG_ERROR, "error, pts < dts\n");
+        av_log(s, AV_LOG_ERROR, "st:%d error, pts < dts\n", st->index);
         return -1;
     }
 
-//    av_log(NULL, AV_LOG_DEBUG, "av_write_frame: pts2:%"PRId64" dts2:%"PRId64"\n", pkt->pts, pkt->dts);
+//    av_log(s, AV_LOG_DEBUG, "av_write_frame: pts2:%"PRId64" dts2:%"PRId64"\n", pkt->pts, pkt->dts);
     st->cur_dts= pkt->dts;
     st->pts.val= pkt->dts;
 
@@ -2669,7 +2668,7 @@ static int compute_pkt_fields2(AVStream *st, AVPacket *pkt){
 
 int av_write_frame(AVFormatContext *s, AVPacket *pkt)
 {
-    int ret = compute_pkt_fields2(s->streams[pkt->stream_index], pkt);
+    int ret = compute_pkt_fields2(s, s->streams[pkt->stream_index], pkt);
 
     if(ret<0 && !(s->oformat->flags & AVFMT_NOTIMESTAMPS))
         return ret;
@@ -2783,7 +2782,7 @@ int av_interleaved_write_frame(AVFormatContext *s, AVPacket *pkt){
         return 0;
 
 //av_log(NULL, AV_LOG_DEBUG, "av_interleaved_write_frame %d %"PRId64" %"PRId64"\n", pkt->size, pkt->dts, pkt->pts);
-    if(compute_pkt_fields2(st, pkt) < 0 && !(s->oformat->flags & AVFMT_NOTIMESTAMPS))
+    if(compute_pkt_fields2(s, st, pkt) < 0 && !(s->oformat->flags & AVFMT_NOTIMESTAMPS))
         return -1;
 
     if(pkt->dts == AV_NOPTS_VALUE && !(s->oformat->flags & AVFMT_NOTIMESTAMPS))
@@ -2875,6 +2874,19 @@ static void print_fps(double d, const char *postfix){
     else                  av_log(NULL, AV_LOG_INFO, ", %1.0fk %s", d/1000, postfix);
 }
 
+static void dump_metadata(void *ctx, AVMetadata *m, const char *indent)
+{
+    if(m && !(m->count == 1 && av_metadata_get(m, "language", NULL, 0))){
+        AVMetadataTag *tag=NULL;
+
+        av_log(ctx, AV_LOG_INFO, "%sMetadata:\n", indent);
+        while((tag=av_metadata_get(m, "", tag, AV_METADATA_IGNORE_SUFFIX))) {
+            if(strcmp("language", tag->key))
+                av_log(ctx, AV_LOG_INFO, "%s  %-16s: %s\n", indent, tag->key, tag->value);
+        }
+    }
+}
+
 /* "user interface" functions */
 static void dump_stream_format(AVFormatContext *ic, int i, int index, int is_output)
 {
@@ -2905,6 +2917,8 @@ static void dump_stream_format(AVFormatContext *ic, int i, int index, int is_out
                  display_aspect_ratio.num, display_aspect_ratio.den);
     }
     if(st->codec->codec_type == CODEC_TYPE_VIDEO){
+        if(st->avg_frame_rate.den && st->avg_frame_rate.num)
+            print_fps(av_q2d(st->avg_frame_rate), "fps");
         if(st->r_frame_rate.den && st->r_frame_rate.num)
             print_fps(av_q2d(st->r_frame_rate), "tbr");
         if(st->time_base.den && st->time_base.num)
@@ -2913,6 +2927,7 @@ static void dump_stream_format(AVFormatContext *ic, int i, int index, int is_out
             print_fps(1/av_q2d(st->codec->time_base), "tbc");
     }
     av_log(NULL, AV_LOG_INFO, "\n");
+    dump_metadata(NULL, st->metadata, "    ");
 }
 
 void dump_format(AVFormatContext *ic,
@@ -2930,6 +2945,7 @@ void dump_format(AVFormatContext *ic,
             index,
             is_output ? ic->oformat->name : ic->iformat->name,
             is_output ? "to" : "from", url);
+    dump_metadata(NULL, ic->metadata, "  ");
     if (!is_output) {
         av_log(NULL, AV_LOG_INFO, "  Duration: ");
         if (ic->duration != AV_NOPTS_VALUE) {
@@ -2968,6 +2984,7 @@ void dump_format(AVFormatContext *ic,
                                                   "name", NULL, 0);
             av_log(NULL, AV_LOG_INFO, "  Program %d %s\n", ic->programs[j]->id,
                    name ? name->value : "");
+            dump_metadata(NULL, ic->programs[j]->metadata, "    ");
             for(k=0; k<ic->programs[j]->nb_stream_indexes; k++) {
                 dump_stream_format(ic, ic->programs[j]->stream_index[k], index, is_output);
                 printed[ic->programs[j]->stream_index[k]] = 1;
@@ -2981,13 +2998,6 @@ void dump_format(AVFormatContext *ic,
         if (!printed[i])
             dump_stream_format(ic, i, index, is_output);
 
-    if (ic->metadata) {
-        AVMetadataTag *tag=NULL;
-        av_log(NULL, AV_LOG_INFO, "  Metadata\n");
-        while((tag=av_metadata_get(ic->metadata, "", tag, AV_METADATA_IGNORE_SUFFIX))) {
-            av_log(NULL, AV_LOG_INFO, "    %-16s: %s\n", tag->key, tag->value);
-        }
-    }
     av_free(printed);
 }
 

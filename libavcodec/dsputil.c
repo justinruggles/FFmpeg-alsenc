@@ -33,8 +33,9 @@
 #include "faandct.h"
 #include "faanidct.h"
 #include "mathops.h"
-#include "h263.h"
 #include "snow.h"
+#include "mpegvideo.h"
+#include "config.h"
 
 /* snow.c */
 void ff_spatial_dwt(int *buffer, int width, int height, int stride, int type, int decomposition_count);
@@ -2874,7 +2875,7 @@ static void put_mspel8_mc22_c(uint8_t *dst, uint8_t *src, int stride){
 }
 
 static void h263_v_loop_filter_c(uint8_t *src, int stride, int qscale){
-    if(CONFIG_ANY_H263) {
+    if(CONFIG_H263_DECODER || CONFIG_H263_ENCODER) {
     int x;
     const int strength= ff_h263_loop_filter_strength[qscale];
 
@@ -2911,7 +2912,7 @@ static void h263_v_loop_filter_c(uint8_t *src, int stride, int qscale){
 }
 
 static void h263_h_loop_filter_c(uint8_t *src, int stride, int qscale){
-    if(CONFIG_ANY_H263) {
+    if(CONFIG_H263_DECODER || CONFIG_H263_ENCODER) {
     int y;
     const int strength= ff_h263_loop_filter_strength[qscale];
 
@@ -3631,35 +3632,42 @@ static int add_hfyu_left_prediction_c(uint8_t *dst, const uint8_t *src, int w, i
 #define B 3
 #define G 2
 #define R 1
+#define A 0
 #else
 #define B 0
 #define G 1
 #define R 2
+#define A 3
 #endif
-static void add_hfyu_left_prediction_bgr32_c(uint8_t *dst, const uint8_t *src, int w, int *red, int *green, int *blue){
+static void add_hfyu_left_prediction_bgr32_c(uint8_t *dst, const uint8_t *src, int w, int *red, int *green, int *blue, int *alpha){
     int i;
-    int r,g,b;
+    int r,g,b,a;
     r= *red;
     g= *green;
     b= *blue;
+    a= *alpha;
 
     for(i=0; i<w; i++){
         b+= src[4*i+B];
         g+= src[4*i+G];
         r+= src[4*i+R];
+        a+= src[4*i+A];
 
         dst[4*i+B]= b;
         dst[4*i+G]= g;
         dst[4*i+R]= r;
+        dst[4*i+A]= a;
     }
 
     *red= r;
     *green= g;
     *blue= b;
+    *alpha= a;
 }
 #undef B
 #undef G
 #undef R
+#undef A
 
 #define BUTTERFLY2(o1,o2,i1,i2) \
 o1= (i1)+(i2);\
@@ -4298,18 +4306,6 @@ void ff_float_to_int16_interleave_c(int16_t *dst, const float **src, long len, i
     }
 }
 
-static void add_int16_c(int16_t * v1, int16_t * v2, int order)
-{
-    while (order--)
-       *v1++ += *v2++;
-}
-
-static void sub_int16_c(int16_t * v1, int16_t * v2, int order)
-{
-    while (order--)
-        *v1++ -= *v2++;
-}
-
 static int32_t scalarproduct_int16_c(int16_t * v1, int16_t * v2, int order, int shift)
 {
     int res = 0;
@@ -4317,6 +4313,16 @@ static int32_t scalarproduct_int16_c(int16_t * v1, int16_t * v2, int order, int 
     while (order--)
         res += (*v1++ * *v2++) >> shift;
 
+    return res;
+}
+
+static int32_t scalarproduct_and_madd_int16_c(int16_t *v1, int16_t *v2, int16_t *v3, int order, int mul)
+{
+    int res = 0;
+    while (order--) {
+        res   += *v1 * *v2++;
+        *v1++ += mul * *v3++;
+    }
     return res;
 }
 
@@ -4453,7 +4459,7 @@ static void ff_jref_idct1_add(uint8_t *dest, int line_size, DCTELEM *block)
 static void just_return(void *mem av_unused, int stride av_unused, int h av_unused) { return; }
 
 /* init static data */
-void dsputil_static_init(void)
+av_cold void dsputil_static_init(void)
 {
     int i;
 
@@ -4490,7 +4496,7 @@ int ff_check_alignment(void){
     return 0;
 }
 
-void dsputil_init(DSPContext* c, AVCodecContext *avctx)
+av_cold void dsputil_init(DSPContext* c, AVCodecContext *avctx)
 {
     int i;
 
@@ -4807,7 +4813,7 @@ void dsputil_init(DSPContext* c, AVCodecContext *avctx)
     c->h264_h_loop_filter_chroma_intra= h264_h_loop_filter_chroma_intra_c;
     c->h264_loop_filter_strength= NULL;
 
-    if (CONFIG_ANY_H263) {
+    if (CONFIG_H263_DECODER || CONFIG_H263_ENCODER) {
         c->h263_h_loop_filter= h263_h_loop_filter_c;
         c->h263_v_loop_filter= h263_v_loop_filter_c;
     }
@@ -4848,9 +4854,8 @@ void dsputil_init(DSPContext* c, AVCodecContext *avctx)
     c->vector_clipf = vector_clipf_c;
     c->float_to_int16 = ff_float_to_int16_c;
     c->float_to_int16_interleave = ff_float_to_int16_interleave_c;
-    c->add_int16 = add_int16_c;
-    c->sub_int16 = sub_int16_c;
     c->scalarproduct_int16 = scalarproduct_int16_c;
+    c->scalarproduct_and_madd_int16 = scalarproduct_and_madd_int16_c;
     c->scalarproduct_float = scalarproduct_float_c;
     c->butterflies_float = butterflies_float_c;
     c->vector_fmul_scalar = vector_fmul_scalar_c;

@@ -51,7 +51,7 @@ install-libs: install-lib$(NAME)-shared
 $(SUBDIR)$(SLIBNAME): $(SUBDIR)$(SLIBNAME_WITH_MAJOR)
 	cd ./$(SUBDIR) && $(LN_S) $(SLIBNAME_WITH_MAJOR) $(SLIBNAME)
 
-$(SUBDIR)$(SLIBNAME_WITH_MAJOR): $(OBJS)
+$(SUBDIR)$(SLIBNAME_WITH_MAJOR): $(OBJS) $(SUBDIR)lib$(NAME).ver
 	$(SLIB_CREATE_DEF_CMD)
 	$(LD) $(SHFLAGS) $(FFLDFLAGS) -o $$@ $$(filter %.o,$$^) $(FFEXTRALIBS) $(EXTRAOBJS)
 	$(SLIB_EXTRA_CMD)
@@ -81,18 +81,6 @@ install-headers::
 	install -d "$(LIBDIR)/pkgconfig"
 	install -m 644 $(addprefix "$(SRC_DIR)"/,$(HEADERS)) "$(INCINSTDIR)"
 	install -m 644 $(BUILD_ROOT)/lib$(NAME)/lib$(NAME).pc "$(LIBDIR)/pkgconfig"
-
-uninstall-libs::
-	-rm -f "$(SHLIBDIR)/$(SLIBNAME_WITH_MAJOR)" \
-	       "$(SHLIBDIR)/$(SLIBNAME)"            \
-	       "$(SHLIBDIR)/$(SLIBNAME_WITH_VERSION)"
-	-$(SLIB_UNINSTALL_EXTRA_CMD)
-	-rm -f "$(LIBDIR)/$(LIBNAME)"
-
-uninstall-headers::
-	rm -f $(addprefix "$(INCINSTDIR)/",$(HEADERS))
-	rm -f "$(LIBDIR)/pkgconfig/lib$(NAME).pc"
-	-rmdir "$(INCDIR)"
 endef
 
 $(eval $(RULES))
