@@ -1,7 +1,7 @@
 /*
  * MPEG-4 ALS encoder
  * Copyright (c) 2010 Thilo Borgmann <thilo.borgmann _at_ googlemail.com>
- * Copyright (c) 2010 Justin Ruggles <justin.ruggles _at_ gmail.com>
+ * Copyright (c) 2010 Justin Ruggles <justin.ruggles@gmail.com>
  *
  * This file is part of FFmpeg.
  *
@@ -24,7 +24,7 @@
  * @file libavcodec/alsenc.c
  * MPEG-4 ALS encoder
  * @author Thilo Borgmann <thilo.borgmann _at_ googlemail.com>
- * @author Justin Ruggles <justin.ruggles _at_ gmail.com>
+ * @author Justin Ruggles <justin.ruggles@gmail.com>
  */
 
 
@@ -42,6 +42,21 @@
 #define ALS_EXTRADATA_MAX_SIZE (6 + ALS_SPECIFIC_CFG_SIZE)
 
 
+// probably mergeable or the very same as ALSBlockData from the decoder
+typedef struct {
+    int constant;                   ///< indicates constant block values
+    int32_t constant_value;         ///< if constant, this is the value
+    unsigned int length;            ///< length of the block in # of samples
+    unsigned int sub_blocks;        ///< number of sub-blocks of this block
+    unsigned int rice_param;        ///< rice parameter to encode the residuals
+                                    ///< of this block in case of not bgmc
+                                    ///< has to be an array if sub_blocks are implemented!
+    unsigned int opt_order;         ///< prediction order for this block
+    unsigned int js_block;          ///< indicates actual usage of joint-stereo coding
+    unsigned int shift_lsbs;        ///< stores if and of what magnitude samples have been shifted
+} ALSBlock;
+
+
 typedef struct {
     AVCodecContext *avctx;
     ALSSpecificConfig sconf;
@@ -50,14 +65,16 @@ typedef struct {
     int js_switch;                   ///< force joint-stereo in case of MCC
     int *independent_bs;             ///< array containing independent_bs flag for each channel
     int32_t *raw_buffer;             ///< buffer containing all raw samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
-    int32_t **raw_samples;           ///< pointer to the beginning of this frames samples in the buffer for each channel
-    unsigned int *block_size_buffer; ///< buffer containing all block sizes for all channels
-    unsigned int **block_size;       ///< pointer to all block sizes of all channels in this frame
+    int32_t **raw_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
+    int32_t *res_buffer;             ///< buffer containing all residual samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
+    int32_t **res_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
+    ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
+    ALSBlock **blocks;               ///< array of 32 ALSBlocks per channel
 } ALSEncContext;
 
 
 /** Converts an array of channel-interleaved samples into
- *  multiple arrays of samples per sample
+ *  multiple arrays of samples per channel
  */
 static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 {
@@ -82,10 +99,12 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 
 
 /** Chooses the appropriate method for difference channel coding
+ *  for the current frame
  */
 static void select_difference_coding_mode(ALSEncContext *ctx)
 {
-    AVCodecContext *avctx = ctx->avctx;
+    AVCodecContext *avctx    = ctx->avctx;
+    ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int c;
 
     // to be implemented
@@ -93,13 +112,19 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     // selects either joint_stereo or mcc mode
     // sets js_switch (js && mcc) and/or independent_bs
     // both parameters to be added to the context...
-
+    // until mcc mode is implemented, syntax could be tested
+    // by using js_switch all the time if mcc is enabled globally
+    //
     // while not implemented, output most simple mode:
+    //  -> 0 if !mcc and while js is not implemented
+    //  -> 1 if  mcc (would require js to be implemented and
+    //                correct output of mcc frames/block)
 
-    ctx->js_switch = 0;
+    ctx->js_switch = sconf->mc_coding;
 
-    for (c = 0; c < avctx->channels; c++)
-        ctx->independent_bs[c] = 1;
+    if (!sconf->mc_coding || ctx->js_switch)
+        for (c = 0; c < avctx->channels; c++)
+            ctx->independent_bs[c] = 1;
 }
 
 
@@ -119,12 +144,12 @@ static void block_partitioning(ALSEncContext *ctx)
         // parameter search and divide the frame
         //
         // set sconf->block_switching if needed (previously == -1)
-        // set block_size[c][x] to appropriate sizes
+        // set block[c][x].length to appropriate sizes
         //
         // maybe set a bs_info[c] in the context, but maybe
         // this should be generated when needed in bitstream assembly
         // becuase it should not be needed elsewhere in the encoder
-        // if block_size[c] is there
+        // if block[c][x].length is there
 
     } else {
 
@@ -132,12 +157,260 @@ static void block_partitioning(ALSEncContext *ctx)
         // one block per channel as long as the frame
 
         for (c = 0; c < avctx->channels; c++) {
-            ctx->block_size[c][0] = ctx->cur_frame_length;
+            ctx->blocks[c][0].length = ctx->cur_frame_length;
 
             for (b = 1; b < 32; b++)
-                ctx->block_size[c][b] = 0;
+                ctx->blocks[c][b].length = 0;
         }
     }
+}
+
+
+/** Write a given block of a given channel
+ */
+static void write_block(ALSEncContext *ctx, ALSBlock *block,
+                        unsigned int c, unsigned int b)
+{
+    AVCodecContext *avctx    = ctx->avctx;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    PutBitContext *pb        = &ctx->pb;
+    unsigned int i;
+
+
+    // block_type
+    put_bits(pb, 1, block->constant);
+
+
+    if (block->constant) {
+        // const_block
+        put_bits(pb, 1, block->constant_value > 0);
+
+
+        // js_block
+        put_bits(pb, 1, block->js_block);
+        align_put_bits(pb);
+
+
+        if (block->constant_value) {
+            unsigned int const_val_bits = sconf->floating ? 24 : avctx->bits_per_raw_sample;
+            put_bits(pb, const_val_bits, block->constant_value);
+        }
+    } else {
+        // js_block
+        put_bits(pb, 1, block->js_block);
+
+
+        // ec_sub
+        if (block->sub_blocks > 1) {
+            // write # of sub_blocks for entropy coding into the stream
+            // not yet supported
+            //
+            // until implemented, just given for completeness
+        }
+
+
+        // s[k], sx[k]
+        if (sconf->bgmc) {
+
+             // to be implemented
+
+        } else {
+            for (i = 0; i < block->sub_blocks; i++) {
+                // write rice param per sub_block
+            }
+        }
+
+
+        // shift_lsbs && shift_pos
+        put_bits(pb, 1, block->shift_lsbs > 0);
+
+        if (block->shift_lsbs)
+            put_bits(pb, 4, block->shift_lsbs);
+
+
+        // opt_order && quant_cof
+        if (!sconf->rlslms) {
+            // opt_order
+            if (sconf->adapt_order) {
+                int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
+                                                    2, sconf->max_order + 1));
+                put_bits(pb, opt_order_length, block->opt_order);
+            }
+
+
+            // quant_cof
+            // to be implemented
+            //
+            // while not implemented, no need to output anything
+
+            // for each quant_cof, put(quant_cof) in rice code
+        }
+
+
+        // LPTenable && LTPgain && LTPlag
+        if (sconf->long_term_prediction) {
+            // to be implemented
+        }
+
+
+        // smp_val[0] && res[1,2] in case of random_access block
+        // to be implemented
+        //
+        // while not implemented, sconf->ra-distance == 0 and
+        // no need to write anything
+        // see decoder definition of ra_frame/ra_block:
+        //  -> ra_frame = sconf->ra_distance && !(ctx->frame_id % sconf->ra_distance);
+
+
+        // write residuals
+        for (i = 0; i < block->length; i++) {
+            // write all residuals of the block
+        }
+    }
+
+
+    if (!sconf->mc_coding || ctx->js_switch)
+        align_put_bits(pb);
+}
+
+
+/** Write the frame
+ */
+static void write_frame(ALSEncContext *ctx)
+{
+    AVCodecContext *avctx    = ctx->avctx;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int c, b;
+
+    // ra_unit_size
+    if (sconf->ra_flag == RA_FLAG_FRAMES) { // && this is a ra-frame
+        // to be implemented
+        // write ra_unit_size into the stream
+    }
+
+
+    // js_switch
+    if (ctx->js_switch) {
+        // to be implemented
+        // not yet supportet anyway
+    }
+
+
+    // write blocks
+    if (!sconf->mc_coding || ctx->js_switch) {
+        for (c = 0; c < avctx->channels; c++) {
+            for (b= 0; b < 32; b++) {
+                if (!ctx->blocks[c][b].length) // todo, see below
+                    continue;
+
+                if (ctx->independent_bs[c]) {
+                    write_block(ctx, &ctx->blocks[c][b], c, b);
+                } else {
+                    // write channel & channel+1
+                }
+            }
+        }
+    } else {
+
+        // MCC: to be implemented
+
+    }
+}
+
+
+/** Encode a given block of a given channel
+ */
+static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
+                              unsigned int c, unsigned int b)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+
+
+    // check for constant block (here?)
+    // to be implemented
+    //
+    // just say it is non-const while not implemented
+
+    block->constant       = 0;
+    block->constant_value = 0;
+
+
+    // shifting samples(?):
+    // to be implemented
+    //
+    // determine if the samples can be shifted
+    // while not implemented, don't shift anyway
+
+    block->shift_lsbs = 0;
+
+
+    // difference coding(?):
+    // to be implemented
+    //
+    // chose if this block can be difference coded if join-stereo is enabled
+    // (and the block can be encoded in a channel pair)
+    // while not implemented, don't indicate js
+
+    block->js_block = 0;
+
+
+    // short-term prediction:
+    // use the mode chosen at encode_init() to find optimal parameters
+    //
+    // while not implemented: ensure max_order = 0 && adapt_order = 0 (in init)
+    // LPC / PARCOR coefficients to be stored in context(?)
+
+    block->opt_order = sconf->max_order;
+
+    if (sconf->adapt_order) {
+        // to be implemented
+        // search for coefficients and opt_order
+    }
+
+
+    // long-term prediction:
+    // to be implemented
+    //
+    // if enabled, search for ltp coefficients...
+
+
+    // final joint or multi channel coding:
+    // to be implemented
+    //
+    // up to now only independent coding...
+
+
+    // generate residuals using parameters:
+    // just verbatim mode (no predeiction) supported right now
+
+    if (block->constant) {
+
+        // to be implemented
+
+    } else if (block->opt_order) {
+
+        // to be implemented
+
+    } else {
+        memcpy(ctx->res_samples[c] + b, ctx->raw_samples[c] + b,
+               sizeof(*ctx->res_samples[c]) * block->length);
+    }
+
+
+    // determine how many sub-blocks to use(?)
+    // to be implemented
+    //
+    // while not implemented, just don't use sub-blocks
+
+    block->sub_blocks = 1;
+
+
+    // search for rice parameter:
+    // to be implemented
+    //
+    // use predefined rice parameter while not implemented
+
+    block->rice_param = 2;
 }
 
 
@@ -149,6 +422,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     unsigned int b, c;
 
     ctx->cur_frame_length = avctx->frame_size;
+    init_put_bits(&ctx->pb, frame, buf_size);
 
 
     // preprocessing
@@ -158,27 +432,29 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     // encoding loop
-    if (sconf->mc_coding && !ctx->js_switch) {
-
-        // to be implemented
-
-    } else {
+    if (!sconf->mc_coding || ctx->js_switch) {
         for (b= 0; b < 32; b++) {
             for (c = 0; c < avctx->channels; c++) {
-                if (!ctx->block_size[c])
+                if (!ctx->blocks[c][b].length) // maybe store the max number of blocks somewhere not to do unnecessary loops
                     continue;
 
                 if (ctx->independent_bs[c]) {
-                    // encode channel
+                    find_block_params(ctx, &ctx->blocks[c][b], c, b);
                 } else {
                     // encode channel & channel+1
                 }
             }
         }
+    } else {
+
+        // MCC: to be implemented
+
     }
 
 
     // bitstream assembly
+    write_frame(ctx);
+
     memset(frame, 0, buf_size);
 
     return (avctx->bits_per_raw_sample >> 3) *
@@ -273,6 +549,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // determine if adaptive prediction order is used
+    // maybe always use it?
     sconf->adapt_order = 0;
 
 
@@ -290,7 +567,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // determine a maximum prediction order
     // no samples: not yet possible to determine..
     // do evaluation to find a suitable standard value?
-    sconf->max_order = 10;
+    // until stp is not implemented, set to 0
+    sconf->max_order = 0;
 
 
     // determine if block-switching is used
@@ -360,10 +638,27 @@ static int write_specific_config(AVCodecContext *avctx)
     ALSSpecificConfig *sconf = &ctx->sconf;
     PutBitContext pb;
 
-    uint8_t header[ALS_EXTRADATA_MAX_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
+    uint8_t *header;
+    unsigned int header_size = 12; // Maximum size of AudioSpecificConfig before ALSSpecificConfig
 
-    memset(header, 0, sizeof(header));
-    init_put_bits(&pb, header, ALS_EXTRADATA_MAX_SIZE);
+    // determine header size
+    // crc & aux_data not yet supported
+    header_size += FF_INPUT_BUFFER_PADDING_SIZE;                        // padding
+    header_size += (sconf->chan_config > 0) << 1;                       // chan_config_info
+    header_size += avctx->channels          << 1;                       // chan_pos[c]
+    header_size += (sconf->header_size)     << 2;                       // header
+    header_size += (sconf->trailer_size)    << 2;                       // trailer
+//    header_size += (sconf->crc_enabled > 0) << 2;                     // crc
+    if (sconf->ra_flag == RA_FLAG_HEADER && sconf->ra_distance > 0)     // ra_unit_size
+        header_size += (sconf->samples / sconf->frame_length + 1) << 2;
+//    if (sconf->aux_data_enabled)                                      // aux_size, aus_data[]
+//        header_size += 4 + sconf->aux_size;
+
+    header = av_mallocz(header_size);
+    if (!header)
+        return -1;
+
+    init_put_bits(&pb, header, header_size);
 
 
     // AudioSpecificConfig, reference to ISO/IEC 14496-3 section 1.6.2.1 & 1.6.3
@@ -443,8 +738,10 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->independent_bs);
     av_freep(&ctx->raw_buffer);
     av_freep(&ctx->raw_samples);
-    av_freep(&ctx->block_size_buffer);
-    av_freep(&ctx->block_size);
+    av_freep(&ctx->res_buffer);
+    av_freep(&ctx->res_samples);
+    av_freep(&ctx->block_buffer);
+    av_freep(&ctx->blocks);
 
     return 0;
 }
@@ -467,24 +764,30 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     // write AudioSpecificConfig & ALSSpecificConfig
     ret = write_specific_config(avctx);
-    if (ret)
-        return ret;
+    if (ret) {
+        av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+        encode_end(avctx);
+        return AVERROR(ENOMEM);
+    }
 
 
     channel_size = sconf->frame_length + sconf->max_order;
 
 
     // allocate buffers
+    ctx->independent_bs    = av_malloc (sizeof(*ctx->independent_bs)    * avctx->channels);
     ctx->raw_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)        * avctx->channels * channel_size);
     ctx->raw_samples       = av_malloc (sizeof(*ctx->raw_samples)       * avctx->channels);
-    ctx->block_size_buffer = av_mallocz(sizeof(*ctx->block_size_buffer) * avctx->channels * 32);
-    ctx->block_size        = av_mallocz(sizeof(*ctx->block_size)        * avctx->channels);
-    ctx->independent_bs    = av_malloc (sizeof(*ctx->independent_bs)    * avctx->channels);
+    ctx->res_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)        * avctx->channels * channel_size);
+    ctx->res_samples       = av_malloc (sizeof(*ctx->raw_samples)       * avctx->channels);
+    ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)      * avctx->channels * 32);
+    ctx->blocks            = av_malloc (sizeof(*ctx->blocks)            * avctx->channels);
 
     // check buffers
-    if (!ctx->raw_buffer        || !ctx->raw_samples ||
-        !ctx->block_size_buffer || !ctx->block_size  ||
-        !ctx->independent_bs) {
+    if (!ctx->independent_bs    ||
+        !ctx->raw_buffer        || !ctx->raw_samples ||
+        !ctx->res_buffer        || !ctx->res_samples ||
+        !ctx->block_buffer      || !ctx->blocks) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
         return AVERROR(ENOMEM);
@@ -493,11 +796,13 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     // assign buffer pointers
     ctx->raw_samples[0] = ctx->raw_buffer + sconf->max_order;
-    ctx->block_size [0] = ctx->block_size_buffer;
+    ctx->res_samples[0] = ctx->res_buffer + sconf->max_order;
+    ctx->blocks     [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
-        ctx->block_size [c] = ctx->block_size [c - 1] + 32;
+        ctx->res_samples[c] = ctx->res_samples[c - 1] + channel_size;
+        ctx->blocks     [c] = ctx->blocks     [c - 1] + 32;
     }
 
 
