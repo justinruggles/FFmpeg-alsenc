@@ -516,7 +516,7 @@ static void frame_partitioning(ALSEncContext *ctx)
 
     // ensure a certain boundary for the frame size
     // maximum value is 0xFFFF using 16 bit in ALSSpecificConf
-    av_clip(avctx->frame_size, 1024, 0xFFFF);
+    avctx->frame_size = av_clip(avctx->frame_size, 1024, 0xFFFF);
 
     // enforce a frame length that is a power of 2?
     // or discard block-switching if it is not?
