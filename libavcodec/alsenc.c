@@ -189,27 +189,16 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
             put_bits(pb, const_val_bits, block->constant_value);
         }
     } else {
-        int ec_sum = sconf->bgmc + sconf->sb_part;
-
         // js_block
         put_bits(pb, 1, block->js_block);
 
 
         // ec_sub
-        if (ec_sum) {
-            unsigned int value;
-            // write # of sub_blocks for entropy coding into the stream
-            // not yet supported
-            //
-            // until implemented, just given for completeness
-
-            if (sconf->bgmc) {
-                value = av_log2(block->sub_blocks);
-            } else {
-                value = (block->sub_blocks == 4);
-            }
-
-            put_bits(pb, ec_sum, value);
+        if (sconf->sb_part) {
+            if (sconf->bgmc)
+                put_bits(pb, 2, av_log2(block->sub_blocks));
+            else
+                put_bits(pb, 1, block->sub_blocks > 1);
         }
 
 
