@@ -48,7 +48,7 @@ typedef struct {
     int constant;                   ///< indicates constant block values
     int32_t constant_value;         ///< if constant, this is the value
     unsigned int length;            ///< length of the block in # of samples
-    unsigned int sub_blocks;        ///< number of sub-blocks of this block
+    unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
     unsigned int rice_param;        ///< rice parameter to encode the residuals
                                     ///< of this block in case of not bgmc
                                     ///< has to be an array if sub_blocks are implemented!
@@ -129,7 +129,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
 }
 
 
-/** Subdivide the frame into smaller blocks for entropy coding
+/** Subdivide the frame into smaller blocks
  */
 static void block_partitioning(ALSEncContext *ctx)
 {
@@ -141,7 +141,7 @@ static void block_partitioning(ALSEncContext *ctx)
 
         // maybe set a bs_info[c] in the context, but maybe
         // this should be generated when needed in bitstream assembly
-        // becuase it should not be needed elsewhere in the encoder
+        // because it should not be needed elsewhere in the encoder
         // if block[c][x].length is there
 
     } else {

@@ -24,9 +24,11 @@
  * @file libavcodec/als.h
  * MPEG-4 ALS common header
  * @author Thilo Borgmann <thilo.borgmann _at_ googlemail.com>
- * @author Justin Ruggles <justin.ruggles _at_ gmail.com>
+ * @author Justin Ruggles <justin.ruggles@gmail.com>
  */
 
+#ifndef AVCODEC_ALS_H
+#define AVCODEC_ALS_H
 
 #include <stdint.h>
 
@@ -63,4 +65,4 @@ typedef struct {
     uint32_t trailer_size;    ///< trailer size of original audio file in bytes, provided for debugging
 } ALSSpecificConfig;
 
-
+#endif /* AVCODEC_ALS_H */
