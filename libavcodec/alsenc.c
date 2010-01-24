@@ -695,7 +695,7 @@ static int write_specific_config(AVCodecContext *avctx)
 
     avctx->extradata = av_mallocz(header_size + FF_INPUT_BUFFER_PADDING_SIZE);
     if (!avctx->extradata)
-        return -1;
+        return AVERROR(ENOMEM);
 
     init_put_bits(&pb, avctx->extradata, header_size);
 
