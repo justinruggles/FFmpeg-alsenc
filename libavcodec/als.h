@@ -24,7 +24,7 @@
  * @file libavcodec/als.h
  * MPEG-4 ALS common header
  * @author Thilo Borgmann <thilo.borgmann _at_ googlemail.com>
- * @author Justin Ruggles <justin.ruggles _at_ gmail.com>
+ * @author Justin Ruggles <justin.ruggles@gmail.com>
  */
 
 
