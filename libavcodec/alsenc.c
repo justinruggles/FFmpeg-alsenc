@@ -663,13 +663,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->rlslms = 0;
 
 
-    // determine size of original header/trailer
-    // provided for consistency only, useless in the FFmpeg framework
-    // (ALSSpecificConfig is a shared struct)
-    sconf->header_size  = 0;
-    sconf->trailer_size = 0;
-
-
     // determine if CRC checksums are used
     // depends on compression level
     // should be enabled by default, not to use
@@ -693,8 +686,6 @@ static int write_specific_config(AVCodecContext *avctx)
     // crc & aux_data not yet supported
     header_size += (sconf->chan_config > 0) << 1;                       // chan_config_info
     header_size += avctx->channels          << 1;                       // chan_pos[c]
-    header_size += (sconf->header_size)     << 2;                       // header
-    header_size += (sconf->trailer_size)    << 2;                       // trailer
 //    header_size += (sconf->crc_enabled > 0) << 2;                     // crc TODO: include CRC computation
     if (sconf->ra_flag == RA_FLAG_HEADER && sconf->ra_distance > 0)     // ra_unit_size
         header_size += (sconf->samples / sconf->frame_length + 1) << 2;
@@ -759,8 +750,8 @@ static int write_specific_config(AVCodecContext *avctx)
     // align
     align_put_bits(&pb);
 
-    put_bits32(&pb,     sconf->header_size);
-    put_bits32(&pb,     sconf->trailer_size);
+    put_bits32(&pb, 0);                         // original header size
+    put_bits32(&pb, 0);                         // original trailer size
 
 
     // writing in local header finished,
