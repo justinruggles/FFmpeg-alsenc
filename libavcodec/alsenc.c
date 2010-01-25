@@ -472,9 +472,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     memset(frame, 0, buf_size);
 
-    return (avctx->bits_per_raw_sample >> 3) *
-           avctx->channels *
-           ctx->cur_frame_length;
+    return put_bits_count(&ctx->pb) >> 3;
 }
 
 
