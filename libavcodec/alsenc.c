@@ -763,6 +763,10 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->block_buffer);
     av_freep(&ctx->blocks);
 
+    av_freep(&avctx->extradata);
+    avctx->extradata_size = 0;
+    av_freep(&avctx->coded_frame);
+
     return 0;
 }
 
@@ -829,6 +833,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // channel sorting
     if ((sconf->joint_stereo || sconf->mc_coding) && sconf->chan_sort)
         channel_sorting(ctx);
+
+
+    avctx->coded_frame = avcodec_alloc_frame();
+    avctx->coded_frame->key_frame = 1;
 
 
     return 0;
