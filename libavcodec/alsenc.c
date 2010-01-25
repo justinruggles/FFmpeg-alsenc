@@ -669,10 +669,11 @@ static int write_specific_config(AVCodecContext *avctx)
     ALSSpecificConfig *sconf = &ctx->sconf;
     PutBitContext pb;
 
-    unsigned int header_size = 12; // Maximum size of AudioSpecificConfig before ALSSpecificConfig
+    unsigned int header_size = 6; // Maximum size of AudioSpecificConfig before ALSSpecificConfig
 
     // determine header size
     // crc & aux_data not yet supported
+    header_size += ALS_SPECIFIC_CFG_SIZE;
     header_size += (sconf->chan_config > 0) << 1;                       // chan_config_info
     header_size += avctx->channels          << 1;                       // chan_pos[c]
 //    header_size += (sconf->crc_enabled > 0) << 2;                     // crc TODO: include CRC computation
