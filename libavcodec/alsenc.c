@@ -668,6 +668,8 @@ static int write_specific_config(AVCodecContext *avctx)
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
     PutBitContext pb;
+    MPEG4AudioConfig m4ac;
+    int config_offset;
 
     unsigned int header_size = 12; // Maximum size of AudioSpecificConfig before ALSSpecificConfig
 
@@ -690,20 +692,20 @@ static int write_specific_config(AVCodecContext *avctx)
 
 
     // AudioSpecificConfig, reference to ISO/IEC 14496-3 section 1.6.2.1 & 1.6.3
-    // TODO: create a function in mpeg4audio.c/h to write AudioSpecificConfig
+    memset(&m4ac, 0, sizeof(MPEG4AudioConfig));
+    m4ac.object_type    = AOT_ALS;
+    m4ac.sampling_index = 0x0f;
+    m4ac.sample_rate    = avctx->sample_rate;
+    m4ac.chan_config    = 0;
+    m4ac.sbr            = -1;
 
-    // object type (GetAudioObjectType(), 14496-3 1.6.2.1.1 Table 1.16)
-    put_bits(&pb, 5, AOT_ESCAPE);
-    put_bits(&pb, 6, AOT_ALS - 32);
+    config_offset = ff_mpeg4audio_write_config(&m4ac, avctx->extradata,
+                                               avctx->extradata_size);
 
-    // samplingFrequencyIndex
-    put_bits(&pb,  4, 0xF);
-    put_bits(&pb, 24, avctx->sample_rate); // samplingFrequency
+    if (config_offset < 0)
+        return config_offset;
 
-    // channelConfiguraiton
-    put_bits(&pb, 4, 0); // 0 = defined in DecoderSpecificConfig
-
-
+    skip_put_bits(&pb, config_offset);
     // switch(AudioObjectType) -> case 36: ALSSpecificConfig
 
     // fillBits (align)
