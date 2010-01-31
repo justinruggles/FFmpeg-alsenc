@@ -181,7 +181,8 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
         // js_block
         put_bits(pb, 1, block->js_block);
-        align_put_bits(pb);
+        // reserved
+        put_bits(pb, 5, 0);
 
 
         if (block->constant_value) {
