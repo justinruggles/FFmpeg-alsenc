@@ -74,6 +74,9 @@ typedef struct {
 } ALSEncContext;
 
 
+static int write_specific_config(AVCodecContext *avctx);
+
+
 /** Converts an array of channel-interleaved samples into
  *  multiple arrays of samples per channel
  */
@@ -432,11 +435,12 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     // last frame has been encoded, update extradata
     if (!data) {
-
-        // to be implemented:
-        // update CRC value
-        // update number of samples (if being tracked)
-
+        // rewrite AudioSpecificConfig & ALSSpecificConfig to extradata
+        int ret = write_specific_config(avctx);
+        if (ret) {
+            av_log(avctx, AV_LOG_ERROR, "Rewriting of extradata failed.\n");
+            return ret;
+        }
         return 0;
     }
 
@@ -475,6 +479,9 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     // bitstream assembly
     write_frame(ctx);
     flush_put_bits(&ctx->pb);
+
+    // update sample count
+    sconf->samples += ctx->cur_frame_length;
 
     //memset(frame, 0, buf_size);
 
@@ -800,6 +807,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
         encode_end(avctx);
         return AVERROR(ENOMEM);
     }
+
+
+    // initialize sample count
+    sconf->samples = 0;
 
 
     channel_size = sconf->frame_length + sconf->max_order;
