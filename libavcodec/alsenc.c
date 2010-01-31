@@ -176,7 +176,7 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
     if (block->constant) {
         // const_block
-        put_bits(pb, 1, block->constant_value > 0);
+        put_bits(pb, 1, block->constant_value != 0);
 
 
         // js_block
