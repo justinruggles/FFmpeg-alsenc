@@ -185,6 +185,7 @@ static av_cold void dprint_specific_config(ALSDecContext *ctx)
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
 
+    dprintf(avctx, "samples = %i\n",              sconf->samples);
     dprintf(avctx, "resolution = %i\n",           sconf->resolution);
     dprintf(avctx, "floating = %i\n",             sconf->floating);
     dprintf(avctx, "frame_length = %i\n",         sconf->frame_length);
