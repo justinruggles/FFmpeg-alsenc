@@ -714,7 +714,7 @@ static int write_specific_config(AVCodecContext *avctx)
     put_bits32(&pb,     avctx->sample_rate);
     put_bits32(&pb,     sconf->samples);
     put_bits  (&pb, 16, avctx->channels - 1);
-    put_bits  (&pb,  3, 1);                      // original file_type (0 = unknown, 1 = wav, ...)
+    put_bits  (&pb,  3, 0);                      // original file_type (0 = unknown, 1 = wav, ...)
     put_bits  (&pb,  3, sconf->resolution);
     put_bits  (&pb,  1, sconf->floating);
     put_bits  (&pb,  1, 0);                      // msb first (0 = LSB, 1 = MSB)
