@@ -470,7 +470,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     // bitstream assembly
     write_frame(ctx);
 
-    memset(frame, 0, buf_size);
+    //memset(frame, 0, buf_size);
 
     return put_bits_count(&ctx->pb) >> 3;
 }
