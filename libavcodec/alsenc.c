@@ -39,8 +39,8 @@
 #include "audioconvert.h"
 
 
+/** Total size of fixed-size fields in ALSSpecificConfig */
 #define ALS_SPECIFIC_CFG_SIZE  30
-#define ALS_EXTRADATA_MAX_SIZE (6 + ALS_SPECIFIC_CFG_SIZE)
 
 
 // probably mergeable or the very same as ALSBlockData from the decoder
