@@ -69,11 +69,29 @@ static inline int get_object_type(GetBitContext *gb)
     return object_type;
 }
 
+static inline void write_object_type(PutBitContext *pb, int type)
+{
+    if (type > AOT_ESCAPE) {
+        put_bits(pb, 5, AOT_ESCAPE);
+        put_bits(pb, 6, 32 + type);
+    } else {
+        put_bits(pb, 5, type);
+    }
+}
+
 static inline int get_sample_rate(GetBitContext *gb, int *index)
 {
     *index = get_bits(gb, 4);
     return *index == 0x0f ? get_bits(gb, 24) :
         ff_mpeg4audio_sample_rates[*index];
+}
+
+static inline void write_sample_rate(PutBitContext *pb, int sampling_index, int sample_rate)
+{
+    put_bits(pb, 4, sampling_index);
+
+    if (sampling_index == 0x0f)
+        put_bits(pb, 24, sample_rate);
 }
 
 int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_size)
@@ -125,6 +143,30 @@ int ff_mpeg4audio_get_config(MPEG4AudioConfig *c, const uint8_t *buf, int buf_si
                 get_bits1(&gb); // skip 1 bit
         }
     }
+    return specific_config_bitindex;
+}
+
+int ff_mpeg4audio_write_config(MPEG4AudioConfig *c, uint8_t *buf, int buf_size)
+{
+    PutBitContext pb;
+    int specific_config_bitindex;
+
+    init_put_bits(&pb, buf, buf_size*8);
+
+    write_object_type(&pb, c->object_type);
+    write_sample_rate(&pb, c->sampling_index, c->sample_rate);
+    put_bits(&pb, 4, c->chan_config);
+
+    if (c->object_type == AOT_SBR ||
+        c->object_type == AOT_PS) {
+        write_object_type(&pb, c->ext_object_type);
+        write_sample_rate(&pb, c->ext_sampling_index, c->ext_sample_rate);
+        if (c->object_type == AOT_ER_BSAC)
+            put_bits(&pb, 4, c->ext_chan_config);
+    }
+
+    specific_config_bitindex = put_bits_count(&pb);
+
     return specific_config_bitindex;
 }
 

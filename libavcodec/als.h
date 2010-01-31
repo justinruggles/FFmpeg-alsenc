@@ -61,8 +61,6 @@ typedef struct {
     int rlslms;               ///< use "Recursive Least Square-Least Mean Square" predictor: 1 = on, 0 = off
     int chan_config_info;     ///< mapping of channels to loudspeaker locations. Unused until setting channel configuration is implemented.
     int *chan_pos;            ///< original channel positions
-    uint32_t header_size;     ///< header size of original audio file in bytes, provided for debugging
-    uint32_t trailer_size;    ///< trailer size of original audio file in bytes, provided for debugging
 } ALSSpecificConfig;
 
 #endif /* AVCODEC_ALS_H */
