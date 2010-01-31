@@ -171,7 +171,7 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
 
     // block_type
-    put_bits(pb, 1, block->constant);
+    put_bits(pb, 1, !block->constant);
 
 
     if (block->constant) {
