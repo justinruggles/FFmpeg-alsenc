@@ -186,7 +186,7 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
 
         if (block->constant_value) {
-            unsigned int const_val_bits = sconf->floating ? 24 : avctx->bits_per_raw_sample;
+            int const_val_bits = sconf->floating ? 24 : avctx->bits_per_raw_sample;
             put_bits(pb, const_val_bits, block->constant_value);
         }
     } else {
