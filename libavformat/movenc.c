@@ -2013,6 +2013,23 @@ static int mov_write_trailer(AVFormatContext *s)
 
     int64_t moov_pos = url_ftell(pb);
 
+    /* recopy extradata if it exists */
+    for (i = 0; i < mov->nb_streams; i++) {
+        MOVTrack *trk = &mov->tracks[i];
+        if (trk->enc->extradata_size > 0) {
+            if (trk->vosLen > 0)
+                av_freep(&trk->vosData);
+            trk->vosLen = trk->enc->extradata_size;
+            trk->vosData = av_malloc(trk->vosLen);
+            if (trk->vosData) {
+                memcpy(trk->vosData, trk->enc->extradata, trk->vosLen);
+            } else {
+                av_log(s, AV_LOG_ERROR, "error reallocating vosData\n");
+                trk->vosLen = 0;
+            }
+        }
+    }
+
     /* Write size of mdat tag */
     if (mov->mdat_size+8 <= UINT32_MAX) {
         url_fseek(pb, mov->mdat_pos, SEEK_SET);
