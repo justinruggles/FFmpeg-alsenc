@@ -694,7 +694,7 @@ static int write_specific_config(AVCodecContext *avctx)
         header_size += (sconf->samples / sconf->frame_length + 1) << 2;
 
     if (avctx->extradata)
-        av_freep(avctx->extradata);
+        av_freep(&avctx->extradata);
 
     avctx->extradata = av_mallocz(header_size + FF_INPUT_BUFFER_PADDING_SIZE);
     if (!avctx->extradata)
