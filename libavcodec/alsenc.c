@@ -187,6 +187,10 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
         if (block->constant_value) {
             int const_val_bits = sconf->floating ? 24 : avctx->bits_per_raw_sample;
+            if (const_val_bits >= 32) {
+                av_log_missing_feature(ctx->avctx, "32-bit const block", 0);
+                return;
+            }
             put_bits(pb, const_val_bits, block->constant_value);
         }
     } else {
