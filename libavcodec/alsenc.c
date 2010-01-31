@@ -191,7 +191,7 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
                 av_log_missing_feature(ctx->avctx, "32-bit const block", 0);
                 return;
             }
-            put_bits(pb, const_val_bits, block->constant_value);
+            put_sbits(pb, const_val_bits, block->constant_value);
         }
     } else {
         // js_block
