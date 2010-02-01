@@ -32,6 +32,7 @@
 
 
 #include "als.h"
+#include "als_data.h"
 
 #include "avcodec.h"
 #include "put_bits.h"
@@ -53,6 +54,9 @@ typedef struct {
                                     ///< of this block in case of not bgmc
                                     ///< has to be an array if sub_blocks are implemented!
     unsigned int opt_order;         ///< prediction order for this block
+    int q_parcor_coeff;             ///< first quantized PARCOR coefficient
+    int q_parcor_index;             ///< signed 7-bit index for first quantized PARCOR coefficient
+    int q_lpc_coeff;                ///< first quantized LPC coefficient
     unsigned int js_block;          ///< indicates actual usage of joint-stereo coding
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
 } ALSBlock;
@@ -162,6 +166,36 @@ static void block_partitioning(ALSEncContext *ctx)
 }
 
 
+static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
+{
+    int q;
+
+    /* remap to unsigned */
+    v = -2*v-1;
+    v ^= (v>>31);
+
+    /* write quotient in zero-terminated unary */
+    q = (v >> k) + 1;
+
+    /* protect from buffer overwrite */
+    if (put_bits_count(pb) + q + k > pb->size_in_bits) {
+        return -1;
+    }
+
+    while (q > 31) {
+        put_bits(pb, 31, 0x7FFFFFFF);
+        q -= 31;
+    }
+    put_bits(pb, q, ((1<<q)-1)^1);
+
+    /* write remainder using k bits */
+    if (k)
+        put_bits(pb, k, (v >> 1) - (((v >> k)-(!(v&1))) << (k-1)));
+
+    return 0;
+}
+
+
 /** Write a given block of a given channel
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block,
@@ -171,6 +205,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
     ALSSpecificConfig *sconf = &ctx->sconf;
     PutBitContext *pb        = &ctx->pb;
     unsigned int i;
+    int start;
 
 
     // block_type
@@ -215,7 +250,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
              // to be implemented
 
         } else {
-            for (i = 0; i < block->sub_blocks; i++) {
+            put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), block->rice_param);
+            for (i = 1; i < block->sub_blocks; i++) {
                 // write rice param per sub_block
             }
         }
@@ -238,12 +274,15 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
             }
 
 
-            // quant_cof
-            // to be implemented
-            //
-            // while not implemented, no need to output anything
-
             // for each quant_cof, put(quant_cof) in rice code
+            if (sconf->coef_table == 3) {
+                put_bits(pb, 7, 64 + block->q_parcor_index);
+            } else {
+                int rice_param = ff_als_parcor_rice_table[sconf->coef_table][0][1];
+                int offset     = ff_als_parcor_rice_table[sconf->coef_table][0][0];
+                if (set_sr_golomb_als(pb, block->q_parcor_index - offset, rice_param))
+                    return -1;
+            }
         }
 
 
@@ -259,18 +298,28 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
         }
 
 
-        // smp_val[0] && res[1,2] in case of random_access block
-        // to be implemented
-        //
-        // while not implemented, sconf->ra-distance == 0 and
-        // no need to write anything
-        // see decoder definition of ra_frame/ra_block:
-        //  -> ra_frame = sconf->ra_distance && !(ctx->frame_id % sconf->ra_distance);
-
-
         // write residuals
-        for (i = 0; i < block->length; i++) {
-            // write all residuals of the block
+        // for now, all frames are RA frames, so use progressive prediction for
+        // the first 3 residual samples, up to opt_order
+        start = 0;
+        if (block->opt_order > 0 && block->length > 0) {
+            if (set_sr_golomb_als(pb, ctx->res_samples[c][0], avctx->bits_per_raw_sample-4))
+                return -1;
+            start++;
+            if (block->opt_order > 1 && block->length > 1) {
+                if (set_sr_golomb_als(pb, ctx->res_samples[c][1], block->rice_param+3))
+                    return -1;
+                start++;
+                if (block->opt_order > 2 && block->length > 2) {
+                    if (set_sr_golomb_als(pb, ctx->res_samples[c][2], block->rice_param+1))
+                        return -1;
+                    start++;
+                }
+            }
+        }
+        for (i = start; i < block->length; i++) {
+            if (set_sr_golomb_als(pb, ctx->res_samples[c][i], block->rice_param))
+                return -1;
         }
     }
 
@@ -420,9 +469,45 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // just verbatim mode (no prediction) supported right now
 
     if (block->opt_order) {
+        int32_t *res_ptr, *smp_ptr;
+        int i, j;
 
-        // to be implemented
 
+        // calculate PARCOR coefficients
+        // TODO: use more complex algorithms to determine coeffs and order
+        block->q_parcor_index = -64;
+        block->q_parcor_coeff = ff_als_parcor_scaled_values[block->q_parcor_index+64] << 5;
+
+
+        // convert PARCOR to LPC
+        // TODO: the actual formula is way more complicated for order > 1
+        block->q_lpc_coeff = block->q_parcor_coeff;
+
+
+        // first residual sample
+        res_ptr = ctx->res_samples[c] + b;
+        smp_ptr = ctx->raw_samples[c] + b;
+        *(res_ptr++) = *(smp_ptr++);
+
+        // progressive prediction
+        for (i = 1; i < block->opt_order; i++) {
+            // TODO: prediction orders > 1
+        }
+
+        // remaining residual samples
+        for (; i < block->length; i++) {
+            int64_t y = 1 << 19;
+            for (j = 1; j <= block->opt_order; j++)
+                y += (int64_t)block->q_lpc_coeff * smp_ptr[-j];
+            y = *(smp_ptr++) + (y >> 20);
+            if (y < INT32_MIN || y > INT32_MAX) {
+                // TODO: fallback to a simpler filter and try again.
+                //       if all else fails, disable prediction and hope that
+                //       the frame will fit in the output buffer.
+                av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");
+            }
+            *(res_ptr++) = (int32_t)y;
+        }
     } else {
         memcpy(ctx->res_samples[c] + b, ctx->raw_samples[c] + b,
                sizeof(*ctx->res_samples[c]) * block->length);
@@ -438,11 +523,25 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
 
     // search for rice parameter:
-    // to be implemented
-    //
-    // use predefined rice parameter while not implemented
+    {
+        uint64_t sum = 0;
+        int i;
+        int n = block->length-1;
+        int max_param = ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15;
 
-    block->rice_param = 2;
+        for (i = 1; i < n; i++) {
+            // note: this might overflow when using 32-bit sample depth
+            int v = -2*ctx->res_samples[c][i]-1;
+            v ^= (v>>31);
+            sum += v;
+        }
+        if (sum <= n >> 1) {
+            block->rice_param = 0;
+        } else {
+            sum = (sum - (n >> 1)) / n;
+            block->rice_param = FFMIN(av_log2(sum), max_param);
+        }
+    }
 }
 
 
@@ -629,7 +728,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     //       use maximum value to be able to find the best order
     //
     // while stp is not implemented, set to 0
-    sconf->max_order = 0;
+    sconf->max_order = 1;
 
 
     // determine if block-switching is used
