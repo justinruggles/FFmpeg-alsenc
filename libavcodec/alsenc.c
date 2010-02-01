@@ -282,16 +282,19 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
 /** Write the frame
  */
-static void write_frame(ALSEncContext *ctx)
+static void write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 {
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int c, b;
 
-    // ra_unit_size
-    if (sconf->ra_flag == RA_FLAG_FRAMES) { // && this is a ra-frame
-        // to be implemented
-        // write ra_unit_size into the stream
+    init_put_bits(&ctx->pb, frame, buf_size);
+
+
+    // make space for ra_unit_size
+    if (sconf->ra_flag == RA_FLAG_FRAMES && sconf->ra_distance == 1) {
+        // TODO: maybe keep frame count and allow other RA distances if API will allow
+        put_bits32(&ctx->pb, 0);
     }
 
 
@@ -320,6 +323,16 @@ static void write_frame(ALSEncContext *ctx)
 
         // MCC: to be implemented
 
+    }
+
+
+    flush_put_bits(&ctx->pb);
+
+
+    // write ra_unit_size
+    if (sconf->ra_flag == RA_FLAG_FRAMES && sconf->ra_distance == 1) {
+        int ra_unit_size = put_bits_count(&ctx->pb) >> 3;
+        AV_WB32(frame, ra_unit_size);
     }
 }
 
@@ -445,7 +458,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     ctx->cur_frame_length = avctx->frame_size;
-    init_put_bits(&ctx->pb, frame, buf_size);
 
 
     // preprocessing
@@ -476,8 +488,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     // bitstream assembly
-    write_frame(ctx);
-    flush_put_bits(&ctx->pb);
+    write_frame(ctx, frame, buf_size);
 
     // update sample count
     sconf->samples += ctx->cur_frame_length;
@@ -567,11 +578,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
-    // default for now = 0. should be changed when implemented.
+    // default for now = 1. should be changed when implemented.
     // If we try to do it in the header, we would have to keep track
     // of all RA unit info during encoding, then free/realloc the
     // extradata at the end to make enough space for the RA info.
-    sconf->ra_distance = 0;
+    sconf->ra_distance = 1;
 
 
     // determine where to store ra_flag (01: beginning of frame_data)
