@@ -498,6 +498,8 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     // bitstream assembly
     frame_data_size = write_frame(ctx, frame, buf_size);
+    if (frame_data_size < 0)
+        av_log(avctx, AV_LOG_ERROR, "Error writing frame\n");
 
     // update sample count
     if (frame_data_size >= 0)
