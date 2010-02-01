@@ -164,8 +164,8 @@ static void block_partitioning(ALSEncContext *ctx)
 
 /** Write a given block of a given channel
  */
-static void write_block(ALSEncContext *ctx, ALSBlock *block,
-                        unsigned int c, unsigned int b)
+static int write_block(ALSEncContext *ctx, ALSBlock *block,
+                       unsigned int c, unsigned int b)
 {
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
@@ -277,16 +277,20 @@ static void write_block(ALSEncContext *ctx, ALSBlock *block,
 
     if (!sconf->mc_coding || ctx->js_switch)
         align_put_bits(pb);
+
+
+    return 0;
 }
 
 
 /** Write the frame
  */
-static void write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
+static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 {
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int c, b;
+    int ret;
 
     init_put_bits(&ctx->pb, frame, buf_size);
 
@@ -313,7 +317,9 @@ static void write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
                     continue;
 
                 if (ctx->independent_bs[c]) {
-                    write_block(ctx, &ctx->blocks[c][b], c, b);
+                    ret = write_block(ctx, &ctx->blocks[c][b], c, b);
+                    if (ret < 0)
+                        return ret;
                 } else {
                     // write channel & channel+1
                 }
@@ -327,13 +333,15 @@ static void write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 
 
     flush_put_bits(&ctx->pb);
-
+    ret = put_bits_count(&ctx->pb) >> 3;
 
     // write ra_unit_size
     if (sconf->ra_flag == RA_FLAG_FRAMES && sconf->ra_distance == 1) {
-        int ra_unit_size = put_bits_count(&ctx->pb) >> 3;
-        AV_WB32(frame, ra_unit_size);
+        AV_WB32(frame, ret);
     }
+
+
+    return ret;
 }
 
 
@@ -444,6 +452,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int b, c;
+    int frame_data_size;
 
     // last frame has been encoded, update extradata
     if (!data) {
@@ -488,14 +497,15 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     // bitstream assembly
-    write_frame(ctx, frame, buf_size);
+    frame_data_size = write_frame(ctx, frame, buf_size);
 
     // update sample count
-    sconf->samples += ctx->cur_frame_length;
+    if (frame_data_size >= 0)
+        sconf->samples += ctx->cur_frame_length;
 
     //memset(frame, 0, buf_size);
 
-    return put_bits_count(&ctx->pb) >> 3;
+    return frame_data_size;
 }
 
 
