@@ -24,6 +24,14 @@
 #include "config.h"
 #include "common.h"
 
+extern const uint32_t ff_inverse[257];
+
+#if   ARCH_ARM
+#   include "arm/intmath.h"
+#elif ARCH_X86
+#   include "x86/intmath.h"
+#endif
+
 #if HAVE_FAST_CLZ && AV_GCC_VERSION_AT_LEAST(3,4)
 
 #ifndef av_log2
@@ -37,5 +45,15 @@
 #endif /* av_log2 */
 
 #endif /* AV_GCC_VERSION_AT_LEAST(3,4) */
+
+#ifndef FASTDIV
+
+#if CONFIG_FASTDIV
+#    define FASTDIV(a,b)   ((uint32_t)((((uint64_t)a) * ff_inverse[b]) >> 32))
+#else
+#    define FASTDIV(a,b)   ((a) / (b))
+#endif
+
+#endif /* FASTDIV */
 
 #endif /* AVUTIL_INTMATH_H */

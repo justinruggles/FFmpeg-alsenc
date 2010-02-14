@@ -113,7 +113,7 @@ static int mov_read_udta_string(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     case MKTAG(0xa9,'c','m','t'):
     case MKTAG(0xa9,'i','n','f'): key = "comment";   break;
     case MKTAG(0xa9,'a','l','b'): key = "album";     break;
-    case MKTAG(0xa9,'d','a','y'): key = "year";      break;
+    case MKTAG(0xa9,'d','a','y'): key = "date";      break;
     case MKTAG(0xa9,'g','e','n'): key = "genre";     break;
     case MKTAG(0xa9,'t','o','o'):
     case MKTAG(0xa9,'e','n','c'): key = "encoder";   break;
@@ -925,16 +925,6 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
             st->codec->width = get_be16(pb); /* width */
             st->codec->height = get_be16(pb); /* height */
 
-            if (st->codec->width != sc->width || st->codec->height != sc->height) {
-                AVRational r = av_d2q(
-                    ((double)st->codec->height * sc->width) /
-                    ((double)st->codec->width * sc->height), INT_MAX);
-                if (st->sample_aspect_ratio.num)
-                    st->sample_aspect_ratio = av_mul_q(st->sample_aspect_ratio, r);
-                else
-                    st->sample_aspect_ratio = r;
-            }
-
             get_be32(pb); /* horiz resolution */
             get_be32(pb); /* vert resolution */
             get_be32(pb); /* data size, always 0 */
@@ -949,6 +939,9 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
                     PUT_UTF8(codec_name[i+1], tmp, st->codec->codec_name[pos++] = tmp;)
                 }
                 st->codec->codec_name[pos] = 0;
+                /* codec_tag YV12 triggers an UV swap in rawdec.c */
+                if (!memcmp(st->codec->codec_name, "Planar Y'CbCr 8-bit 4:2:0", 25))
+                    st->codec->codec_tag=MKTAG('I', '4', '2', '0');
             }
 
             st->codec->bits_per_coded_sample = get_be16(pb); /* depth */
@@ -1661,6 +1654,20 @@ static int mov_read_trak(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
                    dref->volume, dref->nlvl_from, dref->nlvl_to);
     } else
         sc->pb = c->fc->pb;
+
+    if (st->codec->codec_type == CODEC_TYPE_VIDEO) {
+        if (st->codec->width != sc->width || st->codec->height != sc->height) {
+            AVRational r = av_d2q(((double)st->codec->height * sc->width) /
+                                  ((double)st->codec->width * sc->height), INT_MAX);
+            if (st->sample_aspect_ratio.num)
+                st->sample_aspect_ratio = av_mul_q(st->sample_aspect_ratio, r);
+            else
+                st->sample_aspect_ratio = r;
+        }
+
+        av_reduce(&st->avg_frame_rate.num, &st->avg_frame_rate.den,
+                  sc->time_scale*st->nb_frames, st->duration, INT_MAX);
+    }
 
     switch (st->codec->codec_id) {
 #if CONFIG_H261_DECODER

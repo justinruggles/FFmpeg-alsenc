@@ -147,10 +147,11 @@ static int mp3_read_header(AVFormatContext *s,
     av_set_pts_info(st, 64, 1, 14112000);
 
     ff_id3v2_read(s);
+    off = url_ftell(s->pb);
+
     if (!av_metadata_get(s->metadata, "", NULL, AV_METADATA_IGNORE_SUFFIX))
         ff_id3v1_read(s);
 
-    off = url_ftell(s->pb);
     if (mp3_parse_vbr_tags(s, st, off) < 0)
         url_fseek(s->pb, off, SEEK_SET);
 
@@ -214,7 +215,7 @@ static int id3v1_create_tag(AVFormatContext *s, uint8_t *buf)
     count += id3v1_set_string(s, "title",   buf +  3, 30);
     count += id3v1_set_string(s, "author",  buf + 33, 30);
     count += id3v1_set_string(s, "album",   buf + 63, 30);
-    count += id3v1_set_string(s, "year",    buf + 93,  4);
+    count += id3v1_set_string(s, "date",    buf + 93,  4);
     count += id3v1_set_string(s, "comment", buf + 97, 30);
     if ((tag = av_metadata_get(s->metadata, "track", NULL, 0))) {
         buf[125] = 0;

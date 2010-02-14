@@ -52,10 +52,6 @@
 #include "rectangle.h"
 #include "vdpau_internal.h"
 
-#if ARCH_X86
-#include "x86/h264_i386.h"
-#endif
-
 #if CONFIG_ZLIB
 #include <zlib.h>
 #endif
@@ -130,7 +126,7 @@ static const uint32_t svq3_dequant_coeff[32] = {
 };
 
 
-void svq3_luma_dc_dequant_idct_c(DCTELEM *block, int qp)
+void ff_svq3_luma_dc_dequant_idct_c(DCTELEM *block, int qp)
 {
     const int qmul = svq3_dequant_coeff[qp];
 #define stride 16
@@ -167,7 +163,7 @@ void svq3_luma_dc_dequant_idct_c(DCTELEM *block, int qp)
 }
 #undef stride
 
-void svq3_add_idct_c(uint8_t *dst, DCTELEM *block, int stride, int qp,
+void ff_svq3_add_idct_c(uint8_t *dst, DCTELEM *block, int stride, int qp,
                             int dc)
 {
     const int qmul = svq3_dequant_coeff[qp];

@@ -131,42 +131,38 @@ static int sdp_parse_rtpmap(AVFormatContext *s,
     if (c && c->name)
         c_name = c->name;
     else
-        c_name = (char *) NULL;
+        c_name = "(null)";
 
-    if (c_name) {
-        get_word_sep(buf, sizeof(buf), "/", &p);
-        i = atoi(buf);
-        switch (codec->codec_type) {
-        case CODEC_TYPE_AUDIO:
-            av_log(s, AV_LOG_DEBUG, "audio codec set to: %s\n", c_name);
-            codec->sample_rate = RTSP_DEFAULT_AUDIO_SAMPLERATE;
-            codec->channels = RTSP_DEFAULT_NB_AUDIO_CHANNELS;
-            if (i > 0) {
-                codec->sample_rate = i;
-                get_word_sep(buf, sizeof(buf), "/", &p);
-                i = atoi(buf);
-                if (i > 0)
-                    codec->channels = i;
-                // TODO: there is a bug here; if it is a mono stream, and
-                // less than 22000Hz, faad upconverts to stereo and twice
-                // the frequency.  No problem, but the sample rate is being
-                // set here by the sdp line. Patch on its way. (rdm)
-            }
-            av_log(s, AV_LOG_DEBUG, "audio samplerate set to: %i\n",
-                   codec->sample_rate);
-            av_log(s, AV_LOG_DEBUG, "audio channels set to: %i\n",
-                   codec->channels);
-            break;
-        case CODEC_TYPE_VIDEO:
-            av_log(s, AV_LOG_DEBUG, "video codec set to: %s\n", c_name);
-            break;
-        default:
-            break;
+    get_word_sep(buf, sizeof(buf), "/", &p);
+    i = atoi(buf);
+    switch (codec->codec_type) {
+    case CODEC_TYPE_AUDIO:
+        av_log(s, AV_LOG_DEBUG, "audio codec set to: %s\n", c_name);
+        codec->sample_rate = RTSP_DEFAULT_AUDIO_SAMPLERATE;
+        codec->channels = RTSP_DEFAULT_NB_AUDIO_CHANNELS;
+        if (i > 0) {
+            codec->sample_rate = i;
+            get_word_sep(buf, sizeof(buf), "/", &p);
+            i = atoi(buf);
+            if (i > 0)
+                codec->channels = i;
+            // TODO: there is a bug here; if it is a mono stream, and
+            // less than 22000Hz, faad upconverts to stereo and twice
+            // the frequency.  No problem, but the sample rate is being
+            // set here by the sdp line. Patch on its way. (rdm)
         }
-        return 0;
+        av_log(s, AV_LOG_DEBUG, "audio samplerate set to: %i\n",
+               codec->sample_rate);
+        av_log(s, AV_LOG_DEBUG, "audio channels set to: %i\n",
+               codec->channels);
+        break;
+    case CODEC_TYPE_VIDEO:
+        av_log(s, AV_LOG_DEBUG, "video codec set to: %s\n", c_name);
+        break;
+    default:
+        break;
     }
-
-    return -1;
+    return 0;
 }
 
 /* return the length and optionally the data */
@@ -437,11 +433,16 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
             }
         }
         /* put a default control url */
-        av_strlcpy(rtsp_st->control_url, s->filename,
+        av_strlcpy(rtsp_st->control_url, rt->control_uri,
                    sizeof(rtsp_st->control_url));
         break;
     case 'a':
-        if (av_strstart(p, "control:", &p) && s->nb_streams > 0) {
+        if (av_strstart(p, "control:", &p)) {
+            if (s->nb_streams == 0) {
+                if (!strncmp(p, "rtsp://", 7))
+                    av_strlcpy(rt->control_uri, p,
+                               sizeof(rt->control_uri));
+            } else {
             char proto[32];
             /* get the control url */
             st = s->streams[s->nb_streams - 1];
@@ -452,6 +453,7 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
                       NULL, NULL, 0, p);
             if (proto[0] == '\0') {
                 /* relative control URL */
+                if (rtsp_st->control_url[strlen(rtsp_st->control_url)-1]!='/')
                 av_strlcat(rtsp_st->control_url, "/",
                            sizeof(rtsp_st->control_url));
                 av_strlcat(rtsp_st->control_url, p,
@@ -459,6 +461,7 @@ static void sdp_parse_line(AVFormatContext *s, SDPParseState *s1,
             } else
                 av_strlcpy(rtsp_st->control_url, p,
                            sizeof(rtsp_st->control_url));
+            }
         } else if (av_strstart(p, "rtpmap:", &p) && s->nb_streams > 0) {
             /* NOTE: rtpmap is only supported AFTER the 'm=' tag */
             get_word(buf1, sizeof(buf1), &p);
@@ -929,9 +932,7 @@ static int rtsp_read_reply(AVFormatContext *s, RTSPMessageHeader *reply,
     return 0;
 }
 
-static void rtsp_send_cmd_async(AVFormatContext *s,
-                                const char *cmd, RTSPMessageHeader *reply,
-                                unsigned char **content_ptr)
+static void rtsp_send_cmd_async(AVFormatContext *s, const char *cmd)
 {
     RTSPState *rt = s->priv_data;
     char buf[4096], buf1[1024];
@@ -960,7 +961,7 @@ static void rtsp_send_cmd(AVFormatContext *s,
                           const char *cmd, RTSPMessageHeader *reply,
                           unsigned char **content_ptr)
 {
-    rtsp_send_cmd_async(s, cmd, reply, content_ptr);
+    rtsp_send_cmd_async(s, cmd);
 
     rtsp_read_reply(s, reply, content_ptr, 0);
 }
@@ -1205,12 +1206,12 @@ static int rtsp_read_play(AVFormatContext *s)
         if (rt->state == RTSP_STATE_PAUSED) {
             snprintf(cmd, sizeof(cmd),
                      "PLAY %s RTSP/1.0\r\n",
-                     s->filename);
+                     rt->control_uri);
         } else {
             snprintf(cmd, sizeof(cmd),
                      "PLAY %s RTSP/1.0\r\n"
                      "Range: npt=%0.3f-\r\n",
-                     s->filename,
+                     rt->control_uri,
                      (double)rt->seek_timestamp / AV_TIME_BASE);
         }
         rtsp_send_cmd(s, cmd, reply, NULL);
@@ -1292,6 +1293,8 @@ redirect:
 
     /* request options supported by the server; this also detects server
      * type */
+    av_strlcpy(rt->control_uri, s->filename,
+               sizeof(rt->control_uri));
     for (rt->server_type = RTSP_SERVER_RTP;;) {
         snprintf(cmd, sizeof(cmd),
                  "OPTIONS %s RTSP/1.0\r\n", s->filename);
@@ -1450,7 +1453,7 @@ static int udp_read_packet(AVFormatContext *s, RTSPStream **prtsp_st,
                 }
             }
 #if CONFIG_RTSP_DEMUXER
-            if (FD_ISSET(tcp_fd, &rfds)) {
+            if (tcp_fd != -1 && FD_ISSET(tcp_fd, &rfds)) {
                 RTSPMessageHeader reply;
 
                 rtsp_read_reply(s, &reply, NULL, 0);
@@ -1589,10 +1592,10 @@ static int rtsp_read_packet(AVFormatContext *s, AVPacket *pkt)
         if (!rt->need_subscription) {
             if (memcmp (cache, rt->real_setup_cache,
                         sizeof(enum AVDiscard) * s->nb_streams)) {
-                av_strlcatf(cmd, sizeof(cmd),
-                            "SET_PARAMETER %s RTSP/1.0\r\n"
-                            "Unsubscribe: %s\r\n",
-                            s->filename, rt->last_subscription);
+                snprintf(cmd, sizeof(cmd),
+                         "SET_PARAMETER %s RTSP/1.0\r\n"
+                         "Unsubscribe: %s\r\n",
+                         rt->control_uri, rt->last_subscription);
                 rtsp_send_cmd(s, cmd, reply, NULL);
                 if (reply->status_code != RTSP_STATUS_OK)
                     return AVERROR_INVALIDDATA;
@@ -1610,7 +1613,7 @@ static int rtsp_read_packet(AVFormatContext *s, AVPacket *pkt)
             snprintf(cmd, sizeof(cmd),
                      "SET_PARAMETER %s RTSP/1.0\r\n"
                      "Subscribe: ",
-                     s->filename);
+                     rt->control_uri);
             for (i = 0; i < rt->nb_rtsp_streams; i++) {
                 rule_nr = 0;
                 for (r = 0; r < s->nb_streams; r++) {
@@ -1650,11 +1653,10 @@ static int rtsp_read_packet(AVFormatContext *s, AVPacket *pkt)
         if (rt->server_type == RTSP_SERVER_WMS) {
             snprintf(cmd, sizeof(cmd) - 1,
                      "GET_PARAMETER %s RTSP/1.0\r\n",
-                     s->filename);
-            rtsp_send_cmd_async(s, cmd, reply, NULL);
+                     rt->control_uri);
+            rtsp_send_cmd_async(s, cmd);
         } else {
-            rtsp_send_cmd_async(s, "OPTIONS * RTSP/1.0\r\n",
-                                reply, NULL);
+            rtsp_send_cmd_async(s, "OPTIONS * RTSP/1.0\r\n");
         }
     }
 
@@ -1675,7 +1677,7 @@ static int rtsp_read_pause(AVFormatContext *s)
     else if (!(rt->server_type == RTSP_SERVER_REAL && rt->need_subscription)) {
         snprintf(cmd, sizeof(cmd),
                  "PAUSE %s RTSP/1.0\r\n",
-                 s->filename);
+                 rt->control_uri);
         rtsp_send_cmd(s, cmd, reply, NULL);
         if (reply->status_code != RTSP_STATUS_OK) {
             return -1;
@@ -1714,7 +1716,6 @@ static int rtsp_read_seek(AVFormatContext *s, int stream_index,
 static int rtsp_read_close(AVFormatContext *s)
 {
     RTSPState *rt = s->priv_data;
-    RTSPMessageHeader reply1, *reply = &reply1;
     char cmd[1024];
 
 #if 0
@@ -1726,7 +1727,7 @@ static int rtsp_read_close(AVFormatContext *s)
     snprintf(cmd, sizeof(cmd),
              "TEARDOWN %s RTSP/1.0\r\n",
              s->filename);
-    rtsp_send_cmd(s, cmd, reply, NULL);
+    rtsp_send_cmd_async(s, cmd);
 
     rtsp_close_streams(rt);
     url_close(rt->rtsp_hd);

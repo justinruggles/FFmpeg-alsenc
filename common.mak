@@ -20,6 +20,7 @@ endif
 ALLFFLIBS = avcodec avdevice avfilter avformat avutil postproc swscale
 
 CPPFLAGS := -DHAVE_AV_CONFIG_H -I$(BUILD_ROOT_REL) -I$(SRC_PATH) $(CPPFLAGS)
+CFLAGS   += $(ECFLAGS)
 
 %.o: %.c
 	$(CCDEP)
@@ -47,7 +48,9 @@ $(BUILD_ROOT_REL)/version.h: $(SRC_PATH_BARE)/version.sh config.mak
 
 install: install-libs install-headers
 
-.PHONY: all depend dep *clean install* uninstall examples testprogs
+uninstall: uninstall-libs uninstall-headers
+
+.PHONY: all depend dep *clean install* uninstall* examples testprogs
 endif
 
 OBJS-$(HAVE_MMX) +=  $(MMX-OBJS-yes)

@@ -37,6 +37,7 @@
 #include "unary.h"
 #include "mpeg4audio.h"
 #include "bytestream.h"
+#include "bgmc.h"
 
 #include <stdint.h>
 
@@ -81,6 +82,8 @@ typedef struct {
     unsigned int frame_id;          ///< the frame ID / number of the current frame
     unsigned int js_switch;         ///< if true, joint-stereo decoding is enforced
     unsigned int num_blocks;        ///< number of blocks used in the current frame
+    uint8_t *bgmc_lut;              ///< pointer at lookup tables used for BGMC
+    unsigned int *bgmc_lut_status;  ///< pointer at lookup table status flags used for BGMC
     int ltp_lag_length;             ///< number of bits used for ltp lag value
     int *use_ltp;                   ///< contains use_ltp flags for all channels
     int *ltp_lag;                   ///< contains ltp lag values for all channels
@@ -296,7 +299,6 @@ static int check_specific_config(ALSDecContext *ctx)
     }
 
     MISSING_ERR(sconf->floating,             "Floating point decoding",     -1);
-    MISSING_ERR(sconf->bgmc,                 "BGMC entropy decoding",       -1);
     MISSING_ERR(sconf->rlslms,               "Adaptive RLS-LMS prediction", -1);
     MISSING_ERR(sconf->chan_sort,            "Channel sorting",              0);
 
@@ -467,11 +469,13 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
     GetBitContext *gb        = &ctx->gb;
     unsigned int k;
     unsigned int s[8];
+    unsigned int sx[8];
     unsigned int sub_blocks, log2_sub_blocks, sb_length;
     unsigned int start      = 0;
     unsigned int opt_order;
     int          sb;
     int32_t      *quant_cof = bd->quant_cof;
+    int32_t      *current_res;
 
 
     // ensure variable block decoding by reusing this field
@@ -504,9 +508,15 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 
     sb_length = bd->block_length >> log2_sub_blocks;
 
-
     if (sconf->bgmc) {
-        // TODO: BGMC mode
+        s[0] = get_bits(gb, 8 + (sconf->resolution > 1));
+        for (k = 1; k < sub_blocks; k++)
+            s[k] = s[k - 1] + decode_rice(gb, 2);
+
+        for (k = 0; k < sub_blocks; k++) {
+            sx[k]   = s[k] & 0x0F;
+            s [k] >>= 4;
+        }
     } else {
         s[0] = get_bits(gb, 4 + (sconf->resolution > 1));
         for (k = 1; k < sub_blocks; k++)
@@ -610,9 +620,76 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 
     // read all residuals
     if (sconf->bgmc) {
-        // TODO: BGMC mode
+        unsigned int delta[sub_blocks];
+        unsigned int k    [sub_blocks];
+        unsigned int b = av_clip((av_ceil_log2(bd->block_length) - 3) >> 1, 0, 5);
+        unsigned int i = start;
+
+        // read most significant bits
+        unsigned int high;
+        unsigned int low;
+        unsigned int value;
+
+        ff_bgmc_decode_init(gb, &high, &low, &value);
+
+        current_res = bd->raw_samples + start;
+
+        for (sb = 0; sb < sub_blocks; sb++, i = 0) {
+            k    [sb] = s[sb] > b ? s[sb] - b : 0;
+            delta[sb] = 5 - s[sb] + k[sb];
+
+            ff_bgmc_decode(gb, sb_length, current_res,
+                        delta[sb], sx[sb], &high, &low, &value, ctx->bgmc_lut, ctx->bgmc_lut_status);
+
+            current_res += sb_length;
+        }
+
+        ff_bgmc_decode_end(gb);
+
+
+        // read least significant bits and tails
+        i = start;
+        current_res = bd->raw_samples + start;
+
+        for (sb = 0; sb < sub_blocks; sb++, i = 0) {
+            unsigned int cur_tail_code = tail_code[sx[sb]][delta[sb]];
+            unsigned int cur_k         = k[sb];
+            unsigned int cur_s         = s[sb];
+
+            for (; i < sb_length; i++) {
+                int32_t res = *current_res;
+
+                if (res == cur_tail_code) {
+                    unsigned int max_msb =   (2 + (sx[sb] > 2) + (sx[sb] > 10))
+                                          << (5 - delta[sb]);
+
+                    res = decode_rice(gb, cur_s);
+
+                    if (res >= 0) {
+                        res += (max_msb    ) << cur_k;
+                    } else {
+                        res -= (max_msb - 1) << cur_k;
+                    }
+                } else {
+                    if (res > cur_tail_code)
+                        res--;
+
+                    if (res & 1)
+                        res = -res;
+
+                    res >>= 1;
+
+                    if (cur_k) {
+                        res <<= cur_k;
+                        res  |= get_bits_long(gb, cur_k);
+                    }
+                }
+
+                *current_res++ = res;
+            }
+        }
     } else {
-        int32_t *current_res = bd->raw_samples + start;
+        current_res = bd->raw_samples + start;
 
         for (sb = 0; sb < sub_blocks; sb++, start = 0)
             for (; start < sb_length; start++)
@@ -1261,6 +1338,8 @@ static av_cold int decode_end(AVCodecContext *avctx)
 
     av_freep(&ctx->sconf.chan_pos);
 
+    ff_bgmc_end(&ctx->bgmc_lut, &ctx->bgmc_lut_status);
+
     av_freep(&ctx->use_ltp);
     av_freep(&ctx->ltp_lag);
     av_freep(&ctx->ltp_gain);
@@ -1307,6 +1386,9 @@ static av_cold int decode_init(AVCodecContext *avctx)
         decode_end(avctx);
         return -1;
     }
+
+    if (sconf->bgmc)
+        ff_bgmc_init(avctx, &ctx->bgmc_lut, &ctx->bgmc_lut_status);
 
     if (sconf->floating) {
         avctx->sample_fmt          = SAMPLE_FMT_FLT;

@@ -35,10 +35,6 @@
 #include "h264_mvpred.h"
 #include "golomb.h"
 
-#if ARCH_X86
-#include "x86/h264_i386.h"
-#endif
-
 //#undef NDEBUG
 #include <assert.h>
 
@@ -412,7 +408,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
 
     if(trailing_ones<total_coeff) {
         int mask, prefix;
-        int suffix_length = total_coeff > 10 && trailing_ones < 3;
+        int suffix_length = total_coeff > 10 & trailing_ones < 3;
         int bitsi= show_bits(gb, LEVEL_TAB_BITS);
         int level_code= cavlc_level_tab[suffix_length][bitsi][0];
 
@@ -445,11 +441,9 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
             mask= -(level_code&1);
             level[trailing_ones]= (((2+level_code)>>1) ^ mask) - mask;
         }else{
-            if(trailing_ones < 3) level_code += (level_code>>31)|1;
+            level_code += ((level_code>>31)|1) & -(trailing_ones < 3);
 
-            suffix_length = 1;
-            if(level_code + 3U > 6U)
-                suffix_length++;
+            suffix_length = 1 + (level_code + 3U > 6U);
             level[trailing_ones]= level_code;
         }
 
@@ -476,9 +470,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
                 level_code= (((2+level_code)>>1) ^ mask) - mask;
             }
             level[i]= level_code;
-
-            if(suffix_limit[suffix_length] + level_code > 2U*suffix_limit[suffix_length])
-                suffix_length++;
+            suffix_length+= suffix_limit[suffix_length] + level_code > 2U*suffix_limit[suffix_length];
         }
     }
 
@@ -486,9 +478,9 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
         zeros_left=0;
     else{
         if(n == CHROMA_DC_BLOCK_INDEX)
-            zeros_left= get_vlc2(gb, chroma_dc_total_zeros_vlc[ total_coeff-1 ].table, CHROMA_DC_TOTAL_ZEROS_VLC_BITS, 1);
+            zeros_left= get_vlc2(gb, (chroma_dc_total_zeros_vlc-1)[ total_coeff ].table, CHROMA_DC_TOTAL_ZEROS_VLC_BITS, 1);
         else
-            zeros_left= get_vlc2(gb, total_zeros_vlc[ total_coeff-1 ].table, TOTAL_ZEROS_VLC_BITS, 1);
+            zeros_left= get_vlc2(gb, (total_zeros_vlc-1)[ total_coeff ].table, TOTAL_ZEROS_VLC_BITS, 1);
     }
 
     coeff_num = zeros_left + total_coeff - 1;
@@ -499,7 +491,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
             if(zeros_left <= 0)
                 run_before = 0;
             else if(zeros_left < 7){
-                run_before= get_vlc2(gb, run_vlc[zeros_left-1].table, RUN_VLC_BITS, 1);
+                run_before= get_vlc2(gb, (run_vlc-1)[zeros_left].table, RUN_VLC_BITS, 1);
             }else{
                 run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2);
             }
@@ -515,7 +507,7 @@ static int decode_residual(H264Context *h, GetBitContext *gb, DCTELEM *block, in
             if(zeros_left <= 0)
                 run_before = 0;
             else if(zeros_left < 7){
-                run_before= get_vlc2(gb, run_vlc[zeros_left-1].table, RUN_VLC_BITS, 1);
+                run_before= get_vlc2(gb, (run_vlc-1)[zeros_left].table, RUN_VLC_BITS, 1);
             }else{
                 run_before= get_vlc2(gb, run7_vlc.table, RUN7_VLC_BITS, 2);
             }
@@ -686,8 +678,7 @@ decode_intra_mb:
                 sub_partition_count[i]= b_sub_mb_type_info[ h->sub_mb_type[i] ].partition_count;
                 h->sub_mb_type[i]=      b_sub_mb_type_info[ h->sub_mb_type[i] ].type;
             }
-            if(   IS_DIRECT(h->sub_mb_type[0]) || IS_DIRECT(h->sub_mb_type[1])
-               || IS_DIRECT(h->sub_mb_type[2]) || IS_DIRECT(h->sub_mb_type[3])) {
+            if( IS_DIRECT(h->sub_mb_type[0]|h->sub_mb_type[1]|h->sub_mb_type[2]|h->sub_mb_type[3])) {
                 ff_h264_pred_direct_motion(h, &mb_type);
                 h->ref_cache[0][scan8[4]] =
                 h->ref_cache[1][scan8[4]] =
@@ -911,14 +902,12 @@ decode_intra_mb:
             else                     cbp= golomb_to_inter_cbp_gray[cbp];
         }
     }
-    h->cbp = cbp;
 
     if(dct8x8_allowed && (cbp&15) && !IS_INTRA(mb_type)){
-        if(get_bits1(&s->gb)){
-            mb_type |= MB_TYPE_8x8DCT;
-            h->cbp_table[mb_xy]= cbp;
-        }
+        mb_type |= MB_TYPE_8x8DCT*get_bits1(&s->gb);
     }
+    h->cbp=
+    h->cbp_table[mb_xy]= cbp;
     s->current_picture.mb_type[mb_xy]= mb_type;
 
     if(cbp || IS_INTRA16x16(mb_type)){
@@ -926,8 +915,6 @@ decode_intra_mb:
         int dquant;
         GetBitContext *gb= IS_INTRA(mb_type) ? h->intra_gb_ptr : h->inter_gb_ptr;
         const uint8_t *scan, *scan8x8, *dc_scan;
-
-//        fill_non_zero_count_cache(h);
 
         if(IS_INTERLACED(mb_type)){
             scan8x8= s->qscale ? h->field_scan8x8_cavlc : h->field_scan8x8_cavlc_q0;
@@ -941,15 +928,15 @@ decode_intra_mb:
 
         dquant= get_se_golomb(&s->gb);
 
-        if( dquant > 25 || dquant < -26 ){
-            av_log(h->s.avctx, AV_LOG_ERROR, "dquant out of range (%d) at %d %d\n", dquant, s->mb_x, s->mb_y);
-            return -1;
-        }
-
         s->qscale += dquant;
+
         if(((unsigned)s->qscale) > 51){
             if(s->qscale<0) s->qscale+= 52;
             else            s->qscale-= 52;
+            if(((unsigned)s->qscale) > 51){
+                av_log(h->s.avctx, AV_LOG_ERROR, "dquant out of range (%d) at %d %d\n", dquant, s->mb_x, s->mb_y);
+                return -1;
+            }
         }
 
         h->chroma_qp[0]= get_chroma_qp(h, 0, s->qscale);

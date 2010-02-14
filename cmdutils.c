@@ -35,11 +35,15 @@
 #include "libswscale/swscale.h"
 #include "libpostproc/postprocess.h"
 #include "libavutil/avstring.h"
+#include "libavutil/pixdesc.h"
 #include "libavcodec/opt.h"
 #include "cmdutils.h"
 #include "version.h"
 #if CONFIG_NETWORK
 #include "libavformat/network.h"
+#endif
+#if HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
 #endif
 
 #undef exit
@@ -167,8 +171,10 @@ unknown_opt:
             } else if (po->flags & OPT_FLOAT) {
                 *po->u.float_arg = parse_number_or_die(opt, arg, OPT_FLOAT, -1.0/0.0, 1.0/0.0);
             } else if (po->flags & OPT_FUNC2) {
-                if(po->u.func2_arg(opt, arg)<0)
-                    goto unknown_opt;
+                if (po->u.func2_arg(opt, arg) < 0) {
+                    fprintf(stderr, "%s: invalid value '%s' for option '%s'\n", argv[0], arg, opt);
+                    exit(1);
+                }
             } else {
                 po->u.func_arg(arg);
             }
@@ -257,6 +263,19 @@ int opt_loglevel(const char *opt, const char *arg)
     return 0;
 }
 
+int opt_timelimit(const char *opt, const char *arg)
+{
+#if HAVE_SETRLIMIT
+    int lim = parse_number_or_die(opt, arg, OPT_INT64, 0, INT_MAX);
+    struct rlimit rl = { lim, lim + 1 };
+    if (setrlimit(RLIMIT_CPU, &rl))
+        perror("setrlimit");
+#else
+    fprintf(stderr, "Warning: -%s not implemented on this OS\n", opt);
+#endif
+    return 0;
+}
+
 void set_context_opts(void *ctx, void *opts_ctx, int flags)
 {
     int i;
@@ -308,27 +327,45 @@ void print_error(const char *filename, int err)
     }
 }
 
-#define PRINT_LIB_VERSION(outstream,libname,LIBNAME,indent) \
-    version= libname##_version(); \
-    fprintf(outstream, "%slib%-10s %2d.%2d.%2d / %2d.%2d.%2d\n", indent? "  " : "", #libname, \
-            LIB##LIBNAME##_VERSION_MAJOR, LIB##LIBNAME##_VERSION_MINOR, LIB##LIBNAME##_VERSION_MICRO, \
-            version >> 16, version >> 8 & 0xff, version & 0xff);
+#define PRINT_LIB_VERSION(outstream,libname,LIBNAME,indent)             \
+    if (CONFIG_##LIBNAME) {                                             \
+        unsigned int version = libname##_version();                     \
+        fprintf(outstream, "%slib%-10s %2d.%2d.%2d / %2d.%2d.%2d\n",    \
+                indent? "  " : "", #libname,                            \
+                LIB##LIBNAME##_VERSION_MAJOR,                           \
+                LIB##LIBNAME##_VERSION_MINOR,                           \
+                LIB##LIBNAME##_VERSION_MICRO,                           \
+                version >> 16, version >> 8 & 0xff, version & 0xff);    \
+    }
 
 static void print_all_lib_versions(FILE* outstream, int indent)
 {
-    unsigned int version;
     PRINT_LIB_VERSION(outstream, avutil,   AVUTIL,   indent);
     PRINT_LIB_VERSION(outstream, avcodec,  AVCODEC,  indent);
     PRINT_LIB_VERSION(outstream, avformat, AVFORMAT, indent);
     PRINT_LIB_VERSION(outstream, avdevice, AVDEVICE, indent);
-#if CONFIG_AVFILTER
     PRINT_LIB_VERSION(outstream, avfilter, AVFILTER, indent);
-#endif
     PRINT_LIB_VERSION(outstream, swscale,  SWSCALE,  indent);
-#if CONFIG_POSTPROC
     PRINT_LIB_VERSION(outstream, postproc, POSTPROC, indent);
-#endif
 }
+
+static void maybe_print_config(const char *lib, const char *cfg)
+{
+    static int warned_cfg;
+
+    if (strcmp(FFMPEG_CONFIGURATION, cfg)) {
+        if (!warned_cfg) {
+            fprintf(stderr, "  WARNING: library configuration mismatch\n");
+            warned_cfg = 1;
+        }
+        fprintf(stderr, "  %-11s configuration: %s\n", lib, cfg);
+    }
+}
+
+#define PRINT_LIB_CONFIG(lib, tag, cfg) do {    \
+        if (CONFIG_##lib)                       \
+            maybe_print_config(tag, cfg);       \
+    } while (0)
 
 void show_banner(void)
 {
@@ -337,6 +374,13 @@ void show_banner(void)
     fprintf(stderr, "  built on %s %s with %s %s\n",
             __DATE__, __TIME__, CC_TYPE, CC_VERSION);
     fprintf(stderr, "  configuration: " FFMPEG_CONFIGURATION "\n");
+    PRINT_LIB_CONFIG(AVUTIL,   "libavutil",   avutil_configuration());
+    PRINT_LIB_CONFIG(AVCODEC,  "libavcodec",  avcodec_configuration());
+    PRINT_LIB_CONFIG(AVFORMAT, "libavformat", avformat_configuration());
+    PRINT_LIB_CONFIG(AVDEVICE, "libavdevice", avdevice_configuration());
+    PRINT_LIB_CONFIG(AVFILTER, "libavfilter", avfilter_configuration());
+    PRINT_LIB_CONFIG(SWSCALE,  "libswscale",  swscale_configuration());
+    PRINT_LIB_CONFIG(POSTPROC, "libpostproc", postproc_configuration());
     print_all_lib_versions(stderr, 1);
 }
 
@@ -584,7 +628,30 @@ void show_filters(void)
 
 void show_pix_fmts(void)
 {
-    list_fmts(avcodec_pix_fmt_string, PIX_FMT_NB);
+    enum PixelFormat pix_fmt;
+
+    printf(
+        "Pixel formats:\n"
+        "I.... = Supported Input  format for conversion\n"
+        ".O... = Supported Output format for conversion\n"
+        "..H.. = Hardware accelerated format\n"
+        "...P. = Paletted format\n"
+        "....B = Bitstream format\n"
+        "FLAGS NAME            NB_COMPONENTS BITS_PER_PIXEL\n"
+        "-----\n");
+
+    for (pix_fmt = 0; pix_fmt < PIX_FMT_NB; pix_fmt++) {
+        const AVPixFmtDescriptor *pix_desc = &av_pix_fmt_descriptors[pix_fmt];
+        printf("%c%c%c%c%c %-16s       %d            %2d\n",
+               sws_isSupportedInput (pix_fmt)      ? 'I' : '.',
+               sws_isSupportedOutput(pix_fmt)      ? 'O' : '.',
+               pix_desc->flags & PIX_FMT_HWACCEL   ? 'H' : '.',
+               pix_desc->flags & PIX_FMT_PAL       ? 'P' : '.',
+               pix_desc->flags & PIX_FMT_BITSTREAM ? 'B' : '.',
+               pix_desc->name,
+               pix_desc->nb_components,
+               av_get_bits_per_pixel(pix_desc));
+    }
 }
 
 int read_yesno(void)

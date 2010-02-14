@@ -808,6 +808,9 @@ static void compute_pkt_fields(AVFormatContext *s, AVStream *st,
     int num, den, presentation_delayed, delay, i;
     int64_t offset;
 
+    if((s->flags & AVFMT_FLAG_IGNDTS) && pkt->pts != AV_NOPTS_VALUE)
+        pkt->dts= AV_NOPTS_VALUE;
+
     if (st->codec->codec_id != CODEC_ID_H264 && pc && pc->pict_type == FF_B_TYPE)
         //FIXME Set low_delay = 0 when has_b_frames = 1
         st->codec->has_b_frames = 1;
@@ -1545,6 +1548,9 @@ static int av_seek_frame_generic(AVFormatContext *s,
 
     index = av_index_search_timestamp(st, timestamp, flags);
 
+    if(index < 0 && st->nb_index_entries && timestamp < st->index_entries[0].timestamp)
+        return -1;
+
     if(index < 0 || index==st->nb_index_entries-1){
         int i;
         AVPacket pkt;
@@ -1768,6 +1774,7 @@ static void av_estimate_timings_from_bit_rate(AVFormatContext *ic)
 }
 
 #define DURATION_MAX_READ_SIZE 250000
+#define DURATION_MAX_RETRY 3
 
 /* only usable for MPEG-PS streams */
 static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset)
@@ -1777,6 +1784,7 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
     int read_size, i, ret;
     int64_t end_time, start_time[MAX_STREAMS];
     int64_t filesize, offset, duration;
+    int retry=0;
 
     ic->cur_st = NULL;
 
@@ -1802,14 +1810,16 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
     /* estimate the end time (duration) */
     /* XXX: may need to support wrapping */
     filesize = ic->file_size;
-    offset = filesize - DURATION_MAX_READ_SIZE;
+    end_time = AV_NOPTS_VALUE;
+    do{
+    offset = filesize - (DURATION_MAX_READ_SIZE<<retry);
     if (offset < 0)
         offset = 0;
 
     url_fseek(ic->pb, offset, SEEK_SET);
     read_size = 0;
     for(;;) {
-        if (read_size >= DURATION_MAX_READ_SIZE)
+        if (read_size >= DURATION_MAX_READ_SIZE<<(FFMAX(retry-1,0)))
             break;
 
         do{
@@ -1823,6 +1833,8 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
             start_time[pkt->stream_index] != AV_NOPTS_VALUE) {
             end_time = pkt->pts;
             duration = end_time - start_time[pkt->stream_index];
+            if (duration < 0)
+                duration += 1LL<<st->pts_wrap_bits;
             if (duration > 0) {
                 if (st->duration == AV_NOPTS_VALUE ||
                     st->duration < duration)
@@ -1831,6 +1843,9 @@ static void av_estimate_timings_from_pts(AVFormatContext *ic, int64_t old_offset
         }
         av_free_packet(pkt);
     }
+    }while(   end_time==AV_NOPTS_VALUE
+           && filesize > (DURATION_MAX_READ_SIZE<<retry)
+           && ++retry <= DURATION_MAX_RETRY);
 
     fill_all_stream_timings(ic);
 
@@ -2077,6 +2092,13 @@ int av_find_stream_info(AVFormatContext *ic)
                 st->parser->flags |= PARSER_FLAG_COMPLETE_FRAMES;
             }
         }
+        assert(!st->codec->codec);
+        //try to just open decoders, in case this is enough to get parameters
+        if(!has_codec_parameters(st->codec)){
+            AVCodec *codec = avcodec_find_decoder(st->codec->codec_id);
+            if (codec)
+                avcodec_open(st->codec, codec);
+        }
     }
 
     for(i=0;i<MAX_STREAMS;i++){
@@ -2218,7 +2240,7 @@ int av_find_stream_info(AVFormatContext *ic)
     }
     for(i=0;i<ic->nb_streams;i++) {
         st = ic->streams[i];
-        if(codec_info_nb_frames[i]>2)
+        if(codec_info_nb_frames[i]>2 && !st->avg_frame_rate.num)
             av_reduce(&st->avg_frame_rate.num, &st->avg_frame_rate.den,
                      (codec_info_nb_frames[i]-2)*(int64_t)st->time_base.den,
                       codec_info_duration[i]    *(int64_t)st->time_base.num, 60000);
@@ -2524,7 +2546,7 @@ int av_write_header(AVFormatContext *s)
                 av_log(s, AV_LOG_ERROR, "time base not set\n");
                 return -1;
             }
-            if(st->codec->width<=0 || st->codec->height<=0){
+            if((st->codec->width<=0 || st->codec->height<=0) && !(s->oformat->flags & AVFMT_NODIMENSIONS)){
                 av_log(s, AV_LOG_ERROR, "dimensions not set\n");
                 return -1;
             }
@@ -2719,13 +2741,9 @@ int ff_interleave_compare_dts(AVFormatContext *s, AVPacket *next, AVPacket *pkt)
 {
     AVStream *st = s->streams[ pkt ->stream_index];
     AVStream *st2= s->streams[ next->stream_index];
-    int64_t left = st2->time_base.num * (int64_t)st ->time_base.den;
-    int64_t right= st ->time_base.num * (int64_t)st2->time_base.den;
-
-    if (pkt->dts == AV_NOPTS_VALUE)
-        return 0;
-
-    return next->dts * left > pkt->dts * right; //FIXME this can overflow
+    int64_t a= st2->time_base.num * (int64_t)st ->time_base.den;
+    int64_t b= st ->time_base.num * (int64_t)st2->time_base.den;
+    return av_rescale_rnd(pkt->dts, b, a, AV_ROUND_DOWN) < next->dts;
 }
 
 int av_interleave_packet_per_dts(AVFormatContext *s, AVPacket *out, AVPacket *pkt, int flush){

@@ -107,9 +107,11 @@ Codecs:
   aacenc.* aaccoder.* aacpsy.*          Alex Converse
   ac3*                                  Justin Ruggles
   alacenc.c                             Jaikrishnan Menon
+  alsdec.c                              Thilo Borgmann
   apedec.c                              Kostya Shishkov
   asv*                                  Michael Niedermayer
   atrac3*                               Benjamin Larsson
+  bgmc.c, bgmc.h                        Thilo Borgmann
   bmp.c                                 Mans Rullgard, Kostya Shishkov
   cavs*                                 Stefan Gehrer
   celp_filters.*                        Vitor Sessak
@@ -136,7 +138,9 @@ Codecs:
   idcinvideo.c                          Mike Melanson
   imc*                                  Benjamin Larsson
   indeo2*                               Kostya Shishkov
+  indeo5*                               Kostya Shishkov
   interplayvideo.c                      Mike Melanson
+  ivi*                                  Kostya Shishkov
   jpeg_ls.c                             Kostya Shishkov
   kmvc.c                                Kostya Shishkov
   lcl*.c                                Roberto Togni, Reimar Doeffinger
@@ -205,6 +209,7 @@ Codecs:
   vqavideo.c                            Mike Melanson
   wavpack.c                             Kostya Shishkov
   wmaprodec.c                           Sascha Sommer
+  wmavoice.c                            Ronald S. Bultje
   wmv2.c                                Michael Niedermayer
   wnv1.c                                Kostya Shishkov
   xan.c                                 Mike Melanson
@@ -213,6 +218,7 @@ Codecs:
   zmbv*                                 Kostya Shishkov
 
 Hardware acceleration:
+  dxva2*                                Laurent Aimar
   vaapi*                                Gwenole Beauchesne
   vdpau*                                Carl Eugen Hoyos
 

@@ -25,10 +25,10 @@ $(SUBDIR)%$(EXESUF): $(SUBDIR)%.o
 	$(LD) $(FFLDFLAGS) -o $$@ $$^ -l$(FULLNAME) $(FFEXTRALIBS) $$(ELIBS)
 
 $(SUBDIR)%-test.o: $(SUBDIR)%.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -DTEST -c -o $$@ $$^
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DTEST -c $$(CC_O) $$^
 
 $(SUBDIR)%-test.o: $(SUBDIR)%-test.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -DTEST -c -o $$@ $$^
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DTEST -c $$(CC_O) $$^
 
 $(SUBDIR)x86/%.o: $(SUBDIR)x86/%.asm
 	$(YASM) $(YASMFLAGS) -I $$(<D)/ -M -o $$@ $$< > $$(@:.o=.d)
@@ -80,7 +80,22 @@ install-headers::
 	install -d "$(INCINSTDIR)"
 	install -d "$(LIBDIR)/pkgconfig"
 	install -m 644 $(addprefix "$(SRC_DIR)"/,$(HEADERS)) "$(INCINSTDIR)"
+ifdef BUILT_HEADERS
+	install -m 644 $(addprefix $(SUBDIR),$(BUILT_HEADERS)) "$(INCINSTDIR)"
+endif
 	install -m 644 $(BUILD_ROOT)/lib$(NAME)/lib$(NAME).pc "$(LIBDIR)/pkgconfig"
+
+uninstall-libs::
+	-rm -f "$(SHLIBDIR)/$(SLIBNAME_WITH_MAJOR)" \
+	       "$(SHLIBDIR)/$(SLIBNAME)"            \
+	       "$(SHLIBDIR)/$(SLIBNAME_WITH_VERSION)"
+	-$(SLIB_UNINSTALL_EXTRA_CMD)
+	-rm -f "$(LIBDIR)/$(LIBNAME)"
+
+uninstall-headers::
+	rm -f $(addprefix "$(INCINSTDIR)/",$(HEADERS))
+	rm -f "$(LIBDIR)/pkgconfig/lib$(NAME).pc"
+	-rmdir "$(INCDIR)"
 endef
 
 $(eval $(RULES))
