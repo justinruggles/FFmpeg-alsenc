@@ -144,12 +144,21 @@ static void block_partitioning(ALSEncContext *ctx)
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int b, c;
 
-    if (sconf->block_switching) {
+    if (sconf->block_switching && !(ctx->cur_frame_length & 1)) { // even number of samples only by now
 
         // maybe set a bs_info[c] in the context, but maybe
         // this should be generated when needed in bitstream assembly
         // because it should not be needed elsewhere in the encoder
         // if block[c][x].length is there
+
+        // hardcoded test for two blocks per frame:
+        for (c = 0; c < avctx->channels; c++) {
+            ctx->blocks[c][0].length = ctx->cur_frame_length / 2;
+            ctx->blocks[c][1].length = ctx->cur_frame_length - ctx->blocks[c][0].length;
+
+            for (b = 2; b < 32; b++)
+                ctx->blocks[c][b].length = 0;
+        }
 
     } else {
 
@@ -231,6 +240,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
                 put_sbits(pb, const_val_bits, block->constant_value);
         }
     } else {
+        int32_t *res_ptr;
+
         // js_block
         put_bits(pb, 1, block->js_block);
 
@@ -251,6 +262,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
 
         } else {
             put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), block->rice_param);
+
             for (i = 1; i < block->sub_blocks; i++) {
                 // write rice param per sub_block
             }
@@ -301,24 +313,29 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
         // write residuals
         // for now, all frames are RA frames, so use progressive prediction for
         // the first 3 residual samples, up to opt_order
+
+        res_ptr = ctx->res_samples[c] + b * block->length;
+
         start = 0;
-        if (block->opt_order > 0 && block->length > 0) {
-            if (set_sr_golomb_als(pb, ctx->res_samples[c][0], avctx->bits_per_raw_sample-4))
-                return -1;
-            start++;
-            if (block->opt_order > 1 && block->length > 1) {
-                if (set_sr_golomb_als(pb, ctx->res_samples[c][1], block->rice_param+3))
+        if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            if (block->opt_order > 0 && block->length > 0) {
+                if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
                     return -1;
                 start++;
-                if (block->opt_order > 2 && block->length > 2) {
-                    if (set_sr_golomb_als(pb, ctx->res_samples[c][2], block->rice_param+1))
+                if (block->opt_order > 1 && block->length > 1) {
+                    if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param+3))
                         return -1;
                     start++;
+                    if (block->opt_order > 2 && block->length > 2) {
+                        if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param+1))
+                            return -1;
+                        start++;
+                    }
                 }
             }
         }
         for (i = start; i < block->length; i++) {
-            if (set_sr_golomb_als(pb, ctx->res_samples[c][i], block->rice_param))
+            if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param))
                 return -1;
         }
     }
@@ -361,6 +378,17 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
     // write blocks
     if (!sconf->mc_coding || ctx->js_switch) {
         for (c = 0; c < avctx->channels; c++) {
+            if (sconf->block_switching) {
+                // hardcoded test for two blocks per frame
+                unsigned int bs_info_len = 1 << (sconf->block_switching + 2);
+                uint32_t bs_info = 1 << 30; // 0100000..0
+
+                if (bs_info_len == 32)
+                    put_bits32(&ctx->pb, bs_info);
+                else
+                    put_bits(&ctx->pb, bs_info_len, bs_info >> (32 - bs_info_len));
+            }
+
             for (b= 0; b < 32; b++) {
                 if (!ctx->blocks[c][b].length) // todo, see below
                     continue;
@@ -485,15 +513,18 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
 
         // first residual sample
-        res_ptr = ctx->res_samples[c] + b;
-        smp_ptr = ctx->raw_samples[c] + b;
-        *(res_ptr++) = *(smp_ptr++);
+        res_ptr = ctx->res_samples[c] + b * block->length;
+        smp_ptr = ctx->raw_samples[c] + b * block->length;
 
-        // progressive prediction
-        for (i = 1; i < block->opt_order; i++) {
-            // TODO: prediction orders > 1
+        i = 0;
+        if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            *(res_ptr++) = *(smp_ptr++);
+
+            // progressive prediction
+            for (i = 1; i < block->opt_order; i++) {
+                // TODO: prediction orders > 1
+            }
         }
-
         // remaining residual samples
         for (; i < block->length; i++) {
             int64_t y = 1 << 19;
@@ -566,7 +597,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     ctx->cur_frame_length = avctx->frame_size;
-
 
     // preprocessing
     deinterleave_raw_samples(ctx, data);
@@ -737,7 +767,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 0;
+    sconf->block_switching = 0; // set to 1 to test block-switching
+                                // with two blocks per frame
 
 
     // determine if BGMC mode is used
