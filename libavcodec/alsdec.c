@@ -370,24 +370,6 @@ static int32_t decode_rice(GetBitContext *gb, unsigned int k)
 }
 
 
-/** Converts PARCOR coefficient k to direct filter coefficient.
- */
-static void parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof)
-{
-    int i, j;
-
-    for (i = 0, j = k - 1; i < j; i++, j--) {
-        int tmp1 = ((MUL64(par[k], cof[j]) + (1 << 19)) >> 20);
-        cof[j]  += ((MUL64(par[k], cof[i]) + (1 << 19)) >> 20);
-        cof[i]  += tmp1;
-    }
-    if (i == j)
-        cof[i] += ((MUL64(par[k], cof[j]) + (1 << 19)) >> 20);
-
-    cof[k] = par[k];
-}
-
-
 /** Reads block switching field if necessary and sets actual block sizes.
  *  Also assures that the block sizes of the last frame correspond to the
  *  actual number of samples.
@@ -771,11 +753,11 @@ static int decode_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
                 y += MUL64(lpc_cof[sb], raw_samples[-(sb + 1)]);
 
             *raw_samples++ -= y >> 20;
-            parcor_to_lpc(smp, quant_cof, lpc_cof);
+            ff_als_parcor_to_lpc(smp, quant_cof, lpc_cof);
         }
     } else {
         for (k = 0; k < opt_order; k++)
-            parcor_to_lpc(k, quant_cof, lpc_cof);
+            ff_als_parcor_to_lpc(k, quant_cof, lpc_cof);
 
         // store previous samples in case that they have to be altered
         if (bd->store_prev_samples)

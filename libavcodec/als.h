@@ -63,4 +63,10 @@ typedef struct {
     int *chan_pos;            ///< original channel positions
 } ALSSpecificConfig;
 
+
+/**
+ * Converts PARCOR coefficient k to direct filter coefficient.
+ */
+void ff_als_parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof);
+
 #endif /* AVCODEC_ALS_H */
