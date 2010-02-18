@@ -509,41 +509,47 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
         // calculate PARCOR coefficients
         // TODO: use more complex algorithms to determine coeffs and order
-        block->q_parcor_index[0] = -64;
-        block->q_parcor_coeff[0] = ff_als_parcor_scaled_values[block->q_parcor_index[0]+64] << 5;
+        block->q_parcor_index[0] = -56;
+        block->q_parcor_index[1] = -24;
+        block->q_parcor_index[2] = -13;
+        block->q_parcor_index[3] =  12;
+        block->q_parcor_index[4] = -21;
+        block->q_parcor_index[5] =  15;
+        block->q_parcor_coeff[0] =  32 * ff_als_parcor_scaled_values[block->q_parcor_index[0] + 64];
+        block->q_parcor_coeff[1] = -32 * ff_als_parcor_scaled_values[block->q_parcor_index[1] + 64];
+        for (i = 2; i < block->opt_order; i++)
+            block->q_parcor_coeff[i] = (block->q_parcor_index[i] << 14) + (1 << 13);
 
 
-        // convert PARCOR to LPC
-        // TODO: the actual formula is way more complicated for order > 1
-        block->q_lpc_coeff[0] = block->q_parcor_coeff[0];
+#define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
+{\
+    int64_t y = 1 << 19;\
+    for (j = 1; j <= order; j++)\
+        y += (int64_t)lpc[j-1] * (smp_ptr)[-j];\
+    y = *(smp_ptr++) + (y >> 20);\
+    if (y < INT32_MIN || y > INT32_MAX)\
+        av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
+    *(res_ptr++) = y;\
+}
 
-
-        // first residual sample
         res_ptr = ctx->res_samples[c] + b * block->length;
         smp_ptr = ctx->raw_samples[c] + b * block->length;
 
         i = 0;
         if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            // copy first residual sample verbatim
             *(res_ptr++) = *(smp_ptr++);
 
             // progressive prediction
+            ff_als_parcor_to_lpc(0, block->q_parcor_coeff, block->q_lpc_coeff);
             for (i = 1; i < block->opt_order; i++) {
-                // TODO: prediction orders > 1
+                LPC_PREDICT_SAMPLE(block->q_lpc_coeff, smp_ptr, res_ptr, i);
+                ff_als_parcor_to_lpc(i, block->q_parcor_coeff, block->q_lpc_coeff);
             }
         }
         // remaining residual samples
         for (; i < block->length; i++) {
-            int64_t y = 1 << 19;
-            for (j = 1; j <= block->opt_order; j++)
-                y += (int64_t)block->q_lpc_coeff[0] * smp_ptr[-j];
-            y = *(smp_ptr++) + (y >> 20);
-            if (y < INT32_MIN || y > INT32_MAX) {
-                // TODO: fallback to a simpler filter and try again.
-                //       if all else fails, disable prediction and hope that
-                //       the frame will fit in the output buffer.
-                av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");
-            }
-            *(res_ptr++) = (int32_t)y;
+            LPC_PREDICT_SAMPLE(block->q_lpc_coeff, smp_ptr, res_ptr, block->opt_order);
         }
     } else {
         memcpy(ctx->res_samples[c] + b, ctx->raw_samples[c] + b,
@@ -762,9 +768,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // TODO: do evaluation to find a suitable standard value?
     //       if adapt_order is set and compression level is high,
     //       use maximum value to be able to find the best order
-    //
-    // while stp is not implemented, set to 0
-    sconf->max_order = 1;
+    sconf->max_order = 6;
 
 
     // determine if block-switching is used
