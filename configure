@@ -1035,6 +1035,8 @@ HAVE_LIST="
     libdc1394_1
     libdc1394_2
     llrint
+    local_aligned_16
+    local_aligned_8
     log2
     log2f
     loongson
@@ -1129,6 +1131,7 @@ CMDLINE_SET="
     malloc_prefix
     nm
     source_path
+    strip
     sysinclude
     sysroot
     target_exec
@@ -1422,7 +1425,7 @@ ln_s="ln -sf"
 nm_default="nm"
 objformat="elf"
 ranlib="ranlib"
-strip="strip"
+strip_default="strip"
 yasmexe="yasm"
 
 nm_opts='-g'
@@ -1618,11 +1621,11 @@ ar="${cross_prefix}${ar}"
 cc_default="${cross_prefix}${cc_default}"
 nm_default="${cross_prefix}${nm_default}"
 ranlib="${cross_prefix}${ranlib}"
-strip="${cross_prefix}${strip}"
+strip_default="${cross_prefix}${strip_default}"
 
 sysinclude_default="${sysroot}/usr/include"
 
-set_default cc nm sysinclude
+set_default cc nm strip sysinclude
 enabled cross_compile || host_cc_default=$cc
 set_default host_cc
 
@@ -2386,6 +2389,8 @@ elif enabled mips; then
 
 elif enabled ppc; then
 
+    enable local_aligned_8 local_aligned_16
+
     check_asm dcbzl     '"dcbzl 0, 1"'
     check_asm ppc4xx    '"maclhw r10, r11, r12"'
     check_asm xform_asm '"lwzx %1, %y0" :: "Z"(*(int*)0), "r"(0)'
@@ -2419,6 +2424,8 @@ elif enabled sparc; then
         add_cflags -mcpu=ultrasparc -mtune=ultrasparc
 
 elif enabled x86; then
+
+    enable local_aligned_8 local_aligned_16
 
     # check whether EBP is available on x86
     # As 'i' is stored on the stack, this program will crash
@@ -2708,7 +2715,7 @@ if enabled icc; then
     # 144, 167, 556: -Wno-pointer-sign
     # 10006: ignoring unknown option -fno-signed-zeros
     # 10156: ignoring option '-W'; no argument required
-    check_cflags -wd144,167,556,10006,10156
+    check_cflags -wd144,167,556,1292,10006,10156
     # 11030: Warning unknown option --as-needed
     # 10156: ignoring option '-export'; no argument required
     check_ldflags -wd10156,11030

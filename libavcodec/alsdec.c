@@ -104,6 +104,7 @@ typedef struct {
     unsigned int frame_id;          ///< the frame ID / number of the current frame
     unsigned int js_switch;         ///< if true, joint-stereo decoding is enforced
     unsigned int num_blocks;        ///< number of blocks used in the current frame
+    unsigned int s_max;             ///< maximum Rice parameter allowed in entropy coding
     uint8_t *bgmc_lut;              ///< pointer at lookup tables used for BGMC
     unsigned int *bgmc_lut_status;  ///< pointer at lookup table status flags used for BGMC
     int ltp_lag_length;             ///< number of bits used for ltp lag value
@@ -597,10 +598,14 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
         *bd->use_ltp = get_bits1(gb);
 
         if (*bd->use_ltp) {
+            int r, c;
+
             bd->ltp_gain[0]   = decode_rice(gb, 1) << 3;
             bd->ltp_gain[1]   = decode_rice(gb, 2) << 3;
 
-            bd->ltp_gain[2]   = ltp_gain_values[get_unary(gb, 0, 4)][get_bits(gb, 2)];
+            r                 = get_unary(gb, 0, 4);
+            c                 = get_bits(gb, 2);
+            bd->ltp_gain[2]   = ltp_gain_values[r][c];
 
             bd->ltp_gain[3]   = decode_rice(gb, 2) << 3;
             bd->ltp_gain[4]   = decode_rice(gb, 1) << 3;
@@ -615,9 +620,9 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
         if (opt_order)
             bd->raw_samples[0] = decode_rice(gb, avctx->bits_per_raw_sample - 4);
         if (opt_order > 1)
-            bd->raw_samples[1] = decode_rice(gb, s[0] + 3);
+            bd->raw_samples[1] = decode_rice(gb, FFMIN(s[0] + 3, ctx->s_max));
         if (opt_order > 2)
-            bd->raw_samples[2] = decode_rice(gb, s[0] + 1);
+            bd->raw_samples[2] = decode_rice(gb, FFMIN(s[0] + 1, ctx->s_max));
 
         start = FFMIN(opt_order, 3);
     }
@@ -1403,6 +1408,11 @@ static av_cold int decode_init(AVCodecContext *avctx)
         avctx->bits_per_raw_sample = (sconf->resolution + 1) * 8;
     }
 
+    // set maximum Rice parameter for progressive decoding based on resolution
+    // This is not specified in 14496-3 but actually done by the reference
+    // codec RM22 revision 2.
+    ctx->s_max = sconf->resolution > 1 ? 31 : 15;
+
     // set lag value for long-term prediction
     ctx->ltp_lag_length = 8 + (avctx->sample_rate >=  96000) +
                               (avctx->sample_rate >= 192000);
@@ -1452,8 +1462,8 @@ static av_cold int decode_init(AVCodecContext *avctx)
     // allocate and assign channel data buffer for mcc mode
     if (sconf->mc_coding) {
         ctx->chan_data_buffer  = av_malloc(sizeof(*ctx->chan_data_buffer) *
-                                           num_buffers);
-        ctx->chan_data         = av_malloc(sizeof(ALSChannelData) *
+                                           num_buffers * num_buffers);
+        ctx->chan_data         = av_malloc(sizeof(*ctx->chan_data) *
                                            num_buffers);
         ctx->reverted_channels = av_malloc(sizeof(*ctx->reverted_channels) *
                                            num_buffers);
@@ -1465,7 +1475,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
         }
 
         for (c = 0; c < num_buffers; c++)
-            ctx->chan_data[c] = ctx->chan_data_buffer + c;
+            ctx->chan_data[c] = ctx->chan_data_buffer + c * num_buffers;
     } else {
         ctx->chan_data         = NULL;
         ctx->chan_data_buffer  = NULL;

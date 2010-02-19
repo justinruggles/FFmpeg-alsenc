@@ -79,8 +79,6 @@ static int rtcp_parse_packet(RTPDemuxContext *s, const unsigned char *buf, int l
     if (buf[1] != 200)
         return -1;
     s->last_rtcp_ntp_time = AV_RB64(buf + 8);
-    if (s->first_rtcp_ntp_time == AV_NOPTS_VALUE)
-        s->first_rtcp_ntp_time = s->last_rtcp_ntp_time;
     s->last_rtcp_timestamp = AV_RB32(buf + 16);
     return 0;
 }
@@ -273,6 +271,45 @@ int rtp_check_and_send_back_rr(RTPDemuxContext *s, int count)
     return 0;
 }
 
+void rtp_send_punch_packets(URLContext* rtp_handle)
+{
+    ByteIOContext *pb;
+    uint8_t *buf;
+    int len;
+
+    /* Send a small RTP packet */
+    if (url_open_dyn_buf(&pb) < 0)
+        return;
+
+    put_byte(pb, (RTP_VERSION << 6));
+    put_byte(pb, 0); /* Payload type */
+    put_be16(pb, 0); /* Seq */
+    put_be32(pb, 0); /* Timestamp */
+    put_be32(pb, 0); /* SSRC */
+
+    put_flush_packet(pb);
+    len = url_close_dyn_buf(pb, &buf);
+    if ((len > 0) && buf)
+        url_write(rtp_handle, buf, len);
+    av_free(buf);
+
+    /* Send a minimal RTCP RR */
+    if (url_open_dyn_buf(&pb) < 0)
+        return;
+
+    put_byte(pb, (RTP_VERSION << 6));
+    put_byte(pb, 201); /* receiver report */
+    put_be16(pb, 1); /* length in words - 1 */
+    put_be32(pb, 0); /* our own SSRC */
+
+    put_flush_packet(pb);
+    len = url_close_dyn_buf(pb, &buf);
+    if ((len > 0) && buf)
+        url_write(rtp_handle, buf, len);
+    av_free(buf);
+}
+
+
 /**
  * open a new RTP parse context for stream 'st'. 'st' can be NULL for
  * MPEG2TS streams to indicate that they should be demuxed inside the
@@ -288,7 +325,6 @@ RTPDemuxContext *rtp_parse_open(AVFormatContext *s1, AVStream *st, URLContext *r
         return NULL;
     s->payload_type = payload_type;
     s->last_rtcp_ntp_time = AV_NOPTS_VALUE;
-    s->first_rtcp_ntp_time = AV_NOPTS_VALUE;
     s->ic = s1;
     s->st = st;
     s->rtp_payload_data = rtp_payload_data;
@@ -392,7 +428,7 @@ static void finalize_packet(RTPDemuxContext *s, AVPacket *pkt, uint32_t timestam
         /* compute pts from timestamp with received ntp_time */
         delta_timestamp = timestamp - s->last_rtcp_timestamp;
         /* convert to the PTS timebase */
-        addend = av_rescale(s->last_rtcp_ntp_time - s->first_rtcp_ntp_time, s->st->time_base.den, (uint64_t)s->st->time_base.num << 32);
+        addend = av_rescale(s->last_rtcp_ntp_time, s->st->time_base.den, (uint64_t)s->st->time_base.num << 32);
         pkt->pts = addend + delta_timestamp;
     }
 }

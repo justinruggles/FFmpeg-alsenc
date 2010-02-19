@@ -107,6 +107,8 @@ static VLC vlc_spectral[11];
 
 static uint32_t cbrt_tab[1<<13];
 
+static const char overread_err[] = "Input buffer exhausted before END element found\n";
+
 static ChannelElement *get_che(AACContext *ac, int type, int elem_id)
 {
     if (ac->tag_che_map[type][elem_id]) {
@@ -169,7 +171,7 @@ static ChannelElement *get_che(AACContext *ac, int type, int elem_id)
  *
  * @return  Returns error status. 0 - OK, !0 - error
  */
-static int che_configure(AACContext *ac,
+static av_cold int che_configure(AACContext *ac,
                          enum ChannelPosition che_pos[4][MAX_ELEM_ID],
                          int type, int id,
                          int *channels)
@@ -196,7 +198,7 @@ static int che_configure(AACContext *ac,
  *
  * @return  Returns error status. 0 - OK, !0 - error
  */
-static int output_configure(AACContext *ac,
+static av_cold int output_configure(AACContext *ac,
                             enum ChannelPosition che_pos[4][MAX_ELEM_ID],
                             enum ChannelPosition new_che_pos[4][MAX_ELEM_ID],
                             int channel_config, enum OCStatus oc_type)
@@ -278,6 +280,7 @@ static int decode_pce(AACContext *ac, enum ChannelPosition new_che_pos[4][MAX_EL
                       GetBitContext *gb)
 {
     int num_front, num_side, num_back, num_lfe, num_assoc_data, num_cc, sampling_index;
+    int comment_len;
 
     skip_bits(gb, 2);  // object_type
 
@@ -312,7 +315,12 @@ static int decode_pce(AACContext *ac, enum ChannelPosition new_che_pos[4][MAX_EL
     align_get_bits(gb);
 
     /* comment field, first byte is length */
-    skip_bits_long(gb, 8 * get_bits(gb, 8));
+    comment_len = get_bits(gb, 8) * 8;
+    if (get_bits_left(gb) < comment_len) {
+        av_log(ac->avccontext, AV_LOG_ERROR, overread_err);
+        return -1;
+    }
+    skip_bits_long(gb, comment_len);
     return 0;
 }
 
@@ -324,7 +332,7 @@ static int decode_pce(AACContext *ac, enum ChannelPosition new_che_pos[4][MAX_EL
  *
  * @return  Returns error status. 0 - OK, !0 - error
  */
-static int set_default_channel_config(AACContext *ac,
+static av_cold int set_default_channel_config(AACContext *ac,
                                       enum ChannelPosition new_che_pos[4][MAX_ELEM_ID],
                                       int channel_config)
 {
@@ -574,7 +582,7 @@ static av_cold int aac_decode_init(AVCodecContext *avccontext)
 /**
  * Skip data_stream_element; reference: table 4.10.
  */
-static void skip_data_stream_element(GetBitContext *gb)
+static int skip_data_stream_element(AACContext *ac, GetBitContext *gb)
 {
     int byte_align = get_bits1(gb);
     int count = get_bits(gb, 8);
@@ -582,7 +590,13 @@ static void skip_data_stream_element(GetBitContext *gb)
         count += get_bits(gb, 8);
     if (byte_align)
         align_get_bits(gb);
+
+    if (get_bits_left(gb) < 8 * count) {
+        av_log(ac->avccontext, AV_LOG_ERROR, overread_err);
+        return -1;
+    }
     skip_bits_long(gb, 8 * count);
+    return 0;
 }
 
 static int decode_prediction(AACContext *ac, IndividualChannelStream *ics,
@@ -1972,8 +1986,7 @@ static int aac_decode_frame(AVCodecContext *avccontext, void *data,
             break;
 
         case TYPE_DSE:
-            skip_data_stream_element(&gb);
-            err = 0;
+            err = skip_data_stream_element(ac, &gb);
             break;
 
         case TYPE_PCE: {
@@ -1992,6 +2005,10 @@ static int aac_decode_frame(AVCodecContext *avccontext, void *data,
         case TYPE_FIL:
             if (elem_id == 15)
                 elem_id += get_bits(&gb, 8) - 1;
+            if (get_bits_left(&gb) < 8 * elem_id) {
+                    av_log(avccontext, AV_LOG_ERROR, overread_err);
+                    return -1;
+            }
             while (elem_id > 0)
                 elem_id -= decode_extension_payload(ac, &gb, elem_id);
             err = 0; /* FIXME */
@@ -2004,6 +2021,11 @@ static int aac_decode_frame(AVCodecContext *avccontext, void *data,
 
         if (err)
             return err;
+
+        if (get_bits_left(&gb) < 3) {
+            av_log(avccontext, AV_LOG_ERROR, overread_err);
+            return -1;
+        }
     }
 
     spectral_to_sample(ac);

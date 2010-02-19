@@ -158,7 +158,7 @@ typedef struct RTSPMessageHeader {
  */
 enum RTSPClientState {
     RTSP_STATE_IDLE,    /**< not initialized */
-    RTSP_STATE_PLAYING, /**< initialized and receiving data */
+    RTSP_STATE_STREAMING, /**< initialized and sending/receiving data */
     RTSP_STATE_PAUSED,  /**< initialized, but not receiving data */
     RTSP_STATE_SEEKING, /**< initialized, requesting a seek */
 };
@@ -315,7 +315,6 @@ typedef struct RTSPStream {
     //@}
 } RTSPStream;
 
-int rtsp_init(void);
 void rtsp_parse_line(RTSPMessageHeader *reply, const char *buf);
 
 #if LIBAVFORMAT_VERSION_INT < (53 << 16)

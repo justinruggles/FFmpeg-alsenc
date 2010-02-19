@@ -932,7 +932,10 @@ static int rtsp_read_reply(AVFormatContext *s, RTSPMessageHeader *reply,
     return 0;
 }
 
-static void rtsp_send_cmd_async(AVFormatContext *s, const char *cmd)
+static void rtsp_send_cmd_with_content_async(AVFormatContext *s,
+                                             const char *cmd,
+                                             const unsigned char *send_content,
+                                             int send_content_length)
 {
     RTSPState *rt = s->priv_data;
     char buf[4096], buf1[1024];
@@ -949,12 +952,21 @@ static void rtsp_send_cmd_async(AVFormatContext *s, const char *cmd)
         av_strlcatf(buf, sizeof(buf),
                     "Authorization: Basic %s\r\n",
                     rt->auth_b64);
+    if (send_content_length > 0 && send_content)
+        av_strlcatf(buf, sizeof(buf), "Content-Length: %d\r\n", send_content_length);
     av_strlcat(buf, "\r\n", sizeof(buf));
 
     dprintf(s, "Sending:\n%s--\n", buf);
 
     url_write(rt->rtsp_hd, buf, strlen(buf));
+    if (send_content_length > 0 && send_content)
+        url_write(rt->rtsp_hd, send_content, send_content_length);
     rt->last_cmd_time = av_gettime();
+}
+
+static void rtsp_send_cmd_async(AVFormatContext *s, const char *cmd)
+{
+    rtsp_send_cmd_with_content_async(s, cmd, NULL, 0);
 }
 
 static void rtsp_send_cmd(AVFormatContext *s,
@@ -962,6 +974,18 @@ static void rtsp_send_cmd(AVFormatContext *s,
                           unsigned char **content_ptr)
 {
     rtsp_send_cmd_async(s, cmd);
+
+    rtsp_read_reply(s, reply, content_ptr, 0);
+}
+
+static void rtsp_send_cmd_with_content(AVFormatContext *s,
+                                       const char *cmd,
+                                       RTSPMessageHeader *reply,
+                                       unsigned char **content_ptr,
+                                       const unsigned char *send_content,
+                                       int send_content_length)
+{
+    rtsp_send_cmd_with_content_async(s, cmd, send_content, send_content_length);
 
     rtsp_read_reply(s, reply, content_ptr, 0);
 }
@@ -1146,6 +1170,12 @@ static int make_setup_request(AVFormatContext *s, const char *host, int port,
                 err = AVERROR_INVALIDDATA;
                 goto fail;
             }
+            /* Try to initialize the connection state in a
+             * potential NAT router by sending dummy packets.
+             * RTP/RTCP dummy packets are used for RDT, too.
+             */
+            if (!(rt->server_type == RTSP_SERVER_WMS && i > 1))
+                rtp_send_punch_packets(rtsp_st->rtp_handle);
             break;
         }
         case RTSP_LOWER_TRANSPORT_UDP_MULTICAST: {
@@ -1219,7 +1249,7 @@ static int rtsp_read_play(AVFormatContext *s)
             return -1;
         }
     }
-    rt->state = RTSP_STATE_PLAYING;
+    rt->state = RTSP_STATE_STREAMING;
     return 0;
 }
 
@@ -1458,7 +1488,7 @@ static int udp_read_packet(AVFormatContext *s, RTSPStream **prtsp_st,
 
                 rtsp_read_reply(s, &reply, NULL, 0);
                 /* XXX: parse message */
-                if (rt->state != RTSP_STATE_PLAYING)
+                if (rt->state != RTSP_STATE_STREAMING)
                     return 0;
             }
 #endif
@@ -1486,7 +1516,7 @@ redo:
         if (ret == 1) /* received '$' */
             break;
         /* XXX: parse message */
-        if (rt->state != RTSP_STATE_PLAYING)
+        if (rt->state != RTSP_STATE_STREAMING)
             return 0;
     }
     ret = url_read_complete(rt->rtsp_hd, buf, 3);
@@ -1637,7 +1667,7 @@ static int rtsp_read_packet(AVFormatContext *s, AVPacket *pkt)
                 return AVERROR_INVALIDDATA;
             rt->need_subscription = 0;
 
-            if (rt->state == RTSP_STATE_PLAYING)
+            if (rt->state == RTSP_STATE_STREAMING)
                 rtsp_read_play (s);
         }
     }
@@ -1672,7 +1702,7 @@ static int rtsp_read_pause(AVFormatContext *s)
 
     rt = s->priv_data;
 
-    if (rt->state != RTSP_STATE_PLAYING)
+    if (rt->state != RTSP_STATE_STREAMING)
         return 0;
     else if (!(rt->server_type == RTSP_SERVER_REAL && rt->need_subscription)) {
         snprintf(cmd, sizeof(cmd),
@@ -1699,7 +1729,7 @@ static int rtsp_read_seek(AVFormatContext *s, int stream_index,
     default:
     case RTSP_STATE_IDLE:
         break;
-    case RTSP_STATE_PLAYING:
+    case RTSP_STATE_STREAMING:
         if (rtsp_read_pause(s) != 0)
             return -1;
         rt->state = RTSP_STATE_SEEKING;

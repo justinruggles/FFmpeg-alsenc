@@ -50,7 +50,7 @@ OBJS-$(CONFIG_AC3_DECODER)             += ac3dec.o ac3dec_data.o ac3.o
 OBJS-$(CONFIG_AC3_ENCODER)             += ac3enc.o ac3tab.o ac3.o
 OBJS-$(CONFIG_ALAC_DECODER)            += alac.o
 OBJS-$(CONFIG_ALAC_ENCODER)            += alacenc.o
-OBJS-$(CONFIG_ALS_DECODER)             += alsdec.o als_data.o als.o bgmc.o
+OBJS-$(CONFIG_ALS_DECODER)             += alsdec.o als_data.o als.o bgmc.o mpeg4audio.o
 OBJS-$(CONFIG_ALS_ENCODER)             += alsenc.o als_data.o
 OBJS-$(CONFIG_AMV_DECODER)             += sp5xdec.o mjpegdec.o mjpeg.o
 OBJS-$(CONFIG_ANM_DECODER)             += anm.o
@@ -212,11 +212,11 @@ OBJS-$(CONFIG_MPEG2VIDEO_ENCODER)      += mpeg12enc.o mpegvideo_enc.o \
                                           mpegvideo.o error_resilience.o
 OBJS-$(CONFIG_MPEG4_VAAPI_HWACCEL)     += vaapi_mpeg4.o
 OBJS-$(CONFIG_MSMPEG4V1_DECODER)       += msmpeg4.o msmpeg4data.o
-OBJS-$(CONFIG_MSMPEG4V1_ENCODER)       += msmpeg4.o msmpeg4data.o
-OBJS-$(CONFIG_MSMPEG4V2_DECODER)       += msmpeg4.o msmpeg4data.o
-OBJS-$(CONFIG_MSMPEG4V2_ENCODER)       += msmpeg4.o msmpeg4data.o
-OBJS-$(CONFIG_MSMPEG4V3_DECODER)       += msmpeg4.o msmpeg4data.o
-OBJS-$(CONFIG_MSMPEG4V3_ENCODER)       += msmpeg4.o msmpeg4data.o
+OBJS-$(CONFIG_MSMPEG4V1_ENCODER)       += msmpeg4.o msmpeg4data.o h263dec.o h263.o ituh263dec.o mpeg4videodec.o
+OBJS-$(CONFIG_MSMPEG4V2_DECODER)       += msmpeg4.o msmpeg4data.o h263dec.o h263.o ituh263dec.o mpeg4videodec.o
+OBJS-$(CONFIG_MSMPEG4V2_ENCODER)       += msmpeg4.o msmpeg4data.o h263dec.o h263.o ituh263dec.o mpeg4videodec.o
+OBJS-$(CONFIG_MSMPEG4V3_DECODER)       += msmpeg4.o msmpeg4data.o h263dec.o h263.o ituh263dec.o mpeg4videodec.o
+OBJS-$(CONFIG_MSMPEG4V3_ENCODER)       += msmpeg4.o msmpeg4data.o h263dec.o h263.o ituh263dec.o mpeg4videodec.o
 OBJS-$(CONFIG_MSRLE_DECODER)           += msrle.o msrledec.o
 OBJS-$(CONFIG_MSVIDEO1_DECODER)        += msvideo1.o
 OBJS-$(CONFIG_MSZH_DECODER)            += lcldec.o
@@ -311,7 +311,7 @@ OBJS-$(CONFIG_TRUEMOTION2_DECODER)     += truemotion2.o
 OBJS-$(CONFIG_TRUESPEECH_DECODER)      += truespeech.o
 OBJS-$(CONFIG_TSCC_DECODER)            += tscc.o msrledec.o
 OBJS-$(CONFIG_TTA_DECODER)             += tta.o
-OBJS-$(CONFIG_TWINVQ_DECODER)          += twinvq.o
+OBJS-$(CONFIG_TWINVQ_DECODER)          += twinvq.o lsp.o
 OBJS-$(CONFIG_TXD_DECODER)             += txd.o s3tc.o
 OBJS-$(CONFIG_ULTI_DECODER)            += ulti.o
 OBJS-$(CONFIG_V210_DECODER)            += v210dec.o
@@ -340,13 +340,15 @@ OBJS-$(CONFIG_VP6_DECODER)             += vp6.o vp56.o vp56data.o \
 OBJS-$(CONFIG_VQA_DECODER)             += vqavideo.o
 OBJS-$(CONFIG_WAVPACK_DECODER)         += wavpack.o
 OBJS-$(CONFIG_WMAPRO_DECODER)          += wmaprodec.o wma.o
-OBJS-$(CONFIG_WMAV1_DECODER)           += wmadec.o wma.o
-OBJS-$(CONFIG_WMAV1_ENCODER)           += wmaenc.o wma.o
-OBJS-$(CONFIG_WMAV2_DECODER)           += wmadec.o wma.o
-OBJS-$(CONFIG_WMAV2_ENCODER)           += wmaenc.o wma.o
+OBJS-$(CONFIG_WMAV1_DECODER)           += wmadec.o wma.o aactab.o
+OBJS-$(CONFIG_WMAV1_ENCODER)           += wmaenc.o wma.o aactab.o
+OBJS-$(CONFIG_WMAV2_DECODER)           += wmadec.o wma.o aactab.o
+OBJS-$(CONFIG_WMAV2_ENCODER)           += wmaenc.o wma.o aactab.o
 OBJS-$(CONFIG_WMAVOICE_DECODER)        += wmavoice.o \
                                           celp_math.o celp_filters.o \
-                                          acelp_vectors.o acelp_filters.o
+                                          acelp_vectors.o acelp_filters.o \
+                                          lsp.o
+OBJS-$(CONFIG_WMV1_DECODER)            += msmpeg4.o msmpeg4data.o
 OBJS-$(CONFIG_WMV2_DECODER)            += wmv2dec.o wmv2.o        \
                                           msmpeg4.o msmpeg4data.o \
                                           intrax8.o intrax8dsp.o
@@ -453,6 +455,7 @@ OBJS-$(CONFIG_ADPCM_YAMAHA_ENCODER)       += adpcm.o
 
 # libavformat dependencies
 OBJS-$(CONFIG_ADTS_MUXER)              += mpeg4audio.o
+OBJS-$(CONFIG_CAF_DEMUXER)             += mpeg4audio.o mpegaudiodata.o
 OBJS-$(CONFIG_DV_DEMUXER)              += dvdata.o
 OBJS-$(CONFIG_DV_MUXER)                += dvdata.o
 OBJS-$(CONFIG_FLAC_DEMUXER)            += flacdec.o flacdata.o flac.o
