@@ -547,9 +547,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
                 ff_als_parcor_to_lpc(i, block->q_parcor_coeff, block->q_lpc_coeff);
             }
         } else {
-            for (i = 0; i < block->opt_order; i++)
-                ff_als_parcor_to_lpc(i, block->q_parcor_coeff, block->q_lpc_coeff);
-            i = 0;
+            for (j = 0; j < block->opt_order; j++)
+                ff_als_parcor_to_lpc(j, block->q_parcor_coeff, block->q_lpc_coeff);
         }
         // remaining residual samples
         for (; i < block->length; i++) {
