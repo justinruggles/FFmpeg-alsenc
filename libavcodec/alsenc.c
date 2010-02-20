@@ -156,8 +156,8 @@ static void block_partitioning(ALSEncContext *ctx)
 
         // hardcoded test for two blocks per frame:
         for (c = 0; c < avctx->channels; c++) {
-            ctx->blocks[c][0].length = ctx->cur_frame_length / 2;
-            ctx->blocks[c][1].length = ctx->cur_frame_length - ctx->blocks[c][0].length;
+            ctx->blocks[c][0].length = FFMIN(ctx->cur_frame_length, sconf->frame_length / 2);
+            ctx->blocks[c][1].length = FFMAX(0, (int)ctx->cur_frame_length - (int)ctx->blocks[c][0].length);
 
             for (b = 2; b < 32; b++)
                 ctx->blocks[c][b].length = 0;
