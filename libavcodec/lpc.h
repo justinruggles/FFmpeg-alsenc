@@ -32,6 +32,12 @@
 #define ORDER_METHOD_SEARCH  4
 #define ORDER_METHOD_LOG     5
 
+#define LPC_TYPE_DEFAULT   -1
+#define LPC_TYPE_NONE       0
+#define LPC_TYPE_FIXED      1
+#define LPC_TYPE_LEVINSON   2
+#define LPC_TYPE_CHOLESKY   3
+
 #define MIN_LPC_ORDER        1
 #define MAX_LPC_ORDER       32
 
@@ -42,8 +48,9 @@
 int ff_lpc_calc_coefs(DSPContext *s,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
-                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int use_lpc,
-                      int omethod, int max_shift, int zero_shift);
+                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
+                      int lpc_passes, int omethod, int max_shift,
+                      int zero_shift);
 
 #ifdef LPC_USE_DOUBLE
 #define LPC_TYPE double

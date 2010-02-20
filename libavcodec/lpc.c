@@ -157,16 +157,19 @@ static int estimate_best_order(double *ref, int min_order, int max_order)
 /**
  * Calculate LPC coefficients for multiple orders
  *
- * @param use_lpc LPC method for determining coefficients
- * 0  = LPC with fixed pre-defined coeffs
- * 1  = LPC with coeffs determined by Levinson-Durbin recursion
- * 2+ = LPC with coeffs determined by Cholesky factorization using (use_lpc-1) passes.
+ * @param lpc_type LPC method for determining coefficients
+ * 0  = None
+ * 1  = LPC with fixed pre-defined coeffs
+ * 2  = LPC with coeffs determined by Levinson-Durbin recursion
+ * 3  = LPC with coeffs determined by Cholesky factorization
+ * @param lpc_passes Number of passes to use for Cholesky factorization
  */
 int ff_lpc_calc_coefs(DSPContext *s,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
-                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int use_lpc,
-                      int omethod, int max_shift, int zero_shift)
+                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
+                      int lpc_passes, int omethod, int max_shift,
+                      int zero_shift)
 {
     double autoc[MAX_LPC_ORDER+1];
     double ref[MAX_LPC_ORDER];
@@ -174,20 +177,22 @@ int ff_lpc_calc_coefs(DSPContext *s,
     int i, j, pass;
     int opt_order;
 
-    assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER && use_lpc > 0);
+    assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
+           lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
 
-    if(use_lpc == 1){
+    if (lpc_type == LPC_TYPE_LEVINSON) {
         s->lpc_compute_autocorr(samples, blocksize, max_order, autoc);
 
         compute_lpc_coefs(autoc, max_order, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
 
         for(i=0; i<max_order; i++)
             ref[i] = fabs(lpc[i][i]);
-    }else{
+    } else if (lpc_type == LPC_TYPE_CHOLESKY) {
         LLSModel m[2];
         double var[MAX_LPC_ORDER+1], av_uninit(weight);
 
-        for(pass=0; pass<use_lpc-1; pass++){
+        assert(lpc_passes > 0);
+        for(pass=0; pass<lpc_passes; pass++){
             av_init_lls(&m[pass&1], max_order);
 
             weight=0;
