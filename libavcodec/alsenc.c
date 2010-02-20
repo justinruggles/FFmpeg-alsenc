@@ -29,7 +29,7 @@
 
 
 #define DEBUG
-int show = 0;
+
 
 #include "als.h"
 #include "als_data.h"
@@ -524,16 +524,12 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
     int64_t y = 1 << 19;\
-if(show == 5) dprintf(ctx->avctx, "c %i b %i, smp[0]: %i + [%li", c,b, *smp_ptr, y);\
-    for (j = 1; j <= order; j++) {\
+    for (j = 1; j <= order; j++)\
         y += (int64_t)lpc[j-1] * (smp_ptr)[-j];\
-if(show == 5) dprintf(ctx->avctx, " += (%i * %i)", lpc[j-1], (smp_ptr)[-j]);} \
-if(show == 5) dprintf(ctx->avctx, " >> 20 = %i]", (y >> 20)); \
     y = *(smp_ptr++) + (y >> 20);\
     if (y < INT32_MIN || y > INT32_MAX)\
         av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
     *(res_ptr++) = y;\
-if(show == 5) dprintf(ctx->avctx, " = %i\n", y); \
 }
 
         res_ptr = ctx->res_samples[c] + b * block->length;
@@ -550,12 +546,11 @@ if(show == 5) dprintf(ctx->avctx, " = %i\n", y); \
                 LPC_PREDICT_SAMPLE(block->q_lpc_coeff, smp_ptr, res_ptr, i);
                 ff_als_parcor_to_lpc(i, block->q_parcor_coeff, block->q_lpc_coeff);
             }
+        } else {
+            for (i = 0; i < block->opt_order; i++)
+                ff_als_parcor_to_lpc(i, block->q_parcor_coeff, block->q_lpc_coeff);
+            i = 0;
         }
-else {
-    for (i = 0; i < block->opt_order; i++)
-        ff_als_parcor_to_lpc(i, block->q_parcor_coeff, block->q_lpc_coeff);
-    i = 0;
-}
         // remaining residual samples
         for (; i < block->length; i++) {
             LPC_PREDICT_SAMPLE(block->q_lpc_coeff, smp_ptr, res_ptr, block->opt_order);
@@ -656,7 +651,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
         sconf->samples += ctx->cur_frame_length;
 
     //memset(frame, 0, buf_size);
-show++;
+
     return frame_data_size;
 }
 
@@ -786,7 +781,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 1; // set to 1 to test block-switching
+    sconf->block_switching = 0; // set to 1 to test block-switching
                                 // with two blocks per frame
 
 
