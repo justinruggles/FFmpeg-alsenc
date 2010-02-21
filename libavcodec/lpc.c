@@ -146,7 +146,7 @@ static int estimate_best_order(double *ref, int min_order, int max_order)
 
     est = min_order;
     for(i=max_order-1; i>=min_order-1; i--) {
-        if(ref[i] > 0.10) {
+        if(FFABS(ref[i]) > 0.10) {
             est = i+1;
             break;
         }
@@ -175,7 +175,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
     double ref[MAX_LPC_ORDER];
     double lpc[MAX_LPC_ORDER][MAX_LPC_ORDER];
     int i, j, pass;
-    int opt_order;
+    int opt_order = max_order;
 
     assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
            lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
@@ -183,10 +183,13 @@ int ff_lpc_calc_coefs(DSPContext *s,
     if (lpc_type == LPC_TYPE_LEVINSON) {
         s->lpc_compute_autocorr(samples, blocksize, max_order, autoc);
 
-        compute_lpc_coefs(autoc, max_order, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
-
-        for(i=0; i<max_order; i++)
-            ref[i] = fabs(lpc[i][i]);
+        if (omethod == ORDER_METHOD_EST) {
+            compute_ref_coefs(autoc, max_order, ref);
+            opt_order = estimate_best_order(ref, min_order, max_order);
+            compute_lpc_coefs( NULL,  ref, opt_order, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
+        } else {
+            compute_lpc_coefs(autoc, NULL, max_order, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
+        }
     } else if (lpc_type == LPC_TYPE_CHOLESKY) {
         LLSModel m[2];
         double var[MAX_LPC_ORDER+1], av_uninit(weight);
@@ -222,13 +225,14 @@ int ff_lpc_calc_coefs(DSPContext *s,
                 lpc[i][j]=-m[(pass-1)&1].coeff[i][j];
             ref[i]= sqrt(m[(pass-1)&1].variance[i] / weight) * (blocksize - max_order) / 4000;
         }
+        if (omethod == ORDER_METHOD_EST) {
         for(i=max_order-1; i>0; i--)
             ref[i] = ref[i-1] - ref[i];
+            opt_order = estimate_best_order(ref, min_order, max_order);
+        }
     }
-    opt_order = max_order;
 
     if(omethod == ORDER_METHOD_EST) {
-        opt_order = estimate_best_order(ref, min_order, max_order);
         i = opt_order-1;
         quantize_lpc_coefs(lpc[i], i+1, precision, coefs[i], &shift[i], max_shift, zero_shift);
     } else {

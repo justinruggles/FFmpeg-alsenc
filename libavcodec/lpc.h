@@ -59,32 +59,71 @@ int ff_lpc_calc_coefs(DSPContext *s,
 #endif
 
 /**
- * Levinson-Durbin recursion.
- * Produces LPC coefficients from autocorrelation data.
+ * Schur recursion.
+ * Produces reflection coefficients from autocorrelation data.
  */
-static inline int compute_lpc_coefs(const LPC_TYPE *autoc, int max_order,
+static inline LPC_TYPE compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
+                                         LPC_TYPE *ref)
+{
+    int i, j;
+    LPC_TYPE err;
+    LPC_TYPE *gen0, *gen1;
+
+    gen0 = av_malloc(sizeof(LPC_TYPE) * 2 * max_order);
+    gen1 = gen0 + max_order;
+    for (i = 0; i < max_order; i++)
+        gen0[i] = gen1[i] = autoc[i+1];
+
+    err = autoc[0];
+    ref[0] = -gen1[0] / err;
+    err += gen1[0] * ref[0];
+    for (i = 1; i < max_order; i++) {
+        for (j = 0; j < max_order-i; j++) {
+            gen1[j] = gen1[j+1] + ref[i-1] * gen0[j];
+            gen0[j] = gen1[j+1] * ref[i-1] + gen0[j];
+        }
+        ref[i] = -gen1[0] / err;
+        err += gen1[0] * ref[i];
+    }
+
+    av_freep(&gen0);
+    return err;
+}
+
+/**
+ * Levinson-Durbin recursion.
+ * Produces LPC coefficients from autocorrelation data or reflection coefficients.
+ */
+static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
+                                    int max_order,
                                     LPC_TYPE *lpc, int lpc_stride, int fail,
                                     int normalize)
 {
     int i, j;
-    LPC_TYPE err;
+    LPC_TYPE err = 0;
     LPC_TYPE *lpc_last = lpc;
 
-    if (normalize)
+    assert(autoc || ref);
+
+    if (autoc && normalize)
         err = *autoc++;
 
-    if (fail && (autoc[max_order - 1] == 0 || err <= 0))
+    if (fail && autoc && (autoc[max_order - 1] == 0 || err <= 0))
         return -1;
 
     for(i=0; i<max_order; i++) {
-        LPC_TYPE r = -autoc[i];
-
+        LPC_TYPE r;
+        if (autoc) {
+            r = -autoc[i];
         if (normalize) {
             for(j=0; j<i; j++)
                 r -= lpc_last[j] * autoc[i-j-1];
 
             r /= err;
             err *= 1.0 - (r * r);
+        }
+        } else {
+            r = ref[i];
         }
 
         lpc[i] = r;
