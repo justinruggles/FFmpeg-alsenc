@@ -154,6 +154,55 @@ static int estimate_best_order(double *ref, int min_order, int max_order)
     return est;
 }
 
+void ff_lpc_calc_coefs_cholesky(const int32_t *samples, int blocksize,
+                                int max_order, int passes, double *ref_out,
+                                double *lpc, int lpc_stride)
+{
+    LLSModel m[2];
+    double var[MAX_LPC_ORDER+1], av_uninit(weight);
+    int i, j, pass;
+
+    assert(lpc_passes > 0);
+    for(pass=0; pass<passes; pass++){
+        av_init_lls(&m[pass&1], max_order);
+
+        weight=0;
+        for(i=max_order; i<blocksize; i++){
+            for(j=0; j<=max_order; j++)
+                var[j]= samples[i-j];
+
+            if(pass){
+                double eval, inv, rinv;
+                eval= av_evaluate_lls(&m[(pass-1)&1], var+1, max_order-1);
+                eval= (512>>pass) + fabs(eval - var[0]);
+                inv = 1/eval;
+                rinv = sqrt(inv);
+                for(j=0; j<=max_order; j++)
+                    var[j] *= rinv;
+                weight += inv;
+            }else
+                weight++;
+
+            av_update_lls(&m[pass&1], var, 1.0);
+        }
+        av_solve_lls(&m[pass&1], 0.001, 0);
+    }
+
+    for(i=0; i<max_order; i++){
+        if (lpc) {
+            for(j=0; j<max_order; j++)
+                lpc[j]=-m[(pass-1)&1].coeff[i][j];
+            lpc += lpc_stride;
+        }
+        if (ref_out)
+            ref_out[i]= sqrt(m[(pass-1)&1].variance[i] / weight) * (blocksize - max_order) / 4000;
+    }
+    if (ref_out) {
+        for(i=max_order-1; i>0; i--)
+            ref_out[i] = ref_out[i-1] - ref_out[i];
+    }
+}
+
 /**
  * Calculate LPC coefficients for multiple orders
  *
@@ -174,7 +223,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
     double autoc[MAX_LPC_ORDER+1];
     double ref[MAX_LPC_ORDER];
     double lpc[MAX_LPC_ORDER][MAX_LPC_ORDER];
-    int i, j, pass;
+    int i;
     int opt_order = max_order;
 
     assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
@@ -186,48 +235,16 @@ int ff_lpc_calc_coefs(DSPContext *s,
         if (omethod == ORDER_METHOD_EST) {
             compute_ref_coefs(autoc, max_order, ref);
             opt_order = estimate_best_order(ref, min_order, max_order);
-            compute_lpc_coefs( NULL,  ref, opt_order, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
+            compute_lpc_coefs( NULL,  ref, opt_order, NULL, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
         } else {
-            compute_lpc_coefs(autoc, NULL, max_order, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
+            compute_lpc_coefs(autoc, NULL, max_order, NULL, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
         }
     } else if (lpc_type == LPC_TYPE_CHOLESKY) {
-        LLSModel m[2];
-        double var[MAX_LPC_ORDER+1], av_uninit(weight);
+        ff_lpc_calc_coefs_cholesky(samples, blocksize, max_order, lpc_passes,
+                                   omethod == ORDER_METHOD_EST ? ref : NULL,
+                                   &lpc[0][0], MAX_LPC_ORDER);
 
-        assert(lpc_passes > 0);
-        for(pass=0; pass<lpc_passes; pass++){
-            av_init_lls(&m[pass&1], max_order);
-
-            weight=0;
-            for(i=max_order; i<blocksize; i++){
-                for(j=0; j<=max_order; j++)
-                    var[j]= samples[i-j];
-
-                if(pass){
-                    double eval, inv, rinv;
-                    eval= av_evaluate_lls(&m[(pass-1)&1], var+1, max_order-1);
-                    eval= (512>>pass) + fabs(eval - var[0]);
-                    inv = 1/eval;
-                    rinv = sqrt(inv);
-                    for(j=0; j<=max_order; j++)
-                        var[j] *= rinv;
-                    weight += inv;
-                }else
-                    weight++;
-
-                av_update_lls(&m[pass&1], var, 1.0);
-            }
-            av_solve_lls(&m[pass&1], 0.001, 0);
-        }
-
-        for(i=0; i<max_order; i++){
-            for(j=0; j<max_order; j++)
-                lpc[i][j]=-m[(pass-1)&1].coeff[i][j];
-            ref[i]= sqrt(m[(pass-1)&1].variance[i] / weight) * (blocksize - max_order) / 4000;
-        }
         if (omethod == ORDER_METHOD_EST) {
-            for(i=max_order-1; i>0; i--)
-                ref[i] = ref[i-1] - ref[i];
             opt_order = estimate_best_order(ref, min_order, max_order);
         }
     }

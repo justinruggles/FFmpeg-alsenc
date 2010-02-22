@@ -52,6 +52,13 @@ int ff_lpc_calc_coefs(DSPContext *s,
                       int lpc_passes, int omethod, int max_shift,
                       int zero_shift);
 
+/**
+ * Calculate LPC coefficients for multiple orders using Cholesky factorization
+ */
+void ff_lpc_calc_coefs_cholesky(const int32_t *samples, int blocksize,
+                                int max_order, int passes, double *ref_out,
+                                double *lpc, int lpc_stride);
+
 #ifdef LPC_USE_DOUBLE
 #define LPC_TYPE double
 #else
@@ -95,7 +102,7 @@ static inline LPC_TYPE compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
  * Produces LPC coefficients from autocorrelation data or reflection coefficients.
  */
 static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
-                                    int max_order,
+                                    int max_order, LPC_TYPE *ref_out,
                                     LPC_TYPE *lpc, int lpc_stride, int fail,
                                     int normalize)
 {
@@ -125,6 +132,8 @@ static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
         } else {
             r = ref[i];
         }
+        if (ref_out)
+            ref_out[i] = r;
 
         lpc[i] = r;
 
