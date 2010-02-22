@@ -226,8 +226,8 @@ int ff_lpc_calc_coefs(DSPContext *s,
             ref[i]= sqrt(m[(pass-1)&1].variance[i] / weight) * (blocksize - max_order) / 4000;
         }
         if (omethod == ORDER_METHOD_EST) {
-        for(i=max_order-1; i>0; i--)
-            ref[i] = ref[i-1] - ref[i];
+            for(i=max_order-1; i>0; i--)
+                ref[i] = ref[i-1] - ref[i];
             opt_order = estimate_best_order(ref, min_order, max_order);
         }
     }

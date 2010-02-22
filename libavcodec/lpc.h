@@ -115,13 +115,13 @@ static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
         LPC_TYPE r;
         if (autoc) {
             r = -autoc[i];
-        if (normalize) {
-            for(j=0; j<i; j++)
-                r -= lpc_last[j] * autoc[i-j-1];
+            if (normalize) {
+                for(j=0; j<i; j++)
+                    r -= lpc_last[j] * autoc[i-j-1];
 
-            r /= err;
-            err *= 1.0 - (r * r);
-        }
+                r /= err;
+                err *= 1.0 - (r * r);
+            }
         } else {
             r = ref[i];
         }
