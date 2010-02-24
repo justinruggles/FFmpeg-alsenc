@@ -32,6 +32,12 @@
 #define ORDER_METHOD_SEARCH  4
 #define ORDER_METHOD_LOG     5
 
+#define LPC_TYPE_DEFAULT   -1
+#define LPC_TYPE_NONE       0
+#define LPC_TYPE_FIXED      1
+#define LPC_TYPE_LEVINSON   2
+#define LPC_TYPE_CHOLESKY   3
+
 #define MIN_LPC_ORDER        1
 #define MAX_LPC_ORDER       32
 
@@ -42,8 +48,16 @@
 int ff_lpc_calc_coefs(DSPContext *s,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
-                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int use_lpc,
-                      int omethod, int max_shift, int zero_shift);
+                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
+                      int lpc_passes, int omethod, int max_shift,
+                      int zero_shift);
+
+/**
+ * Calculate LPC coefficients for multiple orders using Cholesky factorization
+ */
+void ff_lpc_calc_coefs_cholesky(const int32_t *samples, int blocksize,
+                                int max_order, int passes, double *ref_out,
+                                double *lpc, int lpc_stride);
 
 #ifdef LPC_USE_DOUBLE
 #define LPC_TYPE double
@@ -52,33 +66,74 @@ int ff_lpc_calc_coefs(DSPContext *s,
 #endif
 
 /**
- * Levinson-Durbin recursion.
- * Produces LPC coefficients from autocorrelation data.
+ * Schur recursion.
+ * Produces reflection coefficients from autocorrelation data.
  */
-static inline int compute_lpc_coefs(const LPC_TYPE *autoc, int max_order,
+static inline LPC_TYPE compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
+                                         LPC_TYPE *ref)
+{
+    int i, j;
+    LPC_TYPE err;
+    LPC_TYPE *gen0, *gen1;
+
+    gen0 = av_malloc(sizeof(LPC_TYPE) * 2 * max_order);
+    gen1 = gen0 + max_order;
+    for (i = 0; i < max_order; i++)
+        gen0[i] = gen1[i] = autoc[i+1];
+
+    err = autoc[0];
+    ref[0] = -gen1[0] / err;
+    err += gen1[0] * ref[0];
+    for (i = 1; i < max_order; i++) {
+        for (j = 0; j < max_order-i; j++) {
+            gen1[j] = gen1[j+1] + ref[i-1] * gen0[j];
+            gen0[j] = gen1[j+1] * ref[i-1] + gen0[j];
+        }
+        ref[i] = -gen1[0] / err;
+        err += gen1[0] * ref[i];
+    }
+
+    av_freep(&gen0);
+    return err;
+}
+
+/**
+ * Levinson-Durbin recursion.
+ * Produces LPC coefficients from autocorrelation data or reflection coefficients.
+ */
+static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
+                                    int max_order, LPC_TYPE *ref_out,
                                     LPC_TYPE *lpc, int lpc_stride, int fail,
                                     int normalize)
 {
     int i, j;
-    LPC_TYPE err;
+    LPC_TYPE err = 0;
     LPC_TYPE *lpc_last = lpc;
 
-    if (normalize)
+    assert(autoc || ref);
+
+    if (autoc && normalize)
         err = *autoc++;
 
-    if (fail && (autoc[max_order - 1] == 0 || err <= 0))
+    if (fail && autoc && (autoc[max_order - 1] == 0 || err <= 0))
         return -1;
 
     for(i=0; i<max_order; i++) {
-        LPC_TYPE r = -autoc[i];
+        LPC_TYPE r;
+        if (autoc) {
+            r = -autoc[i];
+            if (normalize) {
+                for(j=0; j<i; j++)
+                    r -= lpc_last[j] * autoc[i-j-1];
 
-        if (normalize) {
-            for(j=0; j<i; j++)
-                r -= lpc_last[j] * autoc[i-j-1];
-
-            r /= err;
-            err *= 1.0 - (r * r);
+                r /= err;
+                err *= 1.0 - (r * r);
+            }
+        } else {
+            r = ref[i];
         }
+        if (ref_out)
+            ref_out[i] = r;
 
         lpc[i] = r;
 

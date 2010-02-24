@@ -2387,12 +2387,15 @@ typedef struct AVCodecContext {
     int compression_level;
 #define FF_COMPRESSION_DEFAULT -1
 
+#if LIBAVCODEC_VERSION_MAJOR < 53
     /**
      * Sets whether to use LPC mode - used by FLAC encoder.
      * - encoding: Set by user.
      * - decoding: unused
+     * @deprecated Deprecated in favor of lpc_type and lpc_passes.
      */
     int use_lpc;
+#endif
 
     /**
      * LPC coefficient precision - used by FLAC encoder
@@ -2593,6 +2596,20 @@ typedef struct AVCodecContext {
      * - decoding: unused
      */
     int weighted_p_pred;
+
+    /**
+     * Sets which LPC analysis algorithm to use.
+     * - encoding: Set by user.
+     * - decoding: unused
+     */
+    int lpc_type;
+
+    /**
+     * Sets the number of passes to use for Cholesky factorization during LPC analysis.
+     * - encoding: Set by user.
+     * - decoding: unused
+     */
+    int lpc_passes;
 } AVCodecContext;
 
 /**
