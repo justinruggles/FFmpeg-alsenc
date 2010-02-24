@@ -435,6 +435,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
 
+    int32_t *res_ptr = ctx->res_samples[c] + b * block->length;
+    int32_t *smp_ptr = ctx->raw_samples[c] + b * block->length;
 
     // check for constant block
     // to be implemented
@@ -503,7 +505,6 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // just verbatim mode (no prediction) supported right now
 
     if (block->opt_order) {
-        int32_t *res_ptr, *smp_ptr;
         int i, j;
 
 
@@ -532,9 +533,6 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     *(res_ptr++) = y;\
 }
 
-        res_ptr = ctx->res_samples[c] + b * block->length;
-        smp_ptr = ctx->raw_samples[c] + b * block->length;
-
         i = 0;
         if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
             // copy first residual sample verbatim
@@ -555,8 +553,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
             LPC_PREDICT_SAMPLE(block->q_lpc_coeff, smp_ptr, res_ptr, block->opt_order);
         }
     } else {
-        memcpy(ctx->res_samples[c] + b, ctx->raw_samples[c] + b,
-               sizeof(*ctx->res_samples[c]) * block->length);
+        memcpy(res_ptr, smp_ptr, sizeof(*res_ptr) * block->length);
     }
 
 
@@ -780,7 +777,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 0; // set to 1 to test block-switching
+    sconf->block_switching = 1; // set to 1 to test block-switching
                                 // with two blocks per frame
 
 
