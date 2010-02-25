@@ -36,6 +36,8 @@
 
 #include "avcodec.h"
 #include "put_bits.h"
+#define LPC_USE_DOUBLE
+#include "lpc.h"
 #include "mpeg4audio.h"
 #include "audioconvert.h"
 
@@ -294,12 +296,23 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
                 for (i = 0; i < block->opt_order; i++)
                     put_bits(pb, 7, 64 + block->q_parcor_index[i]);
             } else {
-                for (i = 0; i < block->opt_order; i++) {
+                // write coefficient 0 to 19
+                int next_max_order = FFMIN(block->opt_order, 20);
+                for (i = 0; i < next_max_order; i++) {
                     int rice_param = ff_als_parcor_rice_table[sconf->coef_table][i][1];
                     int offset     = ff_als_parcor_rice_table[sconf->coef_table][i][0];
                     if (set_sr_golomb_als(pb, block->q_parcor_index[i] - offset, rice_param))
                         return -1;
                 }
+
+                // write coefficients 20 to 126
+                next_max_order = FFMIN(block->opt_order, 127);
+                for (; i < next_max_order; i++)
+                    set_sr_golomb_als(pb, block->q_parcor_index[i] - (i & 1), 2);
+
+                // write coefficients 127 to opt_order
+                for (; i < block->opt_order; i++)
+                    set_sr_golomb_als(pb, block->q_parcor_index[i], 1);
             }
         }
 
@@ -428,6 +441,32 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 }
 
 
+static void quantize_parcor_coeffs(const double *parcor, int order,
+                                   int32_t *q_parcor, int32_t *r_parcor)
+{
+    int i;
+
+    // first coefficient
+    q_parcor[0] = (int)floor(64.0 * (sqrt(2.0*(parcor[0]+1.0)) - 1.0));
+    q_parcor[0] = av_clip(q_parcor[0], -64, 63);
+    r_parcor[0] = 32 * ff_als_parcor_scaled_values[q_parcor[0] + 64];
+
+    if (order > 1) {
+        // second coefficient
+        q_parcor[1] = (int)floor(64.0 * ((sqrt(2.0*(1.0-parcor[1]))) - 1.0));
+        q_parcor[1] = av_clip(q_parcor[1], -64, 63);
+        r_parcor[1] = -32 * ff_als_parcor_scaled_values[q_parcor[1] + 64];
+
+        // remaining coefficients
+        for (i = 2; i < order; i++) {
+            q_parcor[i] = (int)floor(64.0 * parcor[i]);
+            q_parcor[i] = av_clip(q_parcor[i], -64, 63);
+            r_parcor[i] = (q_parcor[i] << 14) + (1 << 13);
+        }
+    }
+}
+
+
 /** Encode a given block of a given channel
  */
 static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
@@ -480,11 +519,6 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     block->opt_order = sconf->max_order;
 
-    if (sconf->adapt_order) {
-        // to be implemented
-        // search for coefficients and opt_order
-    }
-
 
     // long-term prediction:
     // to be implemented
@@ -500,25 +534,30 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
 
     // generate residuals using parameters:
-    // just verbatim mode (no prediction) supported right now
 
     if (block->opt_order) {
+        double autoc[block->opt_order+1];
+        double parcor[block->opt_order];
         int32_t *res_ptr, *smp_ptr;
         int i, j;
 
+        res_ptr = ctx->res_samples[c] + b * block->length;
+        smp_ptr = ctx->raw_samples[c] + b * block->length;
+
 
         // calculate PARCOR coefficients
-        // TODO: use more complex algorithms to determine coeffs and order
-        block->q_parcor_index[0] = -56;
-        block->q_parcor_index[1] = -24;
-        block->q_parcor_index[2] = -13;
-        block->q_parcor_index[3] =  12;
-        block->q_parcor_index[4] = -21;
-        block->q_parcor_index[5] =  15;
-        block->q_parcor_coeff[0] =  32 * ff_als_parcor_scaled_values[block->q_parcor_index[0] + 64];
-        block->q_parcor_coeff[1] = -32 * ff_als_parcor_scaled_values[block->q_parcor_index[1] + 64];
-        for (i = 2; i < block->opt_order; i++)
-            block->q_parcor_coeff[i] = (block->q_parcor_index[i] << 14) + (1 << 13);
+        ff_lpc_compute_autocorr(smp_ptr, block->length, block->opt_order, autoc);
+        compute_ref_coefs(autoc, block->opt_order, parcor);
+
+        // quick estimate for LPC order. better searches will give better
+        // significantly better results.
+        if (sconf->adapt_order) {
+            block->opt_order = estimate_best_order(parcor, 1, block->opt_order);
+        }
+
+        // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
+        quantize_parcor_coeffs(parcor, block->opt_order, block->q_parcor_index,
+                               block->q_parcor_coeff);
 
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
@@ -531,9 +570,6 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
     *(res_ptr++) = y;\
 }
-
-        res_ptr = ctx->res_samples[c] + b * block->length;
-        smp_ptr = ctx->raw_samples[c] + b * block->length;
 
         i = 0;
         if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
@@ -771,7 +807,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // TODO: do evaluation to find a suitable standard value?
     //       if adapt_order is set and compression level is high,
     //       use maximum value to be able to find the best order
-    sconf->max_order = 6;
+    sconf->max_order = 10;
 
 
     // determine if block-switching is used

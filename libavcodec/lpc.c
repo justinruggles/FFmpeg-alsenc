@@ -51,10 +51,6 @@ static void apply_welch_window(const int32_t *data, int len, double *w_data)
     }
 }
 
-/**
- * Calculates autocorrelation data from audio samples
- * A Welch window function is applied before calculation.
- */
 void ff_lpc_compute_autocorr(const int32_t *data, int len, int lag,
                              double *autoc)
 {
@@ -138,20 +134,6 @@ static void quantize_lpc_coefs(double *lpc_in, int order, int precision,
         error -= lpc_out[i];
     }
     *shift = sh;
-}
-
-static int estimate_best_order(double *ref, int min_order, int max_order)
-{
-    int i, est;
-
-    est = min_order;
-    for(i=max_order-1; i>=min_order-1; i--) {
-        if(FFABS(ref[i]) > 0.10) {
-            est = i+1;
-            break;
-        }
-    }
-    return est;
 }
 
 void ff_lpc_calc_coefs_cholesky(const int32_t *samples, int blocksize,
