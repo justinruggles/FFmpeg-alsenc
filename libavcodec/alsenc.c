@@ -607,9 +607,11 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         int n = block->length-1;
         int max_param = ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15;
 
+        res_ptr = ctx->res_samples[c] + b * block->length;
+
         for (i = 1; i < n; i++) {
             // note: this might overflow when using 32-bit sample depth
-            int v = -2*ctx->res_samples[c][i]-1;
+            int v = -2*res_ptr[i]-1;
             v ^= (v>>31);
             sum += v;
         }
