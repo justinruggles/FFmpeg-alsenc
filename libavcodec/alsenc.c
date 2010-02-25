@@ -814,7 +814,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 1; // set to 1 to test block-switching
+    sconf->block_switching = 0; // set to 1 to test block-switching
                                 // with two blocks per frame
 
 
