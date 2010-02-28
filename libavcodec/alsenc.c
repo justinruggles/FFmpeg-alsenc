@@ -489,7 +489,7 @@ static int find_block_rice_params(const int32_t *res_ptr, int block_length,
     int i;
 
     if (max_param > 15) {
-    uint64_t sum = 0;
+        uint64_t sum = 0;
 
         for (i = 0; i < block_length; i++) {
             int v = *res_ptr++;
@@ -507,23 +507,23 @@ static int find_block_rice_params(const int32_t *res_ptr, int block_length,
 
         return -1;
     } else {
-    unsigned int sum = 0;
-    int i;
+        unsigned int sum = 0;
+        int i;
 
-    for (i = 0; i < block_length; i++) {
-        int v = *res_ptr++;
-        v = (2 * v) ^ (v >> 31);
-        sum += v;
-    }
-    if (sum <= block_length >> 1) {
-        *rice_param = 0;
-    } else {
-        unsigned int sum1 = (sum - (block_length >> 1)) / block_length;
-        *rice_param = FFMIN(av_log2(sum1), max_param);
-    }
-    *sub_blocks = 1;
+        for (i = 0; i < block_length; i++) {
+            int v = *res_ptr++;
+            v = (2 * v) ^ (v >> 31);
+            sum += v;
+        }
+        if (sum <= block_length >> 1) {
+            *rice_param = 0;
+        } else {
+            unsigned int sum1 = (sum - (block_length >> 1)) / block_length;
+            *rice_param = FFMIN(av_log2(sum1), max_param);
+        }
+        *sub_blocks = 1;
 
-    return -1;
+        return -1;
     }
 }
 
