@@ -469,6 +469,41 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 }
 
 
+/**
+ * Calculate optimal sub-block division and Rice parameters for a block.
+ * @param[in] res_ptr       residual samples
+ * @param[in] block_length  number of samples in the block
+ * @param[in] max_param     maximum Rice parameter allowed
+ * @param[out] sub_blocks   optimal number of sub-blocks
+ * @param[out] rice_param   optimal Rice parameter(s)
+ * @return                  estimated number of bits used for residuals and rice params
+ */
+static int find_block_rice_params(const int32_t *res_ptr, int block_length,
+                                  int max_param, int ra_block, int *sub_blocks,
+                                  int *rice_param)
+{
+    uint64_t sum = 0;
+    int i;
+    int n = block_length-1;
+
+    for (i = 1; i < n; i++) {
+        // note: this might overflow when using 32-bit sample depth
+        int v = -2*res_ptr[i]-1;
+        v ^= (v>>31);
+        sum += v;
+    }
+    if (sum <= n >> 1) {
+        *rice_param = 0;
+    } else {
+        sum = (sum - (n >> 1)) / n;
+        *rice_param = FFMIN(av_log2(sum), max_param);
+    }
+    *sub_blocks = 1;
+
+    return -1;
+}
+
+
 /** Encode a given block of a given channel
  */
 static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
@@ -594,36 +629,12 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     }
 
 
-    // determine how many sub-blocks to use(?)
-    // to be implemented
-    //
-    // while not implemented, just don't use sub-blocks
-
-    block->sub_blocks = 1;
-
-
     // search for rice parameter:
-    {
-        uint64_t sum = 0;
-        int i;
-        int n = block->length-1;
-        int max_param = ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15;
-
-        res_ptr = ctx->res_samples[c] + b * block->length;
-
-        for (i = 1; i < n; i++) {
-            // note: this might overflow when using 32-bit sample depth
-            int v = -2*res_ptr[i]-1;
-            v ^= (v>>31);
-            sum += v;
-        }
-        if (sum <= n >> 1) {
-            block->rice_param = 0;
-        } else {
-            sum = (sum - (n >> 1)) / n;
-            block->rice_param = FFMIN(av_log2(sum), max_param);
-        }
-    }
+    res_ptr = ctx->res_samples[c] + b * block->length;
+    find_block_rice_params(res_ptr, block->length,
+                           ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
+                           !b, // ra_block
+                           &block->sub_blocks, &block->rice_param);
 }
 
 
