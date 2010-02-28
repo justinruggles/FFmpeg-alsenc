@@ -185,13 +185,17 @@ static void block_partitioning(ALSEncContext *ctx)
 static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 {
     int q;
+    unsigned int v0;
 
     /* remap to unsigned */
-    v = -2*v-1;
-    v ^= (v>>31);
+    if (FFABS(v) > -INT16_MIN) {
+        v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
+    } else {
+        v0 = (2 * v) ^ (v >> 31);
+    }
 
     /* write quotient in zero-terminated unary */
-    q = (v >> k) + 1;
+    q = (v0 >> k) + 1;
 
     /* protect from buffer overwrite */
     if (put_bits_count(pb) + q + k > pb->size_in_bits) {
@@ -206,7 +210,7 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 
     /* write remainder using k bits */
     if (k)
-        put_bits(pb, k, (v >> 1) - (((v >> k)-(!(v&1))) << (k-1)));
+        put_bits(pb, k, (v0 >> 1) - (((v0 >> k)-(!(v0&1))) << (k-1)));
 
     return 0;
 }
@@ -482,24 +486,45 @@ static int find_block_rice_params(const int32_t *res_ptr, int block_length,
                                   int max_param, int ra_block, int *sub_blocks,
                                   int *rice_param)
 {
+    int i;
+
+    if (max_param > 15) {
     uint64_t sum = 0;
+
+        for (i = 0; i < block_length; i++) {
+            int v = *res_ptr++;
+            unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
+            sum += v0;
+        }
+
+        if (sum <= block_length >> 1) {
+            *rice_param = 0;
+        } else {
+            uint64_t sum1 = FFMAX((sum - (block_length >> 1)) / block_length, 1);
+            *rice_param = FFMIN((int)floor(log(sum1) / log(2)), max_param);
+        }
+        *sub_blocks = 1;
+
+        return -1;
+    } else {
+    unsigned int sum = 0;
     int i;
 
     for (i = 0; i < block_length; i++) {
-        // note: this might overflow when using 32-bit sample depth
-        int v = -2*res_ptr[i]-1;
-        v ^= (v>>31);
+        int v = *res_ptr++;
+        v = (2 * v) ^ (v >> 31);
         sum += v;
     }
     if (sum <= block_length >> 1) {
         *rice_param = 0;
     } else {
-        sum = (sum - (block_length >> 1)) / block_length;
-        *rice_param = FFMIN(av_log2(sum), max_param);
+        unsigned int sum1 = (sum - (block_length >> 1)) / block_length;
+        *rice_param = FFMIN(av_log2(sum1), max_param);
     }
     *sub_blocks = 1;
 
     return -1;
+    }
 }
 
 
