@@ -577,17 +577,33 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
 {
     unsigned int count[32] = {0,};
     int param;
-    int k;
+    int k, step;
     int best_k;
 
-    best_k = 0;
-    for (k = 0; k <= max_param; k++) {
+    /* start 1/3 distance between 0 and max_param */
+    k = max_param / 3;
+    count[k] = subblock_rice_count_exact(res_ptr, block_length, k,
+                                         max_param, ra_block);
+    k++;
+    count[k] = subblock_rice_count_exact(res_ptr, block_length, k,
+                                         max_param, ra_block);
+    if (count[k] < count[k-1]) {
+        best_k = k;
+        step = 1;
+        k++;
+    } else {
+        best_k = k - 1;
+        step = -1;
+        k -= 2;
+    }
+
+    for (; k >= 0 && k <= max_param; k += step) {
         count[k] = subblock_rice_count_exact(res_ptr, block_length, k,
                                              max_param, ra_block);
 
         if (count[k] < count[best_k]) {
             best_k = k;
-        } else if (k) {
+        } else {
             break;
         }
     }
