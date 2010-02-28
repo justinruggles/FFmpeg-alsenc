@@ -52,6 +52,11 @@
 /** Calculates Rice parameters using a search algorithm based on exact bit count */
 #define RICE_PARAM_ALGORITHM_EXACT      1
 
+/** Estimates Rice parameter and encoded residual bit count using sum of unsigned residual samples */
+#define RICE_BIT_COUNT_ALGORITHM_ESTIMATE   0
+/** Calcualtes Rice parameter and encoded residual exact bit count */
+#define RICE_BIT_COUNT_ALGORITHM_EXACT      1
+
 
 // probably mergeable or the very same as ALSBlockData from the decoder
 typedef struct {
@@ -185,6 +190,20 @@ static void block_partitioning(ALSEncContext *ctx)
                 ctx->blocks[c][b].length = 0;
         }
     }
+}
+
+
+static inline int rice_count(int v, int k)
+{
+    unsigned int v0;
+
+    if (FFABS(v) > -INT16_MIN) {
+        v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
+    } else {
+        v0 = (2 * v) ^ (v >> 31);
+    }
+
+    return (v0 >> k) + 1 + k;
 }
 
 
@@ -527,6 +546,54 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
 }
 
 
+static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
+                                              int sb_length, int rice_param,
+                                              int max_param, int ra_subblock)
+{
+    unsigned int count = 0;
+    int i = 0;
+
+    if (ra_subblock) {
+        int v = *res_ptr++;
+        count += max_param - 3;
+        v = *res_ptr++;
+        count += rice_count(v, FFMIN(rice_param+3, max_param));
+        v = *res_ptr++;
+        count += rice_count(v, FFMIN(rice_param+1, max_param));
+        i += 3;
+    }
+    for (; i < sb_length; i++) {
+        int v = *res_ptr++;
+        count += rice_count(v, rice_param);
+    }
+
+    return count;
+}
+
+
+static unsigned int block_rice_count_exact(const int32_t *res_ptr,
+                                           int block_length, int sub_blocks,
+                                           int *rice_param, int max_param,
+                                           int ra_block)
+{
+    unsigned int count = 0;
+    int sb_length, sb;
+
+    sb_length = block_length / sub_blocks;
+
+    for (sb = 0; sb < sub_blocks; sb++) {
+        count += subblock_rice_count_exact(res_ptr, sb_length, rice_param[sb],
+                                           max_param, ra_block && !sb);
+        if (!sb)
+            count += 4 + (max_param > 15);
+        else
+            count += rice_count(rice_param[sb]-rice_param[sb-1], 0);
+    }
+
+    return count;
+}
+
+
 /**
  * Calculate optimal sub-block division and Rice parameters for a block.
  * @param[in] algorithm     which algorithm to use
@@ -537,17 +604,24 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
  * @param[out] rice_param   optimal Rice parameter(s)
  * @return                  estimated number of bits used for residuals and rice params
  */
-static int find_block_rice_params(int algorithm, const int32_t *res_ptr,
+static int find_block_rice_params(int param_algorithm, int count_algorithm,
+                                  const int32_t *res_ptr,
                                   int block_length, int max_param, int ra_block,
                                   int *sub_blocks, int *rice_param)
 {
-    switch (algorithm) {
-    case RICE_PARAM_ALGORITHM_ESTIMATE:
-        return find_block_rice_params_est(res_ptr, block_length, max_param,
+    int bit_count = -1;
+
+    if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
+        bit_count = find_block_rice_params_est(res_ptr, block_length, max_param,
                                           ra_block, sub_blocks, rice_param);
-    default:
-        return -1;
+        if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
+            bit_count = block_rice_count_exact(res_ptr, block_length,
+                                               *sub_blocks, rice_param,
+                                               max_param, ra_block);
+        }
     }
+
+    return bit_count;
 }
 
 
@@ -678,7 +752,9 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     // search for rice parameter:
     res_ptr = ctx->res_samples[c] + b * block->length;
-    find_block_rice_params(RICE_PARAM_ALGORITHM_ESTIMATE, res_ptr, block->length,
+    find_block_rice_params(RICE_PARAM_ALGORITHM_ESTIMATE,
+                           RICE_BIT_COUNT_ALGORITHM_EXACT,
+                           res_ptr, block->length,
                            ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
                            !b, // ra_block
                            &block->sub_blocks, &block->rice_param);
