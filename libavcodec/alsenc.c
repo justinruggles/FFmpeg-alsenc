@@ -479,6 +479,8 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 }
 
 
+#define rice_encode_count(sum, n, k) (((n)*((k)+1))+((sum-(n>>1))>>(k)))
+
 static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
                                       int max_param, int ra_block,
                                       int *sub_blocks, int *rice_param)
@@ -502,7 +504,7 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
         }
         *sub_blocks = 1;
 
-        return -1;
+        return rice_encode_count(sum, block_length, *rice_param);
     } else {
         unsigned int sum = 0;
         int i;
@@ -520,7 +522,7 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
         }
         *sub_blocks = 1;
 
-        return -1;
+        return rice_encode_count(sum, block_length, *rice_param);
     }
 }
 
