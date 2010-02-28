@@ -64,9 +64,8 @@ typedef struct {
     int32_t constant_value;         ///< if constant, this is the value
     unsigned int length;            ///< length of the block in # of samples
     unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
-    unsigned int rice_param;        ///< rice parameter to encode the residuals
+    unsigned int rice_param[4];     ///< rice parameters to encode the residuals
                                     ///< of this block in case of not bgmc
-                                    ///< has to be an array if sub_blocks are implemented!
     unsigned int opt_order;         ///< prediction order for this block
     int32_t *q_parcor_coeff;        ///< 7-bit quantized PARCOR coefficients
     int32_t *r_parcor_coeff;        ///< scaled 21-bit quantized PARCOR coefficients
@@ -277,6 +276,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
         }
     } else {
         int32_t *res_ptr;
+        int sb, sb_length;
 
         // js_block
         put_bits(pb, 1, block->js_block);
@@ -297,10 +297,11 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
              // to be implemented
 
         } else {
-            put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), block->rice_param);
+            put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), block->rice_param[0]);
 
-            for (i = 1; i < block->sub_blocks; i++) {
-                // write rice param per sub_block
+            for (sb = 1; sb < block->sub_blocks; sb++) {
+                if (set_sr_golomb_als(pb, block->rice_param[sb] - block->rice_param[sb-1], 0))
+                    return -1;
             }
         }
 
@@ -365,28 +366,31 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
         // the first 3 residual samples, up to opt_order
 
         res_ptr = ctx->res_samples[c] + b * block->length;
+        sb_length = block->length / block->sub_blocks;
 
+        for (sb = 0; sb < block->sub_blocks; sb++) {
         start = 0;
-        if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
-            if (block->opt_order > 0 && block->length > 0) {
+        if (!b && !sb) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            if (block->opt_order > 0 && sb_length > 0) {
                 if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
                     return -1;
                 start++;
-                if (block->opt_order > 1 && block->length > 1) {
-                    if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param+3))
+                if (block->opt_order > 1 && sb_length > 1) {
+                    if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+3))
                         return -1;
                     start++;
-                    if (block->opt_order > 2 && block->length > 2) {
-                        if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param+1))
+                    if (block->opt_order > 2 && sb_length > 2) {
+                        if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+1))
                             return -1;
                         start++;
                     }
                 }
             }
         }
-        for (i = start; i < block->length; i++) {
-            if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param))
+        for (i = start; i < sb_length; i++) {
+            if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]))
                 return -1;
+        }
         }
     }
 
@@ -516,14 +520,14 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
         }
 
         if (sum <= block_length >> 1) {
-            *rice_param = 0;
+            rice_param[0] = 0;
         } else {
             uint64_t sum1 = FFMAX((sum - (block_length >> 1)) / block_length, 1);
-            *rice_param = FFMIN((int)floor(log(sum1) / log(2)), max_param);
+            rice_param[0] = FFMIN((int)floor(log(sum1) / log(2)), max_param);
         }
         *sub_blocks = 1;
 
-        return rice_encode_count(sum, block_length, *rice_param);
+        return rice_encode_count(sum, block_length, rice_param[0]);
     } else {
         unsigned int sum = 0;
         int i;
@@ -537,11 +541,11 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
             *rice_param = 0;
         } else {
             unsigned int sum1 = (sum - (block_length >> 1)) / block_length;
-            *rice_param = FFMIN(av_log2(sum1), max_param);
+            rice_param[0] = FFMIN(av_log2(sum1), max_param);
         }
         *sub_blocks = 1;
 
-        return rice_encode_count(sum, block_length, *rice_param);
+        return rice_encode_count(sum, block_length, rice_param[0]);
     }
 }
 
@@ -807,7 +811,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
                            res_ptr, block->length,
                            ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
                            !b, // ra_block
-                           &block->sub_blocks, &block->rice_param);
+                           &block->sub_blocks, block->rice_param);
 }
 
 
