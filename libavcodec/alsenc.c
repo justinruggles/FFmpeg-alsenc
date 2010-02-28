@@ -369,28 +369,28 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
         sb_length = block->length / block->sub_blocks;
 
         for (sb = 0; sb < block->sub_blocks; sb++) {
-        start = 0;
-        if (!b && !sb) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
-            if (block->opt_order > 0 && sb_length > 0) {
-                if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
-                    return -1;
-                start++;
-                if (block->opt_order > 1 && sb_length > 1) {
-                    if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+3))
+            start = 0;
+            if (!b && !sb) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+                if (block->opt_order > 0 && sb_length > 0) {
+                    if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
                         return -1;
                     start++;
-                    if (block->opt_order > 2 && sb_length > 2) {
-                        if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+1))
+                    if (block->opt_order > 1 && sb_length > 1) {
+                        if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+3))
                             return -1;
                         start++;
+                        if (block->opt_order > 2 && sb_length > 2) {
+                            if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+1))
+                                return -1;
+                            start++;
+                        }
                     }
                 }
             }
-        }
-        for (i = start; i < sb_length; i++) {
-            if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]))
-                return -1;
-        }
+            for (i = start; i < sb_length; i++) {
+                if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]))
+                    return -1;
+            }
         }
     }
 
