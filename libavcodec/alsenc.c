@@ -80,7 +80,7 @@ typedef struct {
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
     int32_t *r_parcor_coeff_buffer;  ///< buffer containing 21-bit PARCOR coefficients for all blocks in all channels
-    int32_t *lpc_coeff_buffer;      ///< buffer containing LPC coefficients for all blocks in all channels
+    int32_t *lpc_coeff_buffer;       ///< buffer containing LPC coefficients for all blocks in all channels
 } ALSEncContext;
 
 
