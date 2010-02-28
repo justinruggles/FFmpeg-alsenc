@@ -68,6 +68,7 @@ typedef struct {
     AVCodecContext *avctx;
     ALSSpecificConfig sconf;
     PutBitContext pb;
+    DSPContext dsp;
     unsigned int cur_frame_length;   ///< length of the current frame, in samples
     int js_switch;                   ///< force joint-stereo in case of MCC
     int *independent_bs;             ///< array containing independent_bs flag for each channel
@@ -543,7 +544,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         int i, j;
 
         // calculate PARCOR coefficients
-        ff_lpc_compute_autocorr(smp_ptr, block->length, block->opt_order, autoc);
+        ctx->dsp.lpc_compute_autocorr(smp_ptr, block->length, block->opt_order, autoc);
         compute_ref_coefs(autoc, block->opt_order, parcor);
 
         // quick estimate for LPC order. better searches will give better
@@ -1081,6 +1082,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     avctx->coded_frame = avcodec_alloc_frame();
     avctx->coded_frame->key_frame = 1;
 
+
+    dsputil_init(&ctx->dsp, avctx);
 
     return 0;
 }
