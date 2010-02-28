@@ -504,49 +504,47 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 
 #define rice_encode_count(sum, n, k) (((n)*((k)+1))+((sum-(n>>1))>>(k)))
 
+static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
+{
+    int k;
+
+    if (sum <= length >> 1)
+        return 0;
+
+    if (max_param > 15) {
+        sum = FFMAX((sum - (length >> 1)) / length, 1);
+        k = (int)floor(log(sum) / log(2));
+    } else {
+        unsigned int sum1 = sum;
+        sum1 = sum1 - (length >> 1);
+        k = av_log2(length < 256 ? FASTDIV(sum1, length) : sum1 / length);
+    }
+
+    return FFMIN(k, max_param);
+}
+
 static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
                                       int max_param, int ra_block,
                                       int *sub_blocks, int *rice_param)
 {
     int i;
-
-    if (max_param > 15) {
-        uint64_t sum = 0;
+    uint64_t sum = 0;
 
         for (i = 0; i < block_length; i++) {
             int v = *res_ptr++;
+            if (max_param > 15) {
             unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
             sum += v0;
-        }
-
-        if (sum <= block_length >> 1) {
-            rice_param[0] = 0;
-        } else {
-            uint64_t sum1 = FFMAX((sum - (block_length >> 1)) / block_length, 1);
-            rice_param[0] = FFMIN((int)floor(log(sum1) / log(2)), max_param);
-        }
-        *sub_blocks = 1;
-
-        return rice_encode_count(sum, block_length, rice_param[0]);
-    } else {
-        unsigned int sum = 0;
-        int i;
-
-        for (i = 0; i < block_length; i++) {
-            int v = *res_ptr++;
+            } else {
             v = (2 * v) ^ (v >> 31);
             sum += v;
+            }
         }
-        if (sum <= block_length >> 1) {
-            *rice_param = 0;
-        } else {
-            unsigned int sum1 = (sum - (block_length >> 1)) / block_length;
-            rice_param[0] = FFMIN(av_log2(sum1), max_param);
-        }
+
+        rice_param[0] = optimal_rice_param(sum, block_length, max_param);
         *sub_blocks = 1;
 
         return rice_encode_count(sum, block_length, rice_param[0]);
-    }
 }
 
 
