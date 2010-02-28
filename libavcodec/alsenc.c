@@ -484,18 +484,17 @@ static int find_block_rice_params(const int32_t *res_ptr, int block_length,
 {
     uint64_t sum = 0;
     int i;
-    int n = block_length-1;
 
-    for (i = 1; i < n; i++) {
+    for (i = 0; i < block_length; i++) {
         // note: this might overflow when using 32-bit sample depth
         int v = -2*res_ptr[i]-1;
         v ^= (v>>31);
         sum += v;
     }
-    if (sum <= n >> 1) {
+    if (sum <= block_length >> 1) {
         *rice_param = 0;
     } else {
-        sum = (sum - (n >> 1)) / n;
+        sum = (sum - (block_length >> 1)) / block_length;
         *rice_param = FFMIN(av_log2(sum), max_param);
     }
     *sub_blocks = 1;
