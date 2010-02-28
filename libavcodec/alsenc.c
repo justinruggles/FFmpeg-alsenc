@@ -35,6 +35,7 @@
 #include "als_data.h"
 
 #include "avcodec.h"
+#include "dsputil.h"
 #include "put_bits.h"
 #define LPC_USE_DOUBLE
 #include "lpc.h"
