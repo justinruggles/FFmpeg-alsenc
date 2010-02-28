@@ -530,21 +530,21 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
     int i;
     uint64_t sum = 0;
 
-        for (i = 0; i < block_length; i++) {
-            int v = *res_ptr++;
-            if (max_param > 15) {
+    for (i = 0; i < block_length; i++) {
+        int v = *res_ptr++;
+        if (max_param > 15) {
             unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
             sum += v0;
-            } else {
+        } else {
             v = (2 * v) ^ (v >> 31);
             sum += v;
-            }
         }
+    }
 
-        rice_param[0] = optimal_rice_param(sum, block_length, max_param);
-        *sub_blocks = 1;
+    rice_param[0] = optimal_rice_param(sum, block_length, max_param);
+    *sub_blocks = 1;
 
-        return rice_encode_count(sum, block_length, rice_param[0]);
+    return rice_encode_count(sum, block_length, rice_param[0]);
 }
 
 
