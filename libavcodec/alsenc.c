@@ -47,6 +47,12 @@
 #define ALS_SPECIFIC_CFG_SIZE  30
 
 
+/** Estimates Rice parameters using sum of unsigned residual samples */
+#define RICE_PARAM_ALGORITHM_ESTIMATE   0
+/** Calculates Rice parameters using a search algorithm based on exact bit count */
+#define RICE_PARAM_ALGORITHM_EXACT      1
+
+
 // probably mergeable or the very same as ALSBlockData from the decoder
 typedef struct {
     int constant;                   ///< indicates constant block values
@@ -473,18 +479,9 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 }
 
 
-/**
- * Calculate optimal sub-block division and Rice parameters for a block.
- * @param[in] res_ptr       residual samples
- * @param[in] block_length  number of samples in the block
- * @param[in] max_param     maximum Rice parameter allowed
- * @param[out] sub_blocks   optimal number of sub-blocks
- * @param[out] rice_param   optimal Rice parameter(s)
- * @return                  estimated number of bits used for residuals and rice params
- */
-static int find_block_rice_params(const int32_t *res_ptr, int block_length,
-                                  int max_param, int ra_block, int *sub_blocks,
-                                  int *rice_param)
+static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
+                                      int max_param, int ra_block,
+                                      int *sub_blocks, int *rice_param)
 {
     int i;
 
@@ -523,6 +520,30 @@ static int find_block_rice_params(const int32_t *res_ptr, int block_length,
         }
         *sub_blocks = 1;
 
+        return -1;
+    }
+}
+
+
+/**
+ * Calculate optimal sub-block division and Rice parameters for a block.
+ * @param[in] algorithm     which algorithm to use
+ * @param[in] res_ptr       residual samples
+ * @param[in] block_length  number of samples in the block
+ * @param[in] max_param     maximum Rice parameter allowed
+ * @param[out] sub_blocks   optimal number of sub-blocks
+ * @param[out] rice_param   optimal Rice parameter(s)
+ * @return                  estimated number of bits used for residuals and rice params
+ */
+static int find_block_rice_params(int algorithm, const int32_t *res_ptr,
+                                  int block_length, int max_param, int ra_block,
+                                  int *sub_blocks, int *rice_param)
+{
+    switch (algorithm) {
+    case RICE_PARAM_ALGORITHM_ESTIMATE:
+        return find_block_rice_params_est(res_ptr, block_length, max_param,
+                                          ra_block, sub_blocks, rice_param);
+    default:
         return -1;
     }
 }
@@ -655,7 +676,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     // search for rice parameter:
     res_ptr = ctx->res_samples[c] + b * block->length;
-    find_block_rice_params(res_ptr, block->length,
+    find_block_rice_params(RICE_PARAM_ALGORITHM_ESTIMATE, res_ptr, block->length,
                            ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
                            !b, // ra_block
                            &block->sub_blocks, &block->rice_param);
