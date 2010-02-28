@@ -588,6 +588,8 @@ static unsigned int block_rice_count_exact(const int32_t *res_ptr,
             count += 4 + (max_param > 15);
         else
             count += rice_count(rice_param[sb]-rice_param[sb-1], 0);
+
+        res_ptr += sb_length;
     }
 
     return count;
