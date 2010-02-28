@@ -571,6 +571,34 @@ static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
 }
 
 
+static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length,
+                                        int max_param, int ra_block,
+                                        int *sub_blocks, int *rice_param)
+{
+    unsigned int count[32] = {0,};
+    int param;
+    int k;
+    int best_k;
+
+    best_k = 0;
+    for (k = 0; k <= max_param; k++) {
+        count[k] = subblock_rice_count_exact(res_ptr, block_length, k,
+                                             max_param, ra_block);
+
+        if (count[k] < count[best_k]) {
+            best_k = k;
+        } else if (k) {
+            break;
+        }
+    }
+    param = best_k;
+
+    *sub_blocks = 1;
+    rice_param[0] = param;
+    return count[param] + 4 + (max_param > 15);
+}
+
+
 static unsigned int block_rice_count_exact(const int32_t *res_ptr,
                                            int block_length, int sub_blocks,
                                            int *rice_param, int max_param,
@@ -621,6 +649,10 @@ static int find_block_rice_params(int param_algorithm, int count_algorithm,
                                                *sub_blocks, rice_param,
                                                max_param, ra_block);
         }
+    } else if (param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
+        bit_count = find_block_rice_params_exact(res_ptr, block_length,
+                                                 max_param, ra_block,
+                                                 sub_blocks, rice_param);
     }
 
     return bit_count;
@@ -754,7 +786,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     // search for rice parameter:
     res_ptr = ctx->res_samples[c] + b * block->length;
-    find_block_rice_params(RICE_PARAM_ALGORITHM_ESTIMATE,
+    find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
                            RICE_BIT_COUNT_ALGORITHM_EXACT,
                            res_ptr, block->length,
                            ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
