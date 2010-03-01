@@ -524,27 +524,70 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 }
 
 static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
-                                      int max_param, int ra_block,
+                                      int max_param, int sb_part, int ra_block,
                                       int *sub_blocks, int *rice_param)
 {
-    int i;
-    uint64_t sum = 0;
+    int i, sb, sb_max, sb_length;
+    uint64_t sum[5] = {0,};
+    int param[5];
+    unsigned int count1, count4;
 
-    for (i = 0; i < block_length; i++) {
+    if (!sb_part || block_length & 0x3 || block_length < 16)
+        sb_max = 1;
+    else
+        sb_max = 4;
+    sb_length = block_length / sb_max;
+
+    for (sb = 0; sb < sb_max; sb++) {
+    for (i = 0; i < sb_length; i++) {
         int v = *res_ptr++;
         if (max_param > 15) {
             unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
-            sum += v0;
+            sum[sb] += v0;
         } else {
             v = (2 * v) ^ (v >> 31);
-            sum += v;
+            sum[sb] += v;
         }
     }
+    sum[4] += sum[sb];
 
-    rice_param[0] = optimal_rice_param(sum, block_length, max_param);
-    *sub_blocks = 1;
+    param[sb] = optimal_rice_param(sum[sb], sb_length, max_param);
+    }
 
-    return rice_encode_count(sum, block_length, rice_param[0]);
+    param[4] = optimal_rice_param(sum[4], block_length, max_param);
+
+    count1 = rice_encode_count(sum[4], block_length, param[4]);
+    count1 += 4 + (max_param > 15);
+
+    if (sb_max == 1 || ((param[0] == param[1]) && (param[1] == param[2]) &&
+        (param[2] == param[3]))) {
+        *sub_blocks = 1;
+        rice_param[0] = param[4];
+        return count1;
+    }
+
+    count4 = 0;
+    for (sb = 0; sb < sb_max; sb++) {
+        count4 += rice_encode_count(sum[sb], sb_length, param[sb]);
+
+        if (!sb)
+            count4 += 4 + (max_param > 15);
+        else
+            count4 += rice_count(param[sb] - param[sb-1], 0);
+    }
+
+    if (count1 <= count4) {
+        *sub_blocks = 1;
+        rice_param[0] = param[4];
+        return count1;
+    } else {
+        *sub_blocks = 4;
+        rice_param[0] = param[0];
+        rice_param[1] = param[1];
+        rice_param[2] = param[2];
+        rice_param[3] = param[3];
+        return count4;
+    }
 }
 
 
@@ -574,7 +617,7 @@ static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
 
 
 static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length,
-                                        int max_param, int ra_block,
+                                        int max_param, int sb_part, int ra_block,
                                         int *sub_blocks, int *rice_param)
 {
     unsigned int count[32] = {0,};
@@ -648,20 +691,24 @@ static unsigned int block_rice_count_exact(const int32_t *res_ptr,
  * @param[in] res_ptr       residual samples
  * @param[in] block_length  number of samples in the block
  * @param[in] max_param     maximum Rice parameter allowed
+ * @param[in] sb_part       indicates if entropy coding partitioning is used
+ * @param[in] ra_block      indicates if this is a random access block
  * @param[out] sub_blocks   optimal number of sub-blocks
  * @param[out] rice_param   optimal Rice parameter(s)
  * @return                  estimated number of bits used for residuals and rice params
  */
 static int find_block_rice_params(int param_algorithm, int count_algorithm,
                                   const int32_t *res_ptr,
-                                  int block_length, int max_param, int ra_block,
-                                  int *sub_blocks, int *rice_param)
+                                  int block_length, int max_param, int sb_part,
+                                  int ra_block, int *sub_blocks,
+                                  int *rice_param)
 {
     int bit_count = -1;
 
     if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
         bit_count = find_block_rice_params_est(res_ptr, block_length, max_param,
-                                          ra_block, sub_blocks, rice_param);
+                                               sb_part, ra_block, sub_blocks,
+                                               rice_param);
         if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
             bit_count = block_rice_count_exact(res_ptr, block_length,
                                                *sub_blocks, rice_param,
@@ -669,7 +716,7 @@ static int find_block_rice_params(int param_algorithm, int count_algorithm,
         }
     } else if (param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
         bit_count = find_block_rice_params_exact(res_ptr, block_length,
-                                                 max_param, ra_block,
+                                                 max_param, sb_part, ra_block,
                                                  sub_blocks, rice_param);
     }
 
@@ -804,11 +851,11 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     // search for rice parameter:
     res_ptr = ctx->res_samples[c] + b * block->length;
-    find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
+    find_block_rice_params(RICE_PARAM_ALGORITHM_ESTIMATE,
                            RICE_BIT_COUNT_ALGORITHM_EXACT,
                            res_ptr, block->length,
                            ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
-                           !b, // ra_block
+                           sconf->sb_part, !b, // ra_block
                            &block->sub_blocks, block->rice_param);
 }
 
@@ -1012,7 +1059,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // determine what sub-block partitioning is used
-    sconf->sb_part = 0;
+    sconf->sb_part = 1;
 
 
     // determine if joint-stereo is used
