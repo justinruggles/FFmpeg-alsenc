@@ -539,19 +539,19 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
     sb_length = block_length / sb_max;
 
     for (sb = 0; sb < sb_max; sb++) {
-    for (i = 0; i < sb_length; i++) {
-        int v = *res_ptr++;
-        if (max_param > 15) {
-            unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
-            sum[sb] += v0;
-        } else {
-            v = (2 * v) ^ (v >> 31);
-            sum[sb] += v;
+        for (i = 0; i < sb_length; i++) {
+            int v = *res_ptr++;
+            if (max_param > 15) {
+                unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
+                sum[sb] += v0;
+            } else {
+                v = (2 * v) ^ (v >> 31);
+                sum[sb] += v;
+            }
         }
-    }
-    sum[4] += sum[sb];
+        sum[4] += sum[sb];
 
-    param[sb] = optimal_rice_param(sum[sb], sb_length, max_param);
+        param[sb] = optimal_rice_param(sum[sb], sb_length, max_param);
     }
 
     param[4] = optimal_rice_param(sum[4], block_length, max_param);
