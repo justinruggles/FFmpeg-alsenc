@@ -614,8 +614,8 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
         count1 = block_rice_count_exact(res_ptr, block_length, 1, &param[4],
                                         max_param, ra_block);
     } else {
-    count1 = rice_encode_count(sum[4], block_length, param[4]);
-    count1 += 4 + (max_param > 15);
+        count1 = rice_encode_count(sum[4], block_length, param[4]);
+        count1 += 4 + (max_param > 15);
     }
 
     if (sb_max == 1 || ((param[0] == param[1]) && (param[1] == param[2]) &&
@@ -629,15 +629,15 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
         count4 = block_rice_count_exact(res_ptr, block_length, 4, param,
                                         max_param, ra_block);
     } else {
-    count4 = 0;
-    for (sb = 0; sb < sb_max; sb++) {
-        count4 += rice_encode_count(sum[sb], sb_length, param[sb]);
+        count4 = 0;
+        for (sb = 0; sb < sb_max; sb++) {
+            count4 += rice_encode_count(sum[sb], sb_length, param[sb]);
 
-        if (!sb)
-            count4 += 4 + (max_param > 15);
-        else
-            count4 += rice_count(param[sb] - param[sb-1], 0);
-    }
+            if (!sb)
+                count4 += 4 + (max_param > 15);
+            else
+                count4 += rice_count(param[sb] - param[sb-1], 0);
+        }
     }
 
     if (count1 <= count4) {
