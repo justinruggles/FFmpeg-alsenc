@@ -936,8 +936,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     // search for rice parameter:
     res_ptr = ctx->res_samples[c] + b * block->length;
-    find_block_rice_params(RICE_PARAM_ALGORITHM_ESTIMATE,
-                           RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
+                           RICE_BIT_COUNT_ALGORITHM_EXACT,
                            res_ptr, block->length,
                            ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
                            sconf->sb_part, !b, // ra_block
