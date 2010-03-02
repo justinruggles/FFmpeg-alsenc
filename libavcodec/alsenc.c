@@ -92,6 +92,7 @@ typedef struct {
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
     int32_t *r_parcor_coeff_buffer;  ///< buffer containing 21-bit PARCOR coefficients for all blocks in all channels
     int32_t *lpc_coeff_buffer;       ///< buffer containing LPC coefficients for all blocks in all channels
+    unsigned int max_rice_param;     ///< maximum Rice param, depends on sample depth
 } ALSEncContext;
 
 
@@ -376,11 +377,11 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
                         return -1;
                     start++;
                     if (block->opt_order > 1 && sb_length > 1) {
-                        if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+3))
+                        if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(block->rice_param[sb]+3, ctx->max_rice_param)))
                             return -1;
                         start++;
                         if (block->opt_order > 2 && sb_length > 2) {
-                            if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]+1))
+                            if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(block->rice_param[sb]+1, ctx->max_rice_param)))
                                 return -1;
                             start++;
                         }
@@ -713,6 +714,7 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
     if (sb_max == 1) {
         *sub_blocks = 1;
         rice_param[0] = param[0];
+        av_log(NULL, AV_LOG_INFO, "k=%d\n", rice_param[0]);
         return count[0][param[0]] + 4 + (max_param > 15);
     }
 
@@ -883,20 +885,25 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         double autoc[block->opt_order+1];
         double parcor[block->opt_order];
         int i, j;
+        int opt_order = FFMIN(block->opt_order, block->length);
 
         // calculate PARCOR coefficients
-        ctx->dsp.lpc_compute_autocorr(smp_ptr, block->length, block->opt_order, autoc);
-        compute_ref_coefs(autoc, block->opt_order, parcor);
+        ctx->dsp.lpc_compute_autocorr(smp_ptr, block->length, opt_order, autoc);
+        compute_ref_coefs(autoc, opt_order, parcor);
 
         // quick estimate for LPC order. better searches will give better
         // significantly better results.
         if (sconf->adapt_order) {
-            block->opt_order = estimate_best_order(parcor, 1, block->opt_order);
+            block->opt_order = estimate_best_order(parcor, 1, opt_order);
+            opt_order = block->opt_order;
         }
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
-        quantize_parcor_coeffs(parcor, block->opt_order, block->q_parcor_coeff,
+        quantize_parcor_coeffs(parcor, opt_order, block->q_parcor_coeff,
                                block->r_parcor_coeff);
+        if (opt_order < block->opt_order)
+            for (i = opt_order; i < block->opt_order; i++)
+                block->q_parcor_coeff[i] = block->r_parcor_coeff[i] = 0;
 
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
@@ -917,7 +924,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
             // progressive prediction
             ff_als_parcor_to_lpc(0, block->r_parcor_coeff, block->lpc_coeff);
-            for (i = 1; i < block->opt_order; i++) {
+            for (i = 1; i < opt_order; i++) {
                 LPC_PREDICT_SAMPLE(block->lpc_coeff, smp_ptr, res_ptr, i);
                 ff_als_parcor_to_lpc(i, block->r_parcor_coeff, block->lpc_coeff);
             }
@@ -939,7 +946,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
                            RICE_BIT_COUNT_ALGORITHM_EXACT,
                            res_ptr, block->length,
-                           ctx->avctx->bits_per_raw_sample > 16 ? 31 : 15,
+                           ctx->max_rice_param,
                            sconf->sb_part, !b, // ra_block
                            &block->sub_blocks, block->rice_param);
 }
@@ -1081,6 +1088,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     }
 
     avctx->bits_per_raw_sample = (sconf->resolution + 1) << 3;
+    ctx->max_rice_param = sconf->resolution > 1 ? 31 : 15;
 
 
     // determine frame length
