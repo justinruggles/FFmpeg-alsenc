@@ -68,8 +68,6 @@ typedef struct {
                                     ///< of this block in case of not bgmc
     unsigned int opt_order;         ///< prediction order for this block
     int32_t *q_parcor_coeff;        ///< 7-bit quantized PARCOR coefficients
-    int32_t *r_parcor_coeff;        ///< scaled 21-bit quantized PARCOR coefficients
-    int32_t *lpc_coeff;             ///< quantized LPC coefficients
     unsigned int js_block;          ///< indicates actual usage of joint-stereo coding
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
 } ALSBlock;
@@ -90,8 +88,8 @@ typedef struct {
     ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
-    int32_t *r_parcor_coeff_buffer;  ///< buffer containing 21-bit PARCOR coefficients for all blocks in all channels
-    int32_t *lpc_coeff_buffer;       ///< buffer containing LPC coefficients for all blocks in all channels
+    int32_t *r_parcor_coeff;         ///< scaled 21-bit quantized PARCOR coefficients for the current block
+    int32_t *lpc_coeff;              ///< LPC coefficients for the current block
     unsigned int max_rice_param;     ///< maximum Rice param, depends on sample depth
 } ALSEncContext;
 
@@ -900,10 +898,10 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
         quantize_parcor_coeffs(parcor, opt_order, block->q_parcor_coeff,
-                               block->r_parcor_coeff);
+                               ctx->r_parcor_coeff);
         if (opt_order < block->opt_order)
             for (i = opt_order; i < block->opt_order; i++)
-                block->q_parcor_coeff[i] = block->r_parcor_coeff[i] = 0;
+                block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
 
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
@@ -923,18 +921,18 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
             *(res_ptr++) = *(smp_ptr++);
 
             // progressive prediction
-            ff_als_parcor_to_lpc(0, block->r_parcor_coeff, block->lpc_coeff);
+            ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
             for (i = 1; i < opt_order; i++) {
-                LPC_PREDICT_SAMPLE(block->lpc_coeff, smp_ptr, res_ptr, i);
-                ff_als_parcor_to_lpc(i, block->r_parcor_coeff, block->lpc_coeff);
+                LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
+                ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
             }
         } else {
             for (j = 0; j < block->opt_order; j++)
-                ff_als_parcor_to_lpc(j, block->r_parcor_coeff, block->lpc_coeff);
+                ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
         }
         // remaining residual samples
         for (; i < block->length; i++) {
-            LPC_PREDICT_SAMPLE(block->lpc_coeff, smp_ptr, res_ptr, block->opt_order);
+            LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, block->opt_order);
         }
     } else {
         memcpy(res_ptr, smp_ptr, sizeof(*res_ptr) * block->length);
@@ -1304,8 +1302,8 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->block_buffer);
     av_freep(&ctx->blocks);
     av_freep(&ctx->q_parcor_coeff_buffer);
-    av_freep(&ctx->r_parcor_coeff_buffer);
-    av_freep(&ctx->lpc_coeff_buffer);
+    av_freep(&ctx->r_parcor_coeff);
+    av_freep(&ctx->lpc_coeff);
 
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
@@ -1355,8 +1353,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * 32);
     ctx->blocks            = av_malloc (sizeof(*ctx->blocks)         * avctx->channels);
     ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * 32 * sconf->max_order);
-    ctx->r_parcor_coeff_buffer = av_malloc (sizeof(*ctx->r_parcor_coeff_buffer) * avctx->channels * 32 * sconf->max_order);
-    ctx->lpc_coeff_buffer      = av_malloc (sizeof(*ctx->lpc_coeff_buffer)      * avctx->channels * 32 * sconf->max_order);
+    ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
+    ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
 
     // check buffers
     if (!ctx->independent_bs    ||
@@ -1380,23 +1378,13 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->blocks     [c] = ctx->blocks     [c - 1] + 32;
     }
 
+    ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
     for (c = 0; c < avctx->channels; c++) {
         for (b = 0; b < 32; b++) {
-            if (b == 0) {
-                if (c == 0) {
-                    ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
-                    ctx->blocks[0][0].r_parcor_coeff = ctx->r_parcor_coeff_buffer;
-                    ctx->blocks[0][0].lpc_coeff      = ctx->lpc_coeff_buffer;
-                } else {
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + 32 * sconf->max_order;
-                    ctx->blocks[c][b].r_parcor_coeff = ctx->blocks[c-1][0].r_parcor_coeff + 32 * sconf->max_order;
-                    ctx->blocks[c][b].lpc_coeff      = ctx->blocks[c-1][0].lpc_coeff      + 32 * sconf->max_order;
-                }
-            } else {
+            if (b)
                 ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
-                ctx->blocks[c][b].r_parcor_coeff = ctx->blocks[c][b-1].r_parcor_coeff + sconf->max_order;
-                ctx->blocks[c][b].lpc_coeff      = ctx->blocks[c][b-1].lpc_coeff      + sconf->max_order;
-            }
+            else if (c)
+                ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + 32 * sconf->max_order;
         }
     }
 
