@@ -892,7 +892,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
                                           block->length, block->opt_order,
                                           autoc);
         else
-        ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length, opt_order, autoc);
+            ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length,
+                                          opt_order, autoc);
         compute_ref_coefs(autoc, opt_order, parcor);
 
         // quick estimate for LPC order. better searches will give better
