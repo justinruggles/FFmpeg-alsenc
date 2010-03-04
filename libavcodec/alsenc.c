@@ -777,15 +777,16 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
 
 /**
  * Calculate optimal sub-block division and Rice parameters for a block.
- * @param[in] algorithm     which algorithm to use
- * @param[in] res_ptr       residual samples
- * @param[in] block_length  number of samples in the block
- * @param[in] max_param     maximum Rice parameter allowed
- * @param[in] sb_part       indicates if entropy coding partitioning is used
- * @param[in] ra_block      indicates if this is a random access block
- * @param[out] sub_blocks   optimal number of sub-blocks
- * @param[out] rice_param   optimal Rice parameter(s)
- * @return                  estimated number of bits used for residuals and rice params
+ * @param[in] param_algorithm   which algorithm to use for determining Rice parameters
+ * @param[in] count_algorithm   which bit count algorithm to use for determining sb_part
+ * @param[in] res_ptr           residual samples
+ * @param[in] block_length      number of samples in the block
+ * @param[in] max_param         maximum Rice parameter allowed
+ * @param[in] sb_part           indicates if entropy coding partitioning is used
+ * @param[in] ra_block          indicates if this is a random access block
+ * @param[out] sub_blocks       optimal number of sub-blocks
+ * @param[out] rice_param       optimal Rice parameter(s)
+ * @return                      estimated number of bits used for residuals and rice params
  */
 static int find_block_rice_params(int param_algorithm, int count_algorithm,
                                   const int32_t *res_ptr,
