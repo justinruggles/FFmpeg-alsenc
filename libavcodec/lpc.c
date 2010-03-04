@@ -51,14 +51,19 @@ static void apply_welch_window(const int32_t *data, int len, double *w_data)
     }
 }
 
-void ff_lpc_compute_autocorr(const int32_t *data, int len, int lag,
-                             double *autoc)
+void ff_lpc_compute_autocorr(const int32_t *data, const double *window,
+                             int len, int lag, double *autoc)
 {
     int i, j;
     double tmp[len + lag + 1];
     double *data1= tmp + lag;
 
-    apply_welch_window(data, len, data1);
+    if (window) {
+        for (i = 0; i < len; i++)
+            data1[i] = data[i] * window[i];
+    } else {
+        apply_welch_window(data, len, data1);
+    }
 
     for(j=0; j<lag; j++)
         data1[j-lag]= 0.0;
@@ -212,7 +217,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
            lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
 
     if (lpc_type == LPC_TYPE_LEVINSON) {
-        s->lpc_compute_autocorr(samples, blocksize, max_order, autoc);
+        s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
 
         if (omethod == ORDER_METHOD_EST) {
             compute_ref_coefs(autoc, max_order, ref);

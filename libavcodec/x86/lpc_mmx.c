@@ -65,8 +65,8 @@ static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data
 #undef WELCH
 }
 
-void ff_lpc_compute_autocorr_sse2(const int32_t *data, int len, int lag,
-                                   double *autoc)
+void ff_lpc_compute_autocorr_sse2(const int32_t *data, const double *window,
+                                  int len, int lag, double *autoc)
 {
     double tmp[len + lag + 2];
     double *data1 = tmp + lag;
@@ -75,7 +75,12 @@ void ff_lpc_compute_autocorr_sse2(const int32_t *data, int len, int lag,
     if((x86_reg)data1 & 15)
         data1++;
 
-    apply_welch_window_sse2(data, len, data1);
+    if (window) {
+        for (j = 0; j < len; j++)
+            data1[j] = data[j] * window[j];
+    } else {
+        apply_welch_window_sse2(data, len, data1);
+    }
 
     for(j=0; j<lag; j++)
         data1[j-lag]= 0.0;

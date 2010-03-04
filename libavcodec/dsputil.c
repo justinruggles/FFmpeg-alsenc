@@ -47,7 +47,7 @@ void vorbis_inverse_coupling(float *mag, float *ang, int blocksize);
 void ff_ac3_downmix_c(float (*samples)[256], float (*matrix)[2], int out_ch, int in_ch, int len);
 
 /* lpc.c */
-void ff_lpc_compute_autocorr(const int32_t *data, int len, int lag, double *autoc);
+void ff_lpc_compute_autocorr(const int32_t *data, const double *window, int len, int lag, double *autoc);
 
 /* pngdec.c */
 void ff_add_png_paeth_prediction(uint8_t *dst, uint8_t *src, uint8_t *top, int w, int bpp);

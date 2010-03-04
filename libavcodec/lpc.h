@@ -45,9 +45,15 @@
 /**
  * Calculates autocorrelation data from audio samples
  * A Welch window function is applied before calculation.
+ * @param[in] data      audio samples
+ * @param[in] window    optional pre-autocorrelation window of length 'len.
+ *                      if NULL, a Welch window of length 'len' is calculated.
+ * @param[in] len       number of audio samples
+ * @param[in] lag       maximum lag value
+ * @param[out] autoc    autocorrelation data
  */
-void ff_lpc_compute_autocorr(const int32_t *data, int len, int lag,
-                             double *autoc);
+void ff_lpc_compute_autocorr(const int32_t *data, const double *window,
+                             int len, int lag, double *autoc);
 
 /**
  * Calculate LPC coefficients for multiple orders

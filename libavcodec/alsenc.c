@@ -886,7 +886,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         int opt_order = FFMIN(block->opt_order, block->length);
 
         // calculate PARCOR coefficients
-        ctx->dsp.lpc_compute_autocorr(smp_ptr, block->length, opt_order, autoc);
+        ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length, opt_order, autoc);
         compute_ref_coefs(autoc, opt_order, parcor);
 
         // quick estimate for LPC order. better searches will give better
