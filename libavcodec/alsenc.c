@@ -91,6 +91,7 @@ typedef struct {
     int32_t *r_parcor_coeff;         ///< scaled 21-bit quantized PARCOR coefficients for the current block
     int32_t *lpc_coeff;              ///< LPC coefficients for the current block
     unsigned int max_rice_param;     ///< maximum Rice param, depends on sample depth
+    double *acf_window;              ///< pre-calculated autocorrelation window
 } ALSEncContext;
 
 
@@ -886,6 +887,11 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         int opt_order = FFMIN(block->opt_order, block->length);
 
         // calculate PARCOR coefficients
+        if (block->length == sconf->frame_length)
+            ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window,
+                                          block->length, block->opt_order,
+                                          autoc);
+        else
         ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length, opt_order, autoc);
         compute_ref_coefs(autoc, opt_order, parcor);
 
@@ -1313,6 +1319,33 @@ static av_cold int encode_end(AVCodecContext *avctx)
 }
 
 
+static void init_hanning_window(double *window, int len)
+{
+    int i, n2;
+    double w, c;
+
+    /* use a rectangle window for 1 to 3 samples */
+    if (len < 3) {
+        window[0] = 1.0;
+        if (len > 1)
+            window[1] = 1.0;
+    }
+
+    n2 = len >> 1;
+    c = 2.0 * M_PI / (len - 1);
+
+    for (i = 0; i < n2; i++) {
+        w = 0.5 - 0.5 * cos(c * i);
+        window[i]       = w;
+        window[len-i-1] = w;
+    }
+    if (len & 1) {
+        w = 0.5 - 0.5 * cos(c * i);
+        window[i] = w;
+    }
+}
+
+
 static av_cold int encode_init(AVCodecContext *avctx)
 {
     ALSEncContext *ctx       = avctx->priv_data;
@@ -1355,6 +1388,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * 32 * sconf->max_order);
     ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
     ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
+    ctx->acf_window        = av_malloc (sizeof(*ctx->acf_window)     * sconf->frame_length);
 
     // check buffers
     if (!ctx->independent_bs    ||
@@ -1399,6 +1433,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
 
     dsputil_init(&ctx->dsp, avctx);
+
+    init_hanning_window(ctx->acf_window, sconf->frame_length);
 
     return 0;
 }
