@@ -843,33 +843,33 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
     *(res_ptr++) = y;\
 }
 
-        i = 0;
-        if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
-            int ra_opt_order = FFMIN(opt_order, block->length);
+    i = 0;
+    if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+        int ra_opt_order = FFMIN(opt_order, block->length);
 
-            // copy first residual sample verbatim
-            *(res_ptr++) = *(smp_ptr++);
+        // copy first residual sample verbatim
+        *(res_ptr++) = *(smp_ptr++);
 
-            // progressive prediction
-            ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
-            for (i = 1; i < ra_opt_order; i++) {
-                LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
-                ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
-            }
-            // zero unused coeffs for small frames since they are all written
-            // to the bitstream if adapt_order is not used.
-            if (!sconf->adapt_order) {
-                for (; i < sconf->max_order; i++)
-                    block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
-            }
-        } else {
-            for (j = 0; j < opt_order; j++)
-                ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
+        // progressive prediction
+        ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
+        for (i = 1; i < ra_opt_order; i++) {
+            LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
+            ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
         }
-        // remaining residual samples
-        for (; i < block->length; i++) {
-            LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, opt_order);
+        // zero unused coeffs for small frames since they are all written
+        // to the bitstream if adapt_order is not used.
+        if (!sconf->adapt_order) {
+            for (; i < sconf->max_order; i++)
+                block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
         }
+    } else {
+        for (j = 0; j < opt_order; j++)
+            ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
+    }
+    // remaining residual samples
+    for (; i < block->length; i++) {
+        LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, opt_order);
+    }
 }
 
 
