@@ -859,33 +859,14 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // short-term prediction:
     // use the mode chosen at encode_init() to find optimal parameters
     //
-    // while not implemented: ensure max_order = 0 && adapt_order = 0 (in init)
     // LPC / PARCOR coefficients to be stored in context
     // they depend on js_block and opt_order which may be changing later on
 
-    block->opt_order = sconf->max_order;
-
-
-    // long-term prediction:
-    // to be implemented
-    //
-    // if enabled, search for ltp coefficients, lag, and whether ltp
-    // should be enabled in this block
-
-
-    // final joint or multi channel coding:
-    // to be implemented
-    //
-    // up to now only independent coding...
-
-
-    // generate residuals using parameters:
-
-    if (block->opt_order) {
+    if (sconf->max_order) {
         double autoc[block->opt_order+1];
         double parcor[block->opt_order];
         int i, j;
-        int opt_order = FFMIN(block->opt_order, block->length);
+        int opt_order = FFMIN(sconf->max_order, block->length);
 
         // calculate PARCOR coefficients
         if (block->length == sconf->frame_length)
@@ -899,6 +880,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
         // quick estimate for LPC order. better searches will give better
         // significantly better results.
+        block->opt_order = sconf->max_order;
         if (sconf->adapt_order) {
             block->opt_order = estimate_best_order(parcor, 1, opt_order);
             opt_order = block->opt_order;
@@ -910,7 +892,12 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
         if (opt_order < block->opt_order)
             for (i = opt_order; i < block->opt_order; i++)
                 block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
+    }
 
+
+    // generate residuals using parameters:
+
+    if (block->opt_order) {
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
@@ -945,6 +932,19 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     } else {
         memcpy(res_ptr, smp_ptr, sizeof(*res_ptr) * block->length);
     }
+
+
+    // long-term prediction:
+    // to be implemented
+    //
+    // if enabled, search for ltp coefficients, lag, and whether ltp
+    // should be enabled in this block
+
+
+    // final joint or multi channel coding:
+    // to be implemented
+    //
+    // up to now only independent coding...
 
 
     // search for rice parameter:
