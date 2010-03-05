@@ -822,13 +822,63 @@ static inline int estimate_best_order(int32_t *r_parcor, int order)
 }
 
 
+static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
+                                       unsigned int c, unsigned int b,
+                                       int opt_order)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    int i, j;
+
+    int32_t *res_ptr = ctx->res_samples[c] + b * block->length;
+    int32_t *smp_ptr = ctx->raw_samples[c] + b * block->length;
+
+#define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
+{\
+    int64_t y = 1 << 19;\
+    for (j = 1; j <= order; j++)\
+        y += (int64_t)lpc[j-1] * (smp_ptr)[-j];\
+    y = *(smp_ptr++) + (y >> 20);\
+    if (y < INT32_MIN || y > INT32_MAX)\
+        av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
+    *(res_ptr++) = y;\
+}
+
+        i = 0;
+        if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            int ra_opt_order = FFMIN(opt_order, block->length);
+
+            // copy first residual sample verbatim
+            *(res_ptr++) = *(smp_ptr++);
+
+            // progressive prediction
+            ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            for (i = 1; i < ra_opt_order; i++) {
+                LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
+                ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            }
+            // zero unused coeffs for small frames since they are all written
+            // to the bitstream if adapt_order is not used.
+            if (!sconf->adapt_order) {
+                for (; i < sconf->max_order; i++)
+                    block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
+            }
+        } else {
+            for (j = 0; j < opt_order; j++)
+                ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
+        }
+        // remaining residual samples
+        for (; i < block->length; i++) {
+            LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, opt_order);
+        }
+}
+
+
 /** Encode a given block of a given channel
  */
 static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
                               unsigned int c, unsigned int b)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
-    int i, j;
 
     int32_t *res_ptr = ctx->res_samples[c] + b * block->length;
     int32_t *smp_ptr = ctx->raw_samples[c] + b * block->length;
@@ -909,45 +959,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // generate residuals using parameters:
 
     if (block->opt_order) {
-
-#define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
-{\
-    int64_t y = 1 << 19;\
-    for (j = 1; j <= order; j++)\
-        y += (int64_t)lpc[j-1] * (smp_ptr)[-j];\
-    y = *(smp_ptr++) + (y >> 20);\
-    if (y < INT32_MIN || y > INT32_MAX)\
-        av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
-    *(res_ptr++) = y;\
-}
-
-        i = 0;
-        if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
-            int ra_opt_order = FFMIN(block->opt_order, block->length);
-
-            // copy first residual sample verbatim
-            *(res_ptr++) = *(smp_ptr++);
-
-            // progressive prediction
-            ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
-            for (i = 1; i < ra_opt_order; i++) {
-                LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
-                ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
-            }
-            // zero unused coeffs for small frames since they are all written
-            // to the bitstream if adapt_order is not used.
-            if (!sconf->adapt_order) {
-                for (; i < sconf->max_order; i++)
-                    block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
-            }
-        } else {
-            for (j = 0; j < block->opt_order; j++)
-                ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
-        }
-        // remaining residual samples
-        for (; i < block->length; i++) {
-            LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, block->opt_order);
-        }
+        calc_short_term_prediction(ctx, block, c, b, block->opt_order);
     } else {
         memcpy(res_ptr, smp_ptr, sizeof(*res_ptr) * block->length);
     }
@@ -967,7 +979,6 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
 
     // search for rice parameter:
-    res_ptr = ctx->res_samples[c] + b * block->length;
     find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
                            RICE_BIT_COUNT_ALGORITHM_EXACT,
                            res_ptr, block->length,
