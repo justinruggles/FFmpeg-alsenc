@@ -167,18 +167,4 @@ static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
     return 0;
 }
 
-static inline int estimate_best_order(double *ref, int min_order, int max_order)
-{
-    int i, est;
-
-    est = min_order;
-    for(i=max_order-1; i>=min_order-1; i--) {
-        if(FFABS(ref[i]) > 0.10) {
-            est = i+1;
-            break;
-        }
-    }
-    return est;
-}
-
 #endif /* AVCODEC_LPC_H */

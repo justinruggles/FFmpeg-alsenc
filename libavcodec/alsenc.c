@@ -811,12 +811,24 @@ static int find_block_rice_params(int param_algorithm, int count_algorithm,
 }
 
 
+static inline int estimate_best_order(int32_t *r_parcor, int order)
+{
+    int i;
+    for (i = order-1; i > 0; i--) {
+        if (abs(r_parcor[i]) > 104858) // 104858 = 0.10 * (1 << 20)
+            break;
+    }
+    return i+1;
+}
+
+
 /** Encode a given block of a given channel
  */
 static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
                               unsigned int c, unsigned int b)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
+    int i, j;
 
     int32_t *res_ptr = ctx->res_samples[c] + b * block->length;
     int32_t *smp_ptr = ctx->raw_samples[c] + b * block->length;
@@ -863,35 +875,34 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // they depend on js_block and opt_order which may be changing later on
 
     if (sconf->max_order) {
-        double autoc[block->opt_order+1];
-        double parcor[block->opt_order];
-        int i, j;
-        int opt_order = FFMIN(sconf->max_order, block->length);
+        double autoc[sconf->max_order+1];
+        double parcor[sconf->max_order];
 
         // calculate PARCOR coefficients
         if (block->length == sconf->frame_length)
             ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window,
-                                          block->length, block->opt_order,
+                                          block->length, sconf->max_order,
                                           autoc);
         else
             ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length,
-                                          opt_order, autoc);
-        compute_ref_coefs(autoc, opt_order, parcor);
-
-        // quick estimate for LPC order. better searches will give better
-        // significantly better results.
-        block->opt_order = sconf->max_order;
-        if (sconf->adapt_order) {
-            block->opt_order = estimate_best_order(parcor, 1, opt_order);
-            opt_order = block->opt_order;
-        }
+                                          sconf->max_order, autoc);
+        compute_ref_coefs(autoc, sconf->max_order, parcor);
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
-        quantize_parcor_coeffs(parcor, opt_order, block->q_parcor_coeff,
+        quantize_parcor_coeffs(parcor, sconf->max_order, block->q_parcor_coeff,
                                ctx->r_parcor_coeff);
-        if (opt_order < block->opt_order)
-            for (i = opt_order; i < block->opt_order; i++)
-                block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
+    }
+
+
+    // Determine optimal LPC order:
+    //
+    // quick estimate for LPC order. better searches will give better
+    // significantly better results.
+    if (sconf->max_order && sconf->adapt_order) {
+        block->opt_order = estimate_best_order(ctx->r_parcor_coeff,
+                                               block->opt_order);
+    } else {
+        block->opt_order = sconf->max_order;
     }
 
 
@@ -912,14 +923,22 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
         i = 0;
         if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            int ra_opt_order = FFMIN(block->opt_order, block->length);
+
             // copy first residual sample verbatim
             *(res_ptr++) = *(smp_ptr++);
 
             // progressive prediction
             ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
-            for (i = 1; i < opt_order; i++) {
+            for (i = 1; i < ra_opt_order; i++) {
                 LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
                 ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            }
+            // zero unused coeffs for small frames since they are all written
+            // to the bitstream if adapt_order is not used.
+            if (!sconf->adapt_order) {
+                for (; i < sconf->max_order; i++)
+                    block->q_parcor_coeff[i] = ctx->r_parcor_coeff[i] = 0;
             }
         } else {
             for (j = 0; j < block->opt_order; j++)
