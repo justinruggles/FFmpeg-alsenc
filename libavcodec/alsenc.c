@@ -726,7 +726,6 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
     if (sb_max == 1) {
         *sub_blocks = 1;
         rice_param[0] = param[0];
-        av_log(NULL, AV_LOG_INFO, "k=%d\n", rice_param[0]);
         return count[0][param[0]] + 4 + (max_param > 15);
     }
 
