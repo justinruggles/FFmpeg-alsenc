@@ -1326,7 +1326,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
                                block->opt_order,
                                &block->sub_blocks, block->rice_param);
 
-        write_block(ctx, block, channel, b);
+        write_block(ctx, block, channel, b + num_blocks - 1);
 
         // get written bits
         bs_sizes[b] = put_bits_count(&ctx->pb);
@@ -1340,6 +1340,8 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
     if (stage < ctx->sconf.block_switching + 2)
         gen_sizes(ctx, channel, stage + 1);
+    else
+        ctx->bs_info[channel] = bs_info_tmp;
 }
 
 
