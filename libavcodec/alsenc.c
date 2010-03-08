@@ -1278,7 +1278,6 @@ static int get_block_overhead(ALSEncContext *ctx, ALSBlock *block)
  */
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
-    ALSSpecificConfig *sconf = &ctx->sconf;
     ALSBlock *block          = ctx->blocks[channel];
     unsigned int num_blocks  = 1 << stage;
     uint32_t bs_info_tmp     = 0;
@@ -1299,13 +1298,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
 #if BS_DETERMINE_SIZE_BY_COUNT
         // count residuals + estimate block overhead
-        bs_sizes[b] = find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
-                                             RICE_BIT_COUNT_ALGORITHM_EXACT,
-                                             block->res_ptr, block->length,
-                                             ctx->max_rice_param, sconf->sb_part,
-                                             !b, // ra_block
-                                             block->opt_order,
-                                             &block->sub_blocks, block->rice_param);
+        find_block_params(ctx, block, channel, b);
 
         bs_sizes[b] += get_block_overhead(ctx, block);
 #else
@@ -1315,18 +1308,12 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         PutBitContext pb  = ctx->pb;
 
         // initialize a new buffer into ctx->pb
-        init_put_bits(&ctx->pb, (uint8_t*)ctx->bs_tmp_buffer, sconf->frame_length << 3);
+        init_put_bits(&ctx->pb, (uint8_t*)ctx->bs_tmp_buffer, ctx->sconf.frame_length << 3);
 
         // write into temporary buffer
-        find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
-                               RICE_BIT_COUNT_ALGORITHM_EXACT,
-                               block->res_ptr, block->length,
-                               ctx->max_rice_param, sconf->sb_part,
-                               !b, // ra_block
-                               block->opt_order,
-                               &block->sub_blocks, block->rice_param);
+        find_block_params(ctx, block, channel, b);
 
-        write_block(ctx, block, channel, b + num_blocks - 1);
+        write_block(ctx, block, channel, b);
 
         // get written bits
         bs_sizes[b] = put_bits_count(&ctx->pb);

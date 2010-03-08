@@ -437,7 +437,7 @@ static void decode_const_block_data(ALSDecContext *ctx, ALSBlockData *bd)
     int      smp = bd->block_length;
     int32_t  val = bd->const_val;
     int32_t *dst = bd->raw_samples;
-
+dprintf(NULL, "decoding constant block\n");
     // write raw samples into buffer
     for (; smp; smp--)
         *dst++ = val;
