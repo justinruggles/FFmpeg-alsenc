@@ -57,6 +57,16 @@
 /** Calculates Rice sub-block partitioning using an exact bit count */
 #define RICE_BIT_COUNT_ALGORITHM_EXACT      1
 
+/** Find optimal block partitioning using Full-Search */
+#define BS_ALGORITHM_FULL_SEARCH    1
+/** Find optimal block partitioning using Bottom-Up */
+#define BS_ALGORITHM_BOTTOM_UP      0
+
+/** Use writing into a temporary buffer to determine exact block size including overhead */
+#define BS_DETERMINE_SIZE_BY_WRITE  1
+/** Use bit counting using RICE_BIT_COUNT_ALGORITHM_* and overhead estimation */
+#define BS_DETERMINE_SIZE_BY_COUNT  0
+
 
 // probably mergeable or the very same as ALSBlockData from the decoder
 typedef struct {
@@ -89,6 +99,11 @@ typedef struct {
     int32_t **res_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
     uint32_t *bs_info;               ///< block-partitioning used for the current frame
     int *num_blocks;                 ///< number of blocks used for the block partitioning
+    unsigned int *bs_sizes_buffer;   ///< buffer containing all block sizes for all channels
+    unsigned int **bs_sizes;         ///< pointer to the beginning of the channel's block sizes for each channel
+#if BS_DETERMINE_SIZE_BY_WRITE
+    int32_t *bs_tmp_buffer;          ///< buffer for temporarily writing a block to determine the real block size including block overhead
+#endif
     ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
@@ -100,6 +115,7 @@ typedef struct {
 
 
 static int write_specific_config(AVCodecContext *avctx);
+static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
 
 
 /** Converts an array of channel-interleaved samples into
@@ -157,28 +173,266 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
 }
 
 
+/** Recursively parses a given block partitioning and
+ *  sum up all block sizes used to get the overall bit count
+ */
+static void parse_bs_size(const uint32_t bs_info, unsigned int n,
+                          unsigned int *bs_sizes, unsigned int *bit_count)
+{
+    if (n < 31 && ((bs_info << n) & 0x40000000)) {
+        // if the level is valid and the investigated bit n is set
+        // then recursively check both children at bits (2n+1) and (2n+2)
+        n   *= 2;
+        parse_bs_size(bs_info, n + 1, bs_sizes, bit_count);
+        parse_bs_size(bs_info, n + 2, bs_sizes, bit_count);
+    } else {
+        // else the bit is not set or the last level has been reached
+        // (bit implicitly not set)
+        (*bit_count) += bs_sizes[n];
+    }
+}
+
+
+/** Recursively parses a given block partitioning and
+ *  set all nodes to zero
+ */
+static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
+{
+    if (n < 31) {
+        // if the level is valid set this bit and
+        // all children to zero
+        *bs_info &= ~(1 << (30 - n));
+        n        *= 2;
+        parse_bs_zero(bs_info, n + 1);
+        parse_bs_zero(bs_info, n + 2);
+    }
+}
+
+
+/** Successively merging the subblocks of the frame until
+ *  the minimal bit count for the frame is found.
+ *  Using Full-Search strategy.
+ */
+static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
+                                 unsigned int c1, unsigned int c2)
+{
+#define GET_BIT(pos) ((*bs_info & (1 << (30 - pos))) > 0)
+    uint32_t *bs_info = &ctx->bs_info[c1];
+
+    if (n < 31 && ((*bs_info << n) & 0x40000000)) {
+        // if the level is valid and the investigated bit n is set
+        // then recursively check both children at bits (2n+1) and (2n+2)
+        unsigned int *sizes_c1 = ctx->bs_sizes[c1];
+        unsigned int *sizes_c2 = ctx->bs_sizes[c2];
+        unsigned int a         = 2 * n + 1;
+        unsigned int b         =     a + 1;
+        unsigned int sum_a     = 0;
+        unsigned int sum_b     = 0;
+        unsigned int sum_n     = sizes_c1[n];
+
+        if (GET_BIT(a)) {
+            merge_bs_fullsearch(ctx, a, c1, c2);
+        }
+
+        if (GET_BIT(b)) {
+            merge_bs_fullsearch(ctx, b, c1, c2);
+        }
+
+
+        parse_bs_size(*bs_info, a, sizes_c1, &sum_a);
+        parse_bs_size(*bs_info, b, sizes_c1, &sum_b);
+
+        if (c1 != c2) {
+            sum_n += sizes_c2[n];
+            parse_bs_size(*bs_info, a, sizes_c2, &sum_a);
+            parse_bs_size(*bs_info, b, sizes_c2, &sum_b);
+        }
+
+        if (sum_a + sum_b > sum_n) {
+            parse_bs_zero(bs_info, n);
+            if (c1 != c2) {
+                ctx->bs_info[c2] = *bs_info;
+            }
+        }
+
+        if (GET_BIT(a) && GET_BIT(b)) {
+            merge_bs_fullsearch(ctx, a, c1, c2);
+            merge_bs_fullsearch(ctx, b, c1, c2);
+        }
+    }
+}
+
+
+/** Successively merging the subblocks of the frame until
+ *  the minimal bit count for the frame is found.
+ *  Using Bottom-Up strategy.
+ */
+static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
+                                 unsigned int c1, unsigned int c2)
+{
+    uint32_t *bs_info = &ctx->bs_info[c1];
+
+    if (n < 31 && ((*bs_info << n) & 0x40000000)) {
+        // if the level is valid and the investigated bit n is set
+        // then recursively check both children at bits (2n+1) and (2n+2)
+        unsigned int *sizes_c1 = ctx->bs_sizes[c1];
+        unsigned int *sizes_c2 = ctx->bs_sizes[c2];
+        unsigned int a         = 2 * n + 1;
+        unsigned int b         =     a + 1;
+        unsigned int sum_a     = 0;
+        unsigned int sum_b     = 0;
+        unsigned int sum_n     = sizes_c1[n];
+
+        if (GET_BIT(a) && GET_BIT(b)) {
+            merge_bs_bottomup(ctx, a, c1, c2);
+            merge_bs_bottomup(ctx, b, c1, c2);
+        }
+
+        if (!GET_BIT(a) && !GET_BIT(b)) {
+            sum_a += sizes_c1[a];
+            sum_b += sizes_c1[b];
+
+            if (c1 != c2) {
+                sum_n += sizes_c2[n];
+                sum_a += sizes_c2[a];
+                sum_b += sizes_c2[b];
+            }
+
+            if (sum_a + sum_b > sum_n) {
+                parse_bs_zero(bs_info, n);
+                if (c1 != c2) {
+                    ctx->bs_info[c2] = *bs_info;
+                }
+            }
+        }
+    }
+#undef GET_BIT(pos)
+}
+
+
+/** Reads block switching field if necessary and sets actual block sizes.
+ *  Also assures that the block sizes of the last frame correspond to the
+ *  actual number of samples.
+ */
+static void get_block_sizes(ALSEncContext *ctx,
+                            uint32_t *bs_info,
+                            unsigned int c1, unsigned int c2)
+{
+    ALSSpecificConfig *sconf     = &ctx->sconf;
+    unsigned int div_blocks[32];
+    unsigned int *ptr_div_blocks = div_blocks;
+    unsigned int b;
+    int32_t *res_ptr = ctx->res_samples[c1];
+    int32_t *smp_ptr = ctx->raw_samples[c1];
+
+    ALSBlock *block = ctx->blocks[c1];
+
+    ctx->num_blocks[c1] = 0;
+
+    ff_als_parse_bs_info(*bs_info, 0, 0, &ptr_div_blocks, &ctx->num_blocks[c1]);
+
+    // The last frame may have an overdetermined block structure given in
+    // the bitstream. In that case the defined block structure would need
+    // more samples than available to be consistent.
+    // The block structure is actually used but the block sizes are adapted
+    // to fit the actual number of available samples.
+    // Example: 5 samples, 2nd level block sizes: 2 2 2 2.
+    // This results in the actual block sizes:    2 2 1 0.
+    // This is not specified in 14496-3 but actually done by the reference
+    // codec RM22 revision 2.
+    // This appears to happen in case of an odd number of samples in the last
+    // frame which is actually not allowed by the block length switching part
+    // of 14496-3.
+    // The ALS conformance files feature an odd number of samples in the last
+    // frame.
+
+    for (b = 0; b < ctx->num_blocks[c1]; b++) {
+        div_blocks[b]  = ctx->sconf.frame_length >> div_blocks[b];
+        block->length  = div_blocks[b];
+        block->res_ptr = res_ptr;
+        block->smp_ptr = smp_ptr;
+        res_ptr += div_blocks[b];
+        smp_ptr += div_blocks[b];
+        block++;
+    }
+
+    if (ctx->cur_frame_length != sconf->frame_length) {
+        unsigned int remaining = ctx->cur_frame_length;
+
+        for (b = 0; b < ctx->num_blocks[c1]; b++) {
+            if (remaining <= div_blocks[b]) {
+                ctx->blocks[c1][b].length = remaining;
+                ctx->num_blocks[c1] = b + 1;
+                break;
+            }
+            remaining -= ctx->blocks[c1][b].length;
+        }
+    }
+
+    if (c1 != c2) {
+        res_ptr = ctx->res_samples[c2];
+        smp_ptr = ctx->raw_samples[c2];
+        ctx->num_blocks[c2] = ctx->num_blocks[c1];
+        block = ctx->blocks[c2];
+
+        for (b = 0; b < ctx->num_blocks[c1]; b++) {
+            block->length  = div_blocks[b];
+            block->res_ptr = res_ptr;
+            block->smp_ptr = smp_ptr;
+            res_ptr += div_blocks[b];
+            smp_ptr += div_blocks[b];
+            block++;
+        }
+    }
+}
+
+
+/** Selects the best block-partitioning for the current frame
+ *  depending on the chosen algorithm and sets the block sizes
+ *  accordingly
+ */
+static void get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
+{
+    if(BS_ALGORITHM_BOTTOM_UP) {
+        merge_bs_bottomup(ctx, 0, c1, c2);
+    } else {
+        merge_bs_fullsearch(ctx, 0, c1, c2);
+    }
+
+    get_block_sizes(ctx, &ctx->bs_info[c1], c1, c2);
+}
+
+
+
 /** Subdivide the frame into smaller blocks
  */
 static void block_partitioning(ALSEncContext *ctx)
 {
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
-    unsigned int b, c;
+    unsigned int c;
 
     if (sconf->block_switching && !(ctx->cur_frame_length & 1)) { // even number of samples only by now
 
-        // maybe set a bs_info[c] in the context, but maybe
-        // this should be generated when needed in bitstream assembly
-        // because it should not be needed elsewhere in the encoder
-        // if block[c][x].length is there
-
-        // hardcoded test for two blocks per frame:
+        // generate all block sizes for this frame
         for (c = 0; c < avctx->channels; c++) {
-            ctx->blocks[c][0].length = FFMIN(ctx->cur_frame_length, sconf->frame_length / 2);
-            ctx->blocks[c][1].length = FFMAX(0, (int)ctx->cur_frame_length - (int)ctx->blocks[c][0].length);
+            gen_sizes(ctx, c, 0);
+        }
 
-            for (b = 2; b < 32; b++)
-                ctx->blocks[c][b].length = 0;
+        // find the best partitioning for each channel
+        if (!sconf->mc_coding || ctx->js_switch) {
+            for (c = 0; c < avctx->channels; c++) {
+                if (ctx->independent_bs[c]) {
+                    get_partition(ctx, c, c);
+                } else {
+                    get_partition(ctx, c, c + 1);
+                    c++;
+                }
+            }
+        } else {
+
+            // MCC: to be implemented
+
         }
 
     } else {
@@ -1003,6 +1257,92 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+#if BS_DETERMINE_SIZE_BY_COUNT
+/** Very roughly estimates overhead for one block
+ */
+static int get_block_overhead(ALSEncContext *ctx, ALSBlock *block)
+{
+    int overhead = block->sub_blocks * ctx->max_rice_param // s[k]
+                 + 10                            // opt_order_length
+                 + block->opt_order  * 7         // quant_cof
+                 + 0                             // LTP
+                 + 0                             // progressively coded ra-samples
+                 ;
+
+    return overhead;
+}
+#endif
+
+
+/** Generates all possible block sizes for all possible block-switching stages
+ */
+static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    ALSBlock *block          = ctx->blocks[channel];
+    unsigned int num_blocks  = 1 << stage;
+    uint32_t bs_info_tmp     = 0;
+    unsigned int b;
+
+    ctx->num_blocks[channel] = num_blocks;
+
+    if (stage) {
+        for (b = 1; b < num_blocks; b++) {
+            bs_info_tmp |= (1 << (31 - b));
+        }
+    }
+
+    get_block_sizes(ctx, &bs_info_tmp, channel, channel);
+
+    for (b = 0; b < num_blocks; b++) {
+        unsigned int *bs_sizes = ctx->bs_sizes[channel] + num_blocks - 1;
+
+#if BS_DETERMINE_SIZE_BY_COUNT
+        // count residuals + estimate block overhead
+        bs_sizes[b] = find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
+                                             RICE_BIT_COUNT_ALGORITHM_EXACT,
+                                             block->res_ptr, block->length,
+                                             ctx->max_rice_param, sconf->sb_part,
+                                             !b, // ra_block
+                                             block->opt_order,
+                                             &block->sub_blocks, block->rice_param);
+
+        bs_sizes[b] += get_block_overhead(ctx, block);
+#else
+        // get exact bit count by writing
+
+        // save original PutBitContext
+        PutBitContext pb  = ctx->pb;
+
+        // initialize a new buffer into ctx->pb
+        init_put_bits(&ctx->pb, (uint8_t*)ctx->bs_tmp_buffer, sconf->frame_length << 3);
+
+        // write into temporary buffer
+        find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
+                               RICE_BIT_COUNT_ALGORITHM_EXACT,
+                               block->res_ptr, block->length,
+                               ctx->max_rice_param, sconf->sb_part,
+                               !b, // ra_block
+                               block->opt_order,
+                               &block->sub_blocks, block->rice_param);
+
+        write_block(ctx, block, channel, b);
+
+        // get written bits
+        bs_sizes[b] = put_bits_count(&ctx->pb);
+
+        // restore original PutBitContext
+        ctx->pb = pb;
+#endif
+
+        block++;
+    }
+
+    if (stage < ctx->sconf.block_switching + 2)
+        gen_sizes(ctx, channel, stage + 1);
+}
+
+
 static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                         int buf_size, void *data)
 {
@@ -1193,7 +1533,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 0; // set to 1 to test block-switching
+    sconf->block_switching = 1; // set to 1 to test block-switching
                                 // with two blocks per frame
 
 
@@ -1356,6 +1696,11 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->blocks);
     av_freep(&ctx->bs_info);
     av_freep(&ctx->num_blocks);
+    av_freep(&ctx->bs_sizes_buffer);
+    av_freep(&ctx->bs_sizes);
+#if BS_DETERMINE_SIZE_BY_WRITE
+    av_freep(&ctx->bs_tmp_buffer);
+#endif
     av_freep(&ctx->q_parcor_coeff_buffer);
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
@@ -1478,6 +1823,28 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // channel sorting
     if ((sconf->joint_stereo || sconf->mc_coding) && sconf->chan_sort)
         channel_sorting(ctx);
+
+
+    // allocate bs buffers
+    if (sconf->block_switching) {
+        int num_bs_sizes = (8 << sconf->block_switching) - 1;
+
+        ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
+        ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
+#if BS_DETERMINE_SIZE_BY_WRITE
+        ctx->bs_tmp_buffer   = av_malloc(sizeof(*ctx->bs_tmp_buffer)   * sconf->frame_length);
+#endif
+
+        if (!ctx->bs_sizes || !ctx->bs_sizes_buffer) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            encode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
+
+        for (c = 0; c < avctx->channels; c++) {
+            ctx->bs_sizes[c] = ctx->bs_sizes_buffer + c * num_bs_sizes;
+        }
+    }
 
 
     avctx->coded_frame = avcodec_alloc_frame();
