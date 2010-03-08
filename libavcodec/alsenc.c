@@ -1355,6 +1355,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->block_buffer);
     av_freep(&ctx->blocks);
     av_freep(&ctx->bs_info);
+    av_freep(&ctx->num_blocks);
     av_freep(&ctx->q_parcor_coeff_buffer);
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
