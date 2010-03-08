@@ -70,6 +70,8 @@ typedef struct {
     int32_t *q_parcor_coeff;        ///< 7-bit quantized PARCOR coefficients
     unsigned int js_block;          ///< indicates actual usage of joint-stereo coding
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
+    int32_t *res_ptr;               ///< points to the first residual for this block
+    int32_t *smp_ptr;               ///< points to the first raw sample for this block
 } ALSBlock;
 
 
@@ -365,7 +367,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
         // for now, all frames are RA frames, so use progressive prediction for
         // the first 3 residual samples, up to opt_order
 
-        res_ptr = ctx->res_samples[c] + b * block->length;
+        res_ptr = block->res_ptr;
         sb_length = block->length / block->sub_blocks;
 
         for (sb = 0; sb < block->sub_blocks; sb++) {
@@ -843,8 +845,8 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
     ALSSpecificConfig *sconf = &ctx->sconf;
     int i, j;
 
-    int32_t *res_ptr = ctx->res_samples[c] + b * block->length;
-    int32_t *smp_ptr = ctx->raw_samples[c] + b * block->length;
+    int32_t *res_ptr = block->res_ptr;
+    int32_t *smp_ptr = block->smp_ptr;
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
@@ -894,8 +896,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
 
-    int32_t *res_ptr = ctx->res_samples[c] + b * block->length;
-    int32_t *smp_ptr = ctx->raw_samples[c] + b * block->length;
+    int32_t *res_ptr = block->res_ptr;
+    int32_t *smp_ptr = block->smp_ptr;
 
     // check for constant block
     // to be implemented
