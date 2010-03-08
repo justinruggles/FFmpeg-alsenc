@@ -329,30 +329,6 @@ static int check_specific_config(ALSDecContext *ctx)
 }
 
 
-/** Parses the bs_info field to extract the block partitioning used in
- *  block switching mode, refer to ISO/IEC 14496-3, section 11.6.2.
- */
-static void parse_bs_info(const uint32_t bs_info, unsigned int n,
-                          unsigned int div, unsigned int **div_blocks,
-                          unsigned int *num_blocks)
-{
-    if (n < 31 && ((bs_info << n) & 0x40000000)) {
-        // if the level is valid and the investigated bit n is set
-        // then recursively check both children at bits (2n+1) and (2n+2)
-        n   *= 2;
-        div += 1;
-        parse_bs_info(bs_info, n + 1, div, div_blocks, num_blocks);
-        parse_bs_info(bs_info, n + 2, div, div_blocks, num_blocks);
-    } else {
-        // else the bit is not set or the last level has been reached
-        // (bit implicitly not set)
-        **div_blocks = div;
-        (*div_blocks)++;
-        (*num_blocks)++;
-    }
-}
-
-
 /** Reads and decodes a Rice codeword.
  */
 static int32_t decode_rice(GetBitContext *gb, unsigned int k)
@@ -390,7 +366,7 @@ static void get_block_sizes(ALSDecContext *ctx, unsigned int *div_blocks,
     }
 
     ctx->num_blocks = 0;
-    parse_bs_info(*bs_info, 0, 0, &ptr_div_blocks, &ctx->num_blocks);
+    ff_als_parse_bs_info(*bs_info, 0, 0, &ptr_div_blocks, &ctx->num_blocks);
 
     // The last frame may have an overdetermined block structure given in
     // the bitstream. In that case the defined block structure would need
