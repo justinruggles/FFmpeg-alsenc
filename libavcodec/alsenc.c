@@ -87,6 +87,7 @@ typedef struct {
     int32_t **raw_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
     int32_t *res_buffer;             ///< buffer containing all residual samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
     int32_t **res_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
+    uint32_t *bs_info;               ///< block-partitioning used for the current frame
     int *num_blocks;                 ///< number of blocks used for the block partitioning
     ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
@@ -437,9 +438,8 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
     if (!sconf->mc_coding || ctx->js_switch) {
         for (c = 0; c < avctx->channels; c++) {
             if (sconf->block_switching) {
-                // hardcoded test for two blocks per frame
                 unsigned int bs_info_len = 1 << (sconf->block_switching + 2);
-                uint32_t bs_info = 1 << 30; // 0100000..0
+                uint32_t bs_info         = ctx->bs_info[c];
 
                 if (bs_info_len == 32)
                     put_bits32(&ctx->pb, bs_info);
@@ -1354,6 +1354,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->res_samples);
     av_freep(&ctx->block_buffer);
     av_freep(&ctx->blocks);
+    av_freep(&ctx->bs_info);
     av_freep(&ctx->q_parcor_coeff_buffer);
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
@@ -1431,6 +1432,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->res_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)     * avctx->channels * channel_size);
     ctx->res_samples       = av_malloc (sizeof(*ctx->raw_samples)    * avctx->channels);
     ctx->num_blocks        = av_malloc (sizeof(*ctx->num_blocks)     * avctx->channels);
+    ctx->bs_info           = av_malloc (sizeof(*ctx->bs_info)        * avctx->channels);
     ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * 32);
     ctx->blocks            = av_malloc (sizeof(*ctx->blocks)         * avctx->channels);
     ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * 32 * sconf->max_order);
@@ -1442,7 +1444,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (!ctx->independent_bs    ||
         !ctx->raw_buffer        || !ctx->raw_samples ||
         !ctx->res_buffer        || !ctx->res_samples ||
-        !ctx->num_blocks        ||
+        !ctx->num_blocks        || !ctx->bs_info     ||
         !ctx->block_buffer      || !ctx->blocks) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
