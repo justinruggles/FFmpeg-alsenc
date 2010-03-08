@@ -187,10 +187,10 @@ static void block_partitioning(ALSEncContext *ctx)
         // one block per channel as long as the frame
 
         for (c = 0; c < avctx->channels; c++) {
-            ctx->blocks[c][0].length = ctx->cur_frame_length;
-
-            for (b = 1; b < 32; b++)
-                ctx->blocks[c][b].length = 0;
+            ctx->num_blocks[c]        = 1;
+            ctx->blocks[c][0].length  = ctx->cur_frame_length;
+            ctx->blocks[c][0].res_ptr = ctx->res_samples[c];
+            ctx->blocks[c][0].smp_ptr = ctx->raw_samples[c];
         }
     }
 }
