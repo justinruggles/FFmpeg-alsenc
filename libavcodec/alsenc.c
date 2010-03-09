@@ -68,6 +68,10 @@
 #define BS_DETERMINE_SIZE_BY_COUNT  0
 
 
+/** Get the bit at position pos+1 in uint32_t *ptr_bs_info */
+#define GET_BS_BIT(ptr_bs_info, pos) ((*ptr_bs_info & (1 << (30 - pos))) > 0)
+
+
 // probably mergeable or the very same as ALSBlockData from the decoder
 typedef struct {
     int constant;                   ///< indicates constant block values
@@ -216,7 +220,6 @@ static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
 static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
                                  unsigned int c1, unsigned int c2)
 {
-#define GET_BS_BIT(ptr_bs_info, pos) ((*ptr_bs_info & (1 << (30 - pos))) > 0)
     uint32_t *bs_info = &ctx->bs_info[c1];
 
     if (n < 31 && ((*bs_info << n) & 0x40000000)) {
