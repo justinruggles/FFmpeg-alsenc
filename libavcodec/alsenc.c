@@ -216,7 +216,7 @@ static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
 static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
                                  unsigned int c1, unsigned int c2)
 {
-#define GET_BIT(pos) ((*bs_info & (1 << (30 - pos))) > 0)
+#define GET_BS_BIT(pos) ((*bs_info & (1 << (30 - pos))) > 0)
     uint32_t *bs_info = &ctx->bs_info[c1];
 
     if (n < 31 && ((*bs_info << n) & 0x40000000)) {
@@ -230,11 +230,11 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
         unsigned int sum_b     = 0;
         unsigned int sum_n     = sizes_c1[n];
 
-        if (GET_BIT(a)) {
+        if (GET_BS_BIT(a)) {
             merge_bs_fullsearch(ctx, a, c1, c2);
         }
 
-        if (GET_BIT(b)) {
+        if (GET_BS_BIT(b)) {
             merge_bs_fullsearch(ctx, b, c1, c2);
         }
 
@@ -255,7 +255,7 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
             }
         }
 
-        if (GET_BIT(a) && GET_BIT(b)) {
+        if (GET_BS_BIT(a) && GET_BS_BIT(b)) {
             merge_bs_fullsearch(ctx, a, c1, c2);
             merge_bs_fullsearch(ctx, b, c1, c2);
         }
@@ -283,12 +283,12 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
         unsigned int sum_b     = 0;
         unsigned int sum_n     = sizes_c1[n];
 
-        if (GET_BIT(a) && GET_BIT(b)) {
+        if (GET_BS_BIT(a) && GET_BS_BIT(b)) {
             merge_bs_bottomup(ctx, a, c1, c2);
             merge_bs_bottomup(ctx, b, c1, c2);
         }
 
-        if (!GET_BIT(a) && !GET_BIT(b)) {
+        if (!GET_BS_BIT(a) && !GET_BS_BIT(b)) {
             sum_a += sizes_c1[a];
             sum_b += sizes_c1[b];
 
@@ -306,7 +306,7 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
             }
         }
     }
-#undef GET_BIT(pos)
+#undef GET_BS_BIT(pos)
 }
 
 
