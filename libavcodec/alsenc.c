@@ -1143,6 +1143,24 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+/** Tests given block samples to be of constant value
+ */
+static int test_const_value(ALSEncContext *ctx, int32_t *smp_ptr,
+                            unsigned int n, int32_t *const_val)
+{
+    int32_t val = *smp_ptr++;
+    *const_val  = val;
+
+    while (--n > 0) {
+        if (*smp_ptr++ != val) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+
 /** Encode a given block of a given channel
  */
 static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
@@ -1161,8 +1179,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     //
     // just say it is non-const while not implemented
 
-    block->constant       = 0;
-    block->constant_value = 0;
+    block->constant = test_const_value(ctx, smp_ptr, block->length,
+                                       &block->constant_value);
 
 
     // shifting samples:
