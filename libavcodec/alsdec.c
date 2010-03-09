@@ -367,10 +367,7 @@ static void get_block_sizes(ALSDecContext *ctx, unsigned int *div_blocks,
 
     ctx->num_blocks = 0;
     ff_als_parse_bs_info(*bs_info, 0, 0, &ptr_div_blocks, &ctx->num_blocks);
-dprintf(NULL, "bs_info: ");
-for (b = 0; b < 32; b++)
-    dprintf(NULL, "%i", (*bs_info >> (31 - b)) & 1);
-dprintf(NULL, "\n");
+
     // The last frame may have an overdetermined block structure given in
     // the bitstream. In that case the defined block structure would need
     // more samples than available to be consistent.
@@ -437,7 +434,7 @@ static void decode_const_block_data(ALSDecContext *ctx, ALSBlockData *bd)
     int      smp = bd->block_length;
     int32_t  val = bd->const_val;
     int32_t *dst = bd->raw_samples;
-dprintf(NULL, "decoding constant block\n");
+
     // write raw samples into buffer
     for (; smp; smp--)
         *dst++ = val;
@@ -504,8 +501,6 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
     } else {
         s[0] = get_bits(gb, 4 + (sconf->resolution > 1));
         for (k = 1; k < sub_blocks; k++) {
-dprintf(NULL, "s[%i] = %i", k, s[k]);
-dprintf(NULL, "\n");
             s[k] = s[k - 1] + decode_rice(gb, 0);}
     }
 
@@ -552,19 +547,16 @@ dprintf(NULL, "\n");
                     int rice_param = ff_als_parcor_rice_table[sconf->coef_table][k][1];
                     int offset     = ff_als_parcor_rice_table[sconf->coef_table][k][0];
                     quant_cof[k] = decode_rice(gb, rice_param) + offset;
-//dprintf(NULL, "cof[%i] = %i", k, quant_cof[k]);
                 }
 
                 // read coefficients 20 to 126
                 k_max = FFMIN(opt_order, 127);
-                for (; k < k_max; k++)// {
+                for (; k < k_max; k++)
                     quant_cof[k] = decode_rice(gb, 2) + (k & 1);
-//dprintf(NULL, "cof[%i] = %i", k, quant_cof[k]);}
 
                 // read coefficients 127 to opt_order
-                for (; k < opt_order; k++)// {
+                for (; k < opt_order; k++)
                     quant_cof[k] = decode_rice(gb, 1);
-//dprintf(NULL, "cof[%i] = %i", k, quant_cof[k]);}
 
                 quant_cof[0] = 32 * ff_als_parcor_scaled_values[quant_cof[0] + 64];
 
@@ -601,7 +593,6 @@ dprintf(NULL, "\n");
 
     // read first value and residuals in case of a random access block
     if (bd->ra_block) {
-dprintf(NULL, "s[0] = %i\n", s[0]);
         if (opt_order)
             bd->raw_samples[0] = decode_rice(gb, avctx->bits_per_raw_sample - 4);
         if (opt_order > 1)
@@ -684,7 +675,7 @@ dprintf(NULL, "s[0] = %i\n", s[0]);
         }
     } else {
         current_res = bd->raw_samples + start;
-dprintf(NULL, "%i sub-blocks\n", sub_blocks);
+
         for (sb = 0; sb < sub_blocks; sb++, start = 0) {
             for (; start < sb_length; start++)
                 *current_res++ = decode_rice(gb, s[sb]);}
@@ -831,17 +822,10 @@ static int decode_block(ALSDecContext *ctx, ALSBlockData *bd)
     unsigned int smp;
 
     // read block type flag and read the samples accordingly
-    if (bd->const_block) {
-dprintf(NULL, "decode const block");
-dprintf(NULL, "\n");
+    if (bd->const_block)
         decode_const_block_data(ctx, bd);
-    }
-    else {
-dprintf(NULL, "decode block");
-dprintf(NULL, "\n");
-        if (decode_var_block_data(ctx, bd))
+    else  if (decode_var_block_data(ctx, bd))
         return -1;
-    }
 
 
     // TODO: read RLSLMS extension data
@@ -1162,7 +1146,7 @@ static int read_frame_data(ALSDecContext *ctx, unsigned int ra_frame)
         for (c = 0; c < avctx->channels; c++) {
             js_blocks[0] = 0;
             js_blocks[1] = 0;
-dprintf(NULL, "for channel %i\n", c);
+
             get_block_sizes(ctx, div_blocks, &bs_info);
 
             // if joint_stereo and block_switching is set, independent decoding
