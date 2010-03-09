@@ -393,9 +393,9 @@ static void get_block_sizes(ALSEncContext *ctx,
  *  depending on the chosen algorithm and sets the block sizes
  *  accordingly
  */
-static void get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
+static void get_partition(ALSEncContext *ctx, int alg, unsigned int c1, unsigned int c2)
 {
-    if(BS_ALGORITHM_BOTTOM_UP) {
+    if(alg == BS_ALGORITHM_BOTTOM_UP) {
         merge_bs_bottomup(ctx, 0, c1, c2);
     } else {
         merge_bs_fullsearch(ctx, 0, c1, c2);
@@ -425,9 +425,9 @@ static void block_partitioning(ALSEncContext *ctx)
         if (!sconf->mc_coding || ctx->js_switch) {
             for (c = 0; c < avctx->channels; c++) {
                 if (ctx->independent_bs[c]) {
-                    get_partition(ctx, c, c);
+                    get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c);
                 } else {
-                    get_partition(ctx, c, c + 1);
+                    get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c + 1);
                     c++;
                 }
             }
