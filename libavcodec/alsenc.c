@@ -306,7 +306,6 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
             }
         }
     }
-#undef GET_BS_BIT(pos)
 }
 
 
