@@ -1145,11 +1145,10 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 
 /** Tests given block samples to be of constant value
  */
-static int test_const_value(ALSEncContext *ctx, int32_t *smp_ptr,
+static int test_const_value(const int32_t *smp_ptr,
                             unsigned int n, int32_t *const_val)
 {
     int32_t val = *smp_ptr++;
-    *const_val  = val;
 
     while (--n > 0) {
         if (*smp_ptr++ != val) {
@@ -1157,11 +1156,14 @@ static int test_const_value(ALSEncContext *ctx, int32_t *smp_ptr,
         }
     }
 
+    *const_val  = val;
     return 1;
 }
 
 
 /** Encode a given block of a given channel
+ * @return number of bits that will be used to encode the block using the
+ *         determined parameters
  */
 static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
                               unsigned int c, unsigned int b)
@@ -1179,7 +1181,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     //
     // just say it is non-const while not implemented
 
-    block->constant = test_const_value(ctx, smp_ptr, block->length,
+    block->constant = test_const_value(smp_ptr, block->length,
                                        &block->constant_value);
 
 
@@ -1204,6 +1206,11 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // while not implemented, don't indicate js
 
     block->js_block = 0;
+
+
+    // if this is a constant block, we don't need to find any other parameters
+    if (block->constant)
+        return;
 
 
     // short-term prediction:
