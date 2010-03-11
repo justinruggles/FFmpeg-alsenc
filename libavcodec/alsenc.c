@@ -1504,9 +1504,10 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // determine where to store ra_flag (01: beginning of frame_data)
-    // default for now = RA_FLAG_FRAMES. Would make decoding more robust
-    // in case of seeking although not implemented in FFmpeg decoder yet
-    sconf->ra_flag = RA_FLAG_FRAMES;
+    // default for now = RA_FLAG_NONE.
+    // Using RA_FLAG_FRAMES would make decoding more robust in case of seeking
+    // with raw ALS.  However, raw ALS is not supported in FFmpeg yet.
+    sconf->ra_flag = RA_FLAG_NONE;
 
 
     // determine if adaptive prediction order is used
