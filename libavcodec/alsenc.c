@@ -1177,7 +1177,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // while not implemented, don't shift anyway
 
     if (!block->constant) {
-    block->shift_lsbs = 0;
+        block->shift_lsbs = 0;
         block->bits_misc++;
         if (block->shift_lsbs)
             block->bits_misc += 4;  // shift_pos
