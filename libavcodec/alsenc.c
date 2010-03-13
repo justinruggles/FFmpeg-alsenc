@@ -87,6 +87,10 @@ typedef struct {
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
     int32_t *res_ptr;               ///< points to the first residual for this block
     int32_t *smp_ptr;               ///< points to the first raw sample for this block
+    int bits_const_block;           ///< bit count for const block params
+    int bits_misc;                  ///< bit count for js_block and shift_lsbs
+    int bits_ec_param_and_res;      ///< bit count for Rice/BGMC params and residuals
+    int bits_parcor_coeff;          ///< bit count for LPC order and PARCOR coeffs
 } ALSBlock;
 
 
@@ -845,7 +849,7 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 }
 
 
-static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
+static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
                                       int order,
                                       int count_algorithm)
 {
@@ -890,7 +894,7 @@ static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         (param[2] == param[3]))) {
         block->sub_blocks = 1;
         block->rice_param[0] = param[4];
-        return count1;
+        block->bits_ec_param_and_res = count1;
     }
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
@@ -919,14 +923,14 @@ static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     }
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
-        return block_rice_count_exact(ctx, block,
+        block->bits_ec_param_and_res = block_rice_count_exact(ctx, block,
                                       block->sub_blocks, block->rice_param,
                                       order);
-    return FFMIN(count1, count4);
+    block->bits_ec_param_and_res = FFMIN(count1, count4);
 }
 
 
-static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
+static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
                                         int order)
 {
     unsigned int count[5][32] = {{0,}};
@@ -980,7 +984,8 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     if (sb_max == 1) {
         block->sub_blocks = 1;
         block->rice_param[0] = param[0];
-        return count[0][param[0]] + 4 + (ctx->max_rice_param > 15);
+        block->bits_ec_param_and_res = block_rice_count_exact(ctx, block, 1,
+                                                              param, order);
     }
 
 
@@ -1016,14 +1021,14 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     if (count1 <= count4) {
         block->sub_blocks = 1;
         block->rice_param[0] = param[4];
-        return count1;
+        block->bits_ec_param_and_res = count1;
     } else {
         block->sub_blocks = 4;
         block->rice_param[0] = param[0];
         block->rice_param[1] = param[1];
         block->rice_param[2] = param[2];
         block->rice_param[3] = param[3];
-        return count4;
+        block->bits_ec_param_and_res = count4;
     }
 }
 
@@ -1036,22 +1041,16 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
  * @param block                 current block
  * @param[in] ra_block          indicates if this is a random access block
  * @param[in] order             LPC order
- * @return                      estimated number of bits used for residuals and rice params
  */
-static int find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
+static void find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
                                   int order,
                                   int param_algorithm, int count_algorithm)
 {
-    int bit_count = -1;
-
     if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
-        bit_count = find_block_rice_params_est(ctx, block, order,
-                                               count_algorithm);
+        find_block_rice_params_est(ctx, block, order, count_algorithm);
     } else if (param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
-        bit_count = find_block_rice_params_exact(ctx, block, order);
+        find_block_rice_params_exact(ctx, block, order);
     }
-
-    return bit_count;
 }
 
 
