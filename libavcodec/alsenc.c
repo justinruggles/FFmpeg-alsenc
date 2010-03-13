@@ -1116,20 +1116,32 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 
 
 /** Tests given block samples to be of constant value
+ * Sets block->const_block_bits to the number of bits used for encoding the
+ * constant block, or to zero if the block is not a constant block.
  */
-static int test_const_value(const int32_t *smp_ptr,
-                            unsigned int n, int32_t *const_val)
+static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 {
+    unsigned int n = block->length;
+    int32_t *smp_ptr = block->smp_ptr;
     int32_t val = *smp_ptr++;
 
+    block->constant = 1;
     while (--n > 0) {
         if (*smp_ptr++ != val) {
-            return 0;
+            block->constant = 0;
+            break;
         }
     }
 
-    *const_val  = val;
-    return 1;
+    block->bits_const_block = 0;
+    if (block->constant) {
+        block->constant_value = val;
+        block->bits_const_block += 6;   // const_block + reserved
+        if (block->constant_value) {
+            block->bits_const_block += ctx->sconf.floating ? 24 :
+                                       ctx->avctx->bits_per_raw_sample;
+        }
+    }
 }
 
 
@@ -1145,15 +1157,11 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     int32_t *smp_ptr = block->smp_ptr;
 
     // check for constant block
-    // to be implemented
     //
     // Read 1st sample, then check remaining samples.  Benchmark
     // with and w/o the check.  Maybe can be skipped for only the fastest mode.
-    //
-    // just say it is non-const while not implemented
 
-    block->constant = test_const_value(smp_ptr, block->length,
-                                       &block->constant_value);
+    test_const_value(ctx, block);
 
 
     // shifting samples:
