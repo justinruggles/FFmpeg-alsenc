@@ -1480,9 +1480,9 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
     // default for now = 1. should be changed when implemented.
-    // If we try to do it in the header, we would have to keep track
-    // of all RA unit info during encoding, then free/realloc the
-    // extradata at the end to make enough space for the RA info.
+    // maybe use AVCodecContext.gop_size. it is user-configurable, and its
+    // default value is 12, which is every 1/2 sec. for 2048 frame size and
+    // 44100 Hz sample rate.
     sconf->ra_distance = 1;
 
 
