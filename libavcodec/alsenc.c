@@ -112,6 +112,8 @@ typedef struct {
     ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
+    double *acf_coeff;               ///< autocorrelation function coefficients for the current block
+    double *parcor_coeff;            ///< double-precision PARCOR coefficients for the current block
     int32_t *r_parcor_coeff;         ///< scaled 21-bit quantized PARCOR coefficients for the current block
     int32_t *lpc_coeff;              ///< LPC coefficients for the current block
     unsigned int max_rice_param;     ///< maximum Rice param, depends on sample depth
@@ -1190,21 +1192,18 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // they depend on js_block and opt_order which may be changing later on
 
     if (sconf->max_order) {
-        double autoc[sconf->max_order+1];
-        double parcor[sconf->max_order];
-
         // calculate PARCOR coefficients
         if (block->length == sconf->frame_length)
             ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window,
                                           block->length, sconf->max_order,
-                                          autoc);
+                                          ctx->acf_coeff);
         else
             ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length,
-                                          sconf->max_order, autoc);
-        compute_ref_coefs(autoc, sconf->max_order, parcor);
+                                          sconf->max_order, ctx->acf_coeff);
+        compute_ref_coefs(ctx->acf_coeff, sconf->max_order, ctx->parcor_coeff);
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
-        quantize_parcor_coeffs(parcor, sconf->max_order, block->q_parcor_coeff,
+        quantize_parcor_coeffs(ctx->parcor_coeff, sconf->max_order, block->q_parcor_coeff,
                                ctx->r_parcor_coeff);
     }
 
@@ -1696,6 +1695,8 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->bs_tmp_buffer);
 #endif
     av_freep(&ctx->q_parcor_coeff_buffer);
+    av_freep(&ctx->acf_coeff);
+    av_freep(&ctx->parcor_coeff);
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
 
@@ -1776,6 +1777,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * 32);
     ctx->blocks            = av_malloc (sizeof(*ctx->blocks)         * avctx->channels);
     ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * 32 * sconf->max_order);
+    ctx->acf_coeff         = av_malloc (sizeof(*ctx->acf_coeff)      *(sconf->max_order + 1));
+    ctx->parcor_coeff      = av_malloc (sizeof(*ctx->parcor_coeff)   * sconf->max_order);
     ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
     ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
     ctx->acf_window        = av_malloc (sizeof(*ctx->acf_window)     * sconf->frame_length);
