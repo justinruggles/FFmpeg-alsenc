@@ -1156,6 +1156,8 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     int32_t *res_ptr = block->res_ptr;
     int32_t *smp_ptr = block->smp_ptr;
 
+    block->bits_misc = 0;
+
     // check for constant block
     //
     // Read 1st sample, then check remaining samples.  Benchmark
@@ -1174,7 +1176,12 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // determine if the samples can be shifted
     // while not implemented, don't shift anyway
 
+    if (!block->constant) {
     block->shift_lsbs = 0;
+        block->bits_misc++;
+        if (block->shift_lsbs)
+            block->bits_misc += 4;  // shift_pos
+    }
 
 
     // difference coding(?):
@@ -1185,6 +1192,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // while not implemented, don't indicate js
 
     block->js_block = 0;
+    block->bits_misc++;
 
 
     // if this is a constant block, we don't need to find any other parameters
