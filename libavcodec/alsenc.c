@@ -1699,6 +1699,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->parcor_coeff);
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
+    av_freep(&ctx->acf_window);
 
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
