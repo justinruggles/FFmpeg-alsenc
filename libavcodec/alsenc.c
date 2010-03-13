@@ -985,10 +985,10 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
     /* start 1/3 distance between 0 and max_param */
     k = ctx->max_rice_param / 3;
-    count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
+    count[4][k] = block_rice_count_exact(block->res_ptr, block->length, 1, &k,
                                             ctx->max_rice_param, block->ra_block, order);
     k++;
-    count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
+    count[4][k] = block_rice_count_exact(block->res_ptr, block->length, 1, &k,
                                             ctx->max_rice_param, block->ra_block, order);
     if (count[4][k] < count[4][k-1]) {
         best_k = k;
@@ -1001,7 +1001,7 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     }
 
     for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
-        count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
+        count[4][k] = block_rice_count_exact(block->res_ptr, block->length, 1, &k,
                                                 ctx->max_rice_param, block->ra_block,
                                                 order);
 
@@ -1015,17 +1015,9 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
 
     count1  = count[4][param[4]];
-    count1 += 4 + (ctx->max_rice_param > 15);
-
-    count4 = 0;
-    for (sb = 0; sb < sb_max; sb++) {
-        count4 += count[sb][param[sb]];
-        if (!sb)
-            count4 += 4 + (ctx->max_rice_param > 15);
-        else
-            count4 += rice_count(param[sb]-param[sb-1], 0);
-    }
-
+    count4 = block_rice_count_exact(block->res_ptr, block->length, 4, param,
+                                    ctx->max_rice_param, block->ra_block,
+                                    order);
     if (count1 <= count4) {
         block->sub_blocks = 1;
         block->rice_param[0] = param[4];
