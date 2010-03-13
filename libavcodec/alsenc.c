@@ -503,8 +503,7 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 
 /** Write a given block of a given channel
  */
-static int write_block(ALSEncContext *ctx, ALSBlock *block,
-                       unsigned int c, unsigned int b)
+static int write_block(ALSEncContext *ctx, ALSBlock *block)
 {
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
@@ -631,7 +630,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block,
 
         for (sb = 0; sb < block->sub_blocks; sb++) {
             start = 0;
-            if (!b && !sb) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+            if (!sb && block->ra_block) {
                 int len = FFMIN(block->opt_order, sb_length);
                 if (len > 0) {
                     if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
@@ -706,7 +705,7 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 
             for (b= 0; b < ctx->num_blocks[c]; b++) {
                 if (ctx->independent_bs[c]) {
-                    ret = write_block(ctx, &ctx->blocks[c][b], c, b);
+                    ret = write_block(ctx, &ctx->blocks[c][b]);
                     if (ret < 0)
                         return ret;
                 } else {
@@ -1081,7 +1080,6 @@ static inline int estimate_best_order(int32_t *r_parcor, int order)
 
 
 static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
-                                       unsigned int c, unsigned int b,
                                        int order)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
@@ -1153,8 +1151,7 @@ static int test_const_value(const int32_t *smp_ptr,
  * @return number of bits that will be used to encode the block using the
  *         determined parameters
  */
-static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
-                              unsigned int c, unsigned int b)
+static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
 
@@ -1242,7 +1239,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
     // generate residuals using parameters:
 
     if (block->opt_order) {
-        calc_short_term_prediction(ctx, block, c, b, block->opt_order);
+        calc_short_term_prediction(ctx, block, block->opt_order);
     } else {
         memcpy(res_ptr, smp_ptr, sizeof(*res_ptr) * block->length);
     }
@@ -1323,9 +1320,9 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         init_put_bits(&ctx->pb, (uint8_t*)ctx->bs_tmp_buffer, ctx->sconf.frame_length << 3);
 
         // write into temporary buffer
-        find_block_params(ctx, block, channel, b);
+        find_block_params(ctx, block);
 
-        write_block(ctx, block, channel, b);
+        write_block(ctx, block);
 
         // get written bits
         bs_sizes[b] = put_bits_count(&ctx->pb);
@@ -1390,7 +1387,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                     continue;
 
                 if (ctx->independent_bs[c]) {
-                    find_block_params(ctx, &ctx->blocks[c][b], c, b);
+                    find_block_params(ctx, &ctx->blocks[c][b]);
                 } else {
                     // encode channel & channel+1
                 }
