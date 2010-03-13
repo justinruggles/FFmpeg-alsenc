@@ -842,27 +842,26 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 }
 
 
-static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
-                                      int max_param, int sb_part, int ra_block,
-                                      int opt_order, int count_algorithm,
-                                      int *sub_blocks, int *rice_param)
+static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
+                                      int ra_block, int opt_order,
+                                      int count_algorithm)
 {
     int i, sb, sb_max, sb_length;
     uint64_t sum[5] = {0,};
     int param[5];
     unsigned int count1, count4;
 
-    if (!sb_part || block_length & 0x3 || block_length < 16)
+    if (!ctx->sconf.sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
     else
         sb_max = 4;
-    sb_length = block_length / sb_max;
+    sb_length = block->length / sb_max;
 
     for (sb = 0; sb < sb_max; sb++) {
-        const int32_t *res_ptr1 = res_ptr + (sb * sb_length);
+        const int32_t *res_ptr1 = block->res_ptr + (sb * sb_length);
         for (i = 0; i < sb_length; i++) {
             int v = *res_ptr1++;
-            if (max_param > 15) {
+            if (ctx->max_rice_param > 15) {
                 unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
                 sum[sb] += v0;
             } else {
@@ -872,64 +871,62 @@ static int find_block_rice_params_est(const int32_t *res_ptr, int block_length,
         }
         sum[4] += sum[sb];
 
-        param[sb] = optimal_rice_param(sum[sb], sb_length, max_param);
+        param[sb] = optimal_rice_param(sum[sb], sb_length, ctx->max_rice_param);
     }
 
-    param[4] = optimal_rice_param(sum[4], block_length, max_param);
+    param[4] = optimal_rice_param(sum[4], block->length, ctx->max_rice_param);
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
-        count1 = block_rice_count_exact(res_ptr, block_length, 1, &param[4],
-                                        max_param, ra_block, opt_order);
+        count1 = block_rice_count_exact(block->res_ptr, block->length, 1, &param[4],
+                                        ctx->max_rice_param, ra_block, opt_order);
     } else {
-        count1 = rice_encode_count(sum[4], block_length, param[4]);
-        count1 += 4 + (max_param > 15);
+        count1 = rice_encode_count(sum[4], block->length, param[4]);
+        count1 += 4 + (ctx->max_rice_param > 15);
     }
 
     if (sb_max == 1 || ((param[0] == param[1]) && (param[1] == param[2]) &&
         (param[2] == param[3]))) {
-        *sub_blocks = 1;
-        rice_param[0] = param[4];
+        block->sub_blocks = 1;
+        block->rice_param[0] = param[4];
         return count1;
     }
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
-        count4 = block_rice_count_exact(res_ptr, block_length, 4, param,
-                                        max_param, ra_block, opt_order);
+        count4 = block_rice_count_exact(block->res_ptr, block->length, 4, param,
+                                        ctx->max_rice_param, ra_block, opt_order);
     } else {
         count4 = 0;
         for (sb = 0; sb < sb_max; sb++) {
             count4 += rice_encode_count(sum[sb], sb_length, param[sb]);
 
             if (!sb)
-                count4 += 4 + (max_param > 15);
+                count4 += 4 + (ctx->max_rice_param > 15);
             else
                 count4 += rice_count(param[sb] - param[sb-1], 0);
         }
     }
 
     if (count1 <= count4) {
-        *sub_blocks = 1;
-        rice_param[0] = param[4];
+        block->sub_blocks = 1;
+        block->rice_param[0] = param[4];
     } else {
-        *sub_blocks = 4;
-        rice_param[0] = param[0];
-        rice_param[1] = param[1];
-        rice_param[2] = param[2];
-        rice_param[3] = param[3];
+        block->sub_blocks = 4;
+        block->rice_param[0] = param[0];
+        block->rice_param[1] = param[1];
+        block->rice_param[2] = param[2];
+        block->rice_param[3] = param[3];
     }
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
-        return block_rice_count_exact(res_ptr, block_length, *sub_blocks,
-                                      rice_param, max_param, ra_block,
-                                      opt_order);
+        return block_rice_count_exact(block->res_ptr, block->length,
+                                      block->sub_blocks, block->rice_param,
+                                      ctx->max_rice_param, ra_block, opt_order);
     return FFMIN(count1, count4);
 }
 
 
-static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length,
-                                        int max_param, int sb_part, int ra_block,
-                                        int opt_order, int *sub_blocks,
-                                        int *rice_param)
+static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
+                                        int ra_block, int opt_order)
 {
     unsigned int count[5][32] = {{0,}};
     int param[5];
@@ -937,21 +934,21 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
     int best_k;
     unsigned int count1, count4;
 
-    if (!sb_part || block_length & 0x3 || block_length < 16)
+    if (!ctx->sconf.sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
     else
         sb_max = 4;
-    sb_length = block_length / sb_max;
+    sb_length = block->length / sb_max;
 
     for (sb = 0; sb < sb_max; sb++) {
         /* start 1/3 distance between 0 and max_param */
-        k = max_param / 3;
-        count[sb][k] = subblock_rice_count_exact(res_ptr + (sb * sb_length),
-                                                sb_length, k, max_param,
+        k = ctx->max_rice_param / 3;
+        count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
+                                                sb_length, k, ctx->max_rice_param,
                                                 !sb && ra_block, opt_order);
         k++;
-        count[sb][k] = subblock_rice_count_exact(res_ptr + (sb * sb_length),
-                                                sb_length, k, max_param,
+        count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
+                                                sb_length, k, ctx->max_rice_param,
                                                 !sb && ra_block, opt_order);
         if (count[sb][k] < count[sb][k-1]) {
             best_k = k;
@@ -963,9 +960,9 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
             k -= 2;
         }
 
-        for (; k >= 0 && k <= max_param; k += step) {
-            count[sb][k] = subblock_rice_count_exact(res_ptr + (sb * sb_length),
-                                                    sb_length, k, max_param,
+        for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
+            count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
+                                                    sb_length, k, ctx->max_rice_param,
                                                     !sb && ra_block, opt_order);
 
             if (count[sb][k] < count[sb][best_k]) {
@@ -980,19 +977,19 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
 
     /* if sub-block partitioning is not used, stop here */
     if (sb_max == 1) {
-        *sub_blocks = 1;
-        rice_param[0] = param[0];
-        return count[0][param[0]] + 4 + (max_param > 15);
+        block->sub_blocks = 1;
+        block->rice_param[0] = param[0];
+        return count[0][param[0]] + 4 + (ctx->max_rice_param > 15);
     }
 
 
     /* start 1/3 distance between 0 and max_param */
-    k = max_param / 3;
-    count[4][k] = subblock_rice_count_exact(res_ptr, block_length, k, max_param,
-                                            ra_block, opt_order);
+    k = ctx->max_rice_param / 3;
+    count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
+                                            ctx->max_rice_param, ra_block, opt_order);
     k++;
-    count[4][k] = subblock_rice_count_exact(res_ptr, block_length, k, max_param,
-                                            ra_block, opt_order);
+    count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
+                                            ctx->max_rice_param, ra_block, opt_order);
     if (count[4][k] < count[4][k-1]) {
         best_k = k;
         step = 1;
@@ -1003,9 +1000,10 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
         k -= 2;
     }
 
-    for (; k >= 0 && k <= max_param; k += step) {
-        count[4][k] = subblock_rice_count_exact(res_ptr, block_length, k,
-                                                max_param, ra_block, opt_order);
+    for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
+        count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
+                                                ctx->max_rice_param, ra_block,
+                                                opt_order);
 
         if (count[4][k] < count[4][best_k]) {
             best_k = k;
@@ -1017,27 +1015,27 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
 
 
     count1  = count[4][param[4]];
-    count1 += 4 + (max_param > 15);
+    count1 += 4 + (ctx->max_rice_param > 15);
 
     count4 = 0;
     for (sb = 0; sb < sb_max; sb++) {
         count4 += count[sb][param[sb]];
         if (!sb)
-            count4 += 4 + (max_param > 15);
+            count4 += 4 + (ctx->max_rice_param > 15);
         else
             count4 += rice_count(param[sb]-param[sb-1], 0);
     }
 
     if (count1 <= count4) {
-        *sub_blocks = 1;
-        rice_param[0] = param[4];
+        block->sub_blocks = 1;
+        block->rice_param[0] = param[4];
         return count1;
     } else {
-        *sub_blocks = 4;
-        rice_param[0] = param[0];
-        rice_param[1] = param[1];
-        rice_param[2] = param[2];
-        rice_param[3] = param[3];
+        block->sub_blocks = 4;
+        block->rice_param[0] = param[0];
+        block->rice_param[1] = param[1];
+        block->rice_param[2] = param[2];
+        block->rice_param[3] = param[3];
         return count4;
     }
 }
@@ -1047,34 +1045,23 @@ static int find_block_rice_params_exact(const int32_t *res_ptr, int block_length
  * Calculate optimal sub-block division and Rice parameters for a block.
  * @param[in] param_algorithm   which algorithm to use for determining Rice parameters
  * @param[in] count_algorithm   which bit count algorithm to use for determining sb_part
- * @param[in] res_ptr           residual samples
- * @param[in] block_length      number of samples in the block
- * @param[in] max_param         maximum Rice parameter allowed
- * @param[in] sb_part           indicates if entropy coding partitioning is used
+ * @param ctx                   encoder context
+ * @param block                 current block
  * @param[in] ra_block          indicates if this is a random access block
  * @param[in] opt_order         LPC order
- * @param[out] sub_blocks       optimal number of sub-blocks
- * @param[out] rice_param       optimal Rice parameter(s)
  * @return                      estimated number of bits used for residuals and rice params
  */
-static int find_block_rice_params(int param_algorithm, int count_algorithm,
-                                  const int32_t *res_ptr,
-                                  int block_length, int max_param, int sb_part,
-                                  int ra_block, int opt_order, int *sub_blocks,
-                                  int *rice_param)
+static int find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
+                                  int ra_block, int opt_order,
+                                  int param_algorithm, int count_algorithm)
 {
     int bit_count = -1;
 
     if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
-        bit_count = find_block_rice_params_est(res_ptr, block_length, max_param,
-                                               sb_part, ra_block, opt_order,
-                                               count_algorithm, sub_blocks,
-                                               rice_param);
+        bit_count = find_block_rice_params_est(ctx, block, ra_block, opt_order,
+                                               count_algorithm);
     } else if (param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
-        bit_count = find_block_rice_params_exact(res_ptr, block_length,
-                                                 max_param, sb_part, ra_block,
-                                                 opt_order, sub_blocks,
-                                                 rice_param);
+        bit_count = find_block_rice_params_exact(ctx, block, ra_block, opt_order);
     }
 
     return bit_count;
@@ -1274,13 +1261,11 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
 
     // search for rice parameter:
-    find_block_rice_params(RICE_PARAM_ALGORITHM_EXACT,
-                           RICE_BIT_COUNT_ALGORITHM_EXACT,
-                           res_ptr, block->length,
-                           ctx->max_rice_param, sconf->sb_part,
-                           !b, // ra_block
+    find_block_rice_params(ctx, block,
+                           !b,   // ra_block
                            block->opt_order,
-                           &block->sub_blocks, block->rice_param);
+                           RICE_PARAM_ALGORITHM_EXACT,
+                           RICE_BIT_COUNT_ALGORITHM_EXACT);
 }
 
 
