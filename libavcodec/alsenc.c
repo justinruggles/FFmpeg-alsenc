@@ -74,6 +74,7 @@
 
 // probably mergeable or the very same as ALSBlockData from the decoder
 typedef struct {
+    int ra_block;                   ///< indicates if this is an RA block
     int constant;                   ///< indicates constant block values
     int32_t constant_value;         ///< if constant, this is the value
     unsigned int length;            ///< length of the block in # of samples
@@ -806,7 +807,7 @@ static unsigned int block_rice_count_exact(const int32_t *res_ptr,
 
     for (sb = 0; sb < sub_blocks; sb++) {
         count += subblock_rice_count_exact(res_ptr, sb_length, rice_param[sb],
-                                           max_param, ra_block && !sb, order);
+                                           max_param, !sb && ra_block, order);
         if (!sb)
             count += 4 + (max_param > 15);
         else
@@ -843,7 +844,7 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 
 
 static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
-                                      int ra_block, int order,
+                                      int order,
                                       int count_algorithm)
 {
     int i, sb, sb_max, sb_length;
@@ -878,7 +879,7 @@ static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
         count1 = block_rice_count_exact(block->res_ptr, block->length, 1, &param[4],
-                                        ctx->max_rice_param, ra_block, order);
+                                        ctx->max_rice_param, block->ra_block, order);
     } else {
         count1 = rice_encode_count(sum[4], block->length, param[4]);
         count1 += 4 + (ctx->max_rice_param > 15);
@@ -893,7 +894,7 @@ static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
         count4 = block_rice_count_exact(block->res_ptr, block->length, 4, param,
-                                        ctx->max_rice_param, ra_block, order);
+                                        ctx->max_rice_param, block->ra_block, order);
     } else {
         count4 = 0;
         for (sb = 0; sb < sb_max; sb++) {
@@ -920,13 +921,13 @@ static int find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
         return block_rice_count_exact(block->res_ptr, block->length,
                                       block->sub_blocks, block->rice_param,
-                                      ctx->max_rice_param, ra_block, order);
+                                      ctx->max_rice_param, block->ra_block, order);
     return FFMIN(count1, count4);
 }
 
 
 static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
-                                        int ra_block, int order)
+                                        int order)
 {
     unsigned int count[5][32] = {{0,}};
     int param[5];
@@ -945,11 +946,11 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         k = ctx->max_rice_param / 3;
         count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
                                                 sb_length, k, ctx->max_rice_param,
-                                                !sb && ra_block, order);
+                                                !sb && block->ra_block, order);
         k++;
         count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
                                                 sb_length, k, ctx->max_rice_param,
-                                                !sb && ra_block, order);
+                                                !sb && block->ra_block, order);
         if (count[sb][k] < count[sb][k-1]) {
             best_k = k;
             step = 1;
@@ -963,7 +964,7 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
             count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
                                                     sb_length, k, ctx->max_rice_param,
-                                                    !sb && ra_block, order);
+                                                    !sb && block->ra_block, order);
 
             if (count[sb][k] < count[sb][best_k]) {
                 best_k = k;
@@ -986,10 +987,10 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     /* start 1/3 distance between 0 and max_param */
     k = ctx->max_rice_param / 3;
     count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
-                                            ctx->max_rice_param, ra_block, order);
+                                            ctx->max_rice_param, block->ra_block, order);
     k++;
     count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
-                                            ctx->max_rice_param, ra_block, order);
+                                            ctx->max_rice_param, block->ra_block, order);
     if (count[4][k] < count[4][k-1]) {
         best_k = k;
         step = 1;
@@ -1002,7 +1003,7 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
     for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
         count[4][k] = subblock_rice_count_exact(block->res_ptr, block->length, k,
-                                                ctx->max_rice_param, ra_block,
+                                                ctx->max_rice_param, block->ra_block,
                                                 order);
 
         if (count[4][k] < count[4][best_k]) {
@@ -1052,16 +1053,16 @@ static int find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
  * @return                      estimated number of bits used for residuals and rice params
  */
 static int find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
-                                  int ra_block, int order,
+                                  int order,
                                   int param_algorithm, int count_algorithm)
 {
     int bit_count = -1;
 
     if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
-        bit_count = find_block_rice_params_est(ctx, block, ra_block, order,
+        bit_count = find_block_rice_params_est(ctx, block, order,
                                                count_algorithm);
     } else if (param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
-        bit_count = find_block_rice_params_exact(ctx, block, ra_block, order);
+        bit_count = find_block_rice_params_exact(ctx, block, order);
     }
 
     return bit_count;
@@ -1101,7 +1102,7 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
     i = 0;
-    if (!b) { // should be: if (!ra_block) or: if (!b && ra_frame) as soon as non-ra frames are supported
+    if (block->ra_block) {
         int ra_order = FFMIN(order, block->length);
 
         // copy first residual sample verbatim
@@ -1262,7 +1263,6 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block,
 
     // search for rice parameter:
     find_block_rice_params(ctx, block,
-                           !b,   // ra_block
                            block->opt_order,
                            RICE_PARAM_ALGORITHM_EXACT,
                            RICE_BIT_COUNT_ALGORITHM_EXACT);
@@ -1365,6 +1365,16 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     ctx->cur_frame_length = avctx->frame_size;
+
+
+    // determine if this is an RA frame
+    if (sconf->ra_distance) {
+        // TODO: should be based on frame_id and ra_distance
+        int ra_frame = 1;
+        for (c = 0; c < avctx->channels; c++)
+            ctx->blocks[c][0].ra_block = ra_frame;
+    }
+
 
     // preprocessing
     deinterleave_raw_samples(ctx, data);
