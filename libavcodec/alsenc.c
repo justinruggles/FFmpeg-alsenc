@@ -846,6 +846,8 @@ static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
         res_ptr += sb_length;
     }
 
+    count += !!ctx->sconf.sb_part;
+
     return count;
 }
 
@@ -1180,7 +1182,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     int32_t *res_ptr = block->res_ptr;
     int32_t *smp_ptr = block->smp_ptr;
 
-    block->bits_misc = 0;
+    block->bits_misc = 1;   // block_type
 
     // check for constant block
     //
