@@ -874,8 +874,7 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 
 
 static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
-                                      int order,
-                                      int count_algorithm)
+                                      int order, int count_algorithm)
 {
     int i, sb, sb_max, sb_length;
     uint64_t sum[5] = {0,};
@@ -1067,8 +1066,8 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
  * @param[in] order             LPC order
  */
 static void find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
-                                  int order,
-                                  int param_algorithm, int count_algorithm)
+                                   int order, int param_algorithm,
+                                   int count_algorithm)
 {
     if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
         find_block_rice_params_est(ctx, block, order, count_algorithm);
@@ -1243,8 +1242,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
         compute_ref_coefs(ctx->acf_coeff, sconf->max_order, ctx->parcor_coeff);
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
-        quantize_parcor_coeffs(ctx->parcor_coeff, sconf->max_order, block->q_parcor_coeff,
-                               ctx->r_parcor_coeff);
+        quantize_parcor_coeffs(ctx->parcor_coeff, sconf->max_order,
+                               block->q_parcor_coeff, ctx->r_parcor_coeff);
     }
 
 
@@ -1284,8 +1283,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
 
     // search for rice parameter:
-    find_block_rice_params(ctx, block,
-                           block->opt_order,
+    find_block_rice_params(ctx, block, block->opt_order,
                            RICE_PARAM_ALGORITHM_EXACT,
                            RICE_BIT_COUNT_ALGORITHM_EXACT);
 
