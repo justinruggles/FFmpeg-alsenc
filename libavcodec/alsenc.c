@@ -63,9 +63,9 @@
 #define BS_ALGORITHM_BOTTOM_UP      0
 
 /** Use writing into a temporary buffer to determine exact block size including overhead */
-#define BS_DETERMINE_SIZE_BY_WRITE  1
+#define BS_DETERMINE_SIZE_BY_WRITE  0
 /** Use bit counting using RICE_BIT_COUNT_ALGORITHM_* and overhead estimation */
-#define BS_DETERMINE_SIZE_BY_COUNT  0
+#define BS_DETERMINE_SIZE_BY_COUNT  1
 
 
 /** Get the bit at position pos+1 in uint32_t *ptr_bs_info */
@@ -1297,6 +1297,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
+#if 0
 #if BS_DETERMINE_SIZE_BY_COUNT
 /** Very roughly estimates overhead for one block
  */
@@ -1311,6 +1312,7 @@ static int get_block_overhead(ALSEncContext *ctx, ALSBlock *block)
 
     return overhead;
 }
+#endif
 #endif
 
 
@@ -1337,10 +1339,8 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         unsigned int *bs_sizes = ctx->bs_sizes[channel] + num_blocks - 1;
 
 #if BS_DETERMINE_SIZE_BY_COUNT
-        // count residuals + estimate block overhead
-        find_block_params(ctx, block, channel, b);
-
-        bs_sizes[b] += get_block_overhead(ctx, block);
+        // count residuals + block overhead
+        bs_sizes[b] = find_block_params(ctx, block);
 #else
         // get exact bit count by writing
 
