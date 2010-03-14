@@ -765,6 +765,30 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 }
 
 
+static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
+                                       int order)
+{
+    int i, next_max_order, bit_count;
+
+    bit_count = 0;
+    next_max_order = FFMIN(order, 20);
+    for (i = 0; i < next_max_order; i++) {
+        int rice_param = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][1];
+        int offset     = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][0];
+        bit_count += rice_count(block->q_parcor_coeff[i] - offset, rice_param);
+    }
+    next_max_order = FFMIN(order, 127);
+    for (; i < next_max_order; i++) {
+        bit_count += rice_count(block->q_parcor_coeff[i] - (i & 1), 2);
+    }
+    for (; i < order; i++) {
+        bit_count += rice_count(block->q_parcor_coeff[i], 1);
+    }
+
+    block->bits_parcor_coeff = bit_count;
+}
+
+
 static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
                                               int sb_length, int rice_param,
                                               int max_param, int ra_subblock,
@@ -1149,9 +1173,10 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
  * @return number of bits that will be used to encode the block using the
  *         determined parameters
  */
-static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
+static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
+    int bit_count;
 
     int32_t *res_ptr = block->res_ptr;
     int32_t *smp_ptr = block->smp_ptr;
@@ -1197,7 +1222,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
     // if this is a constant block, we don't need to find any other parameters
     if (block->constant)
-        return;
+        return block->bits_misc + block->bits_const_block;
 
 
     // short-term prediction:
@@ -1233,6 +1258,7 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
     } else {
         block->opt_order = sconf->max_order;
     }
+    calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
 
 
     // generate residuals using parameters:
@@ -1262,6 +1288,12 @@ static void find_block_params(ALSEncContext *ctx, ALSBlock *block)
                            block->opt_order,
                            RICE_PARAM_ALGORITHM_EXACT,
                            RICE_BIT_COUNT_ALGORITHM_EXACT);
+
+    bit_count = block->bits_misc + block->bits_parcor_coeff +
+                block->bits_ec_param_and_res;
+    bit_count += (8 - (bit_count & 7)) & 7; // byte align
+
+    return bit_count;
 }
 
 
