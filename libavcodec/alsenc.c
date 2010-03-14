@@ -62,11 +62,6 @@
 /** Find optimal block partitioning using Bottom-Up */
 #define BS_ALGORITHM_BOTTOM_UP      0
 
-/** Use writing into a temporary buffer to determine exact block size including overhead */
-#define BS_DETERMINE_SIZE_BY_WRITE  0
-/** Use bit counting using RICE_BIT_COUNT_ALGORITHM_* and overhead estimation */
-#define BS_DETERMINE_SIZE_BY_COUNT  1
-
 
 /** Get the bit at position pos+1 in uint32_t *ptr_bs_info */
 #define GET_BS_BIT(ptr_bs_info, pos) ((*ptr_bs_info & (1 << (30 - pos))) > 0)
@@ -110,9 +105,6 @@ typedef struct {
     int *num_blocks;                 ///< number of blocks used for the block partitioning
     unsigned int *bs_sizes_buffer;   ///< buffer containing all block sizes for all channels
     unsigned int **bs_sizes;         ///< pointer to the beginning of the channel's block sizes for each channel
-#if BS_DETERMINE_SIZE_BY_WRITE
-    int32_t *bs_tmp_buffer;          ///< buffer for temporarily writing a block to determine the real block size including block overhead
-#endif
     ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
@@ -1298,7 +1290,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
 
 #if 0
-#if BS_DETERMINE_SIZE_BY_COUNT
 /** Very roughly estimates overhead for one block
  */
 static int get_block_overhead(ALSEncContext *ctx, ALSBlock *block)
@@ -1312,7 +1303,6 @@ static int get_block_overhead(ALSEncContext *ctx, ALSBlock *block)
 
     return overhead;
 }
-#endif
 #endif
 
 
@@ -1338,29 +1328,8 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
     for (b = 0; b < num_blocks; b++) {
         unsigned int *bs_sizes = ctx->bs_sizes[channel] + num_blocks - 1;
 
-#if BS_DETERMINE_SIZE_BY_COUNT
         // count residuals + block overhead
         bs_sizes[b] = find_block_params(ctx, block);
-#else
-        // get exact bit count by writing
-
-        // save original PutBitContext
-        PutBitContext pb  = ctx->pb;
-
-        // initialize a new buffer into ctx->pb
-        init_put_bits(&ctx->pb, (uint8_t*)ctx->bs_tmp_buffer, ctx->sconf.frame_length << 3);
-
-        // write into temporary buffer
-        find_block_params(ctx, block);
-
-        write_block(ctx, block);
-
-        // get written bits
-        bs_sizes[b] = put_bits_count(&ctx->pb);
-
-        // restore original PutBitContext
-        ctx->pb = pb;
-#endif
 
         block++;
     }
@@ -1738,9 +1707,6 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->num_blocks);
     av_freep(&ctx->bs_sizes_buffer);
     av_freep(&ctx->bs_sizes);
-#if BS_DETERMINE_SIZE_BY_WRITE
-    av_freep(&ctx->bs_tmp_buffer);
-#endif
     av_freep(&ctx->q_parcor_coeff_buffer);
     av_freep(&ctx->acf_coeff);
     av_freep(&ctx->parcor_coeff);
@@ -1876,9 +1842,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
         ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
         ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
-#if BS_DETERMINE_SIZE_BY_WRITE
-        ctx->bs_tmp_buffer   = av_malloc(sizeof(*ctx->bs_tmp_buffer)   * sconf->frame_length);
-#endif
 
         if (!ctx->bs_sizes || !ctx->bs_sizes_buffer) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
