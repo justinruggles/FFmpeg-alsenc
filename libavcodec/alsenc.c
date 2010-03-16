@@ -1258,8 +1258,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // (and the block can be encoded in a channel pair)
     // while not implemented, don't indicate js
 
-    block->js_block = 0;
-    block->bits_misc++;
+    block->bits_misc++; // add one bit for block->js_block
 
 
     // if this is a constant block, we don't need to find any other parameters
