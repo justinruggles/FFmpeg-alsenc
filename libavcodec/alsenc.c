@@ -396,11 +396,11 @@ static void get_block_sizes(ALSEncContext *ctx,
         block = ctx->blocks[c2];
 
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
-            block->length  = div_blocks[b];
+            block->length  = ctx->blocks[c1][b].length;
             block->res_ptr = res_ptr;
             block->smp_ptr = smp_ptr;
-            res_ptr += div_blocks[b];
-            smp_ptr += div_blocks[b];
+            res_ptr += block->length;
+            smp_ptr += block->length;
             block++;
         }
     }
