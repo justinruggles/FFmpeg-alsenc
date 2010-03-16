@@ -410,8 +410,8 @@ static void get_block_sizes(ALSEncContext *ctx,
         block->res_ptr = res_ptr;
         block->smp_ptr = smp_ptr;
         block->dif_ptr = dif_ptr;
-        res_ptr += block->length;
-        smp_ptr += block->length;
+        res_ptr       += block->length;
+        smp_ptr       += block->length;
         dif_ptr       += block->length;
         block++;
     }
@@ -430,19 +430,19 @@ static void get_block_sizes(ALSEncContext *ctx,
     }
 
     if (c1 != c2) {
-        res_ptr = ctx->res_samples[c2];
-        smp_ptr = ctx->raw_samples[c2];
-        dif_ptr = ctx->raw_dif_samples[c1 >> 1];
+        res_ptr             = ctx->res_samples[c2];
+        smp_ptr             = ctx->raw_samples[c2];
+        dif_ptr             = ctx->raw_dif_samples[c1 >> 1];
+        block               = ctx->blocks[c2];
         ctx->num_blocks[c2] = ctx->num_blocks[c1];
-        block = ctx->blocks[c2];
 
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
             block->length  = ctx->blocks[c1][b].length;
             block->res_ptr = res_ptr;
             block->smp_ptr = smp_ptr;
             block->dif_ptr = dif_ptr;
-            res_ptr += block->length;
-            smp_ptr += block->length;
+            res_ptr       += block->length;
+            smp_ptr       += block->length;
             dif_ptr       += block->length;
             block++;
         }
@@ -1358,7 +1358,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
     get_block_sizes(ctx, &bs_info_tmp, channel, channel);
 
     for (b = 0; b < num_blocks; b++) {
-        unsigned int *bs_sizes = ctx->bs_sizes[channel] + num_blocks - 1;
+        unsigned int *bs_sizes = ctx->bs_sizes[channel     ] + num_blocks - 1;
         unsigned int *js_sizes = ctx->js_sizes[channel >> 1] + num_blocks - 1;
 
         // count residuals + block overhead
@@ -1891,10 +1891,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     // check buffers
     if (!ctx->independent_bs    ||
-        !ctx->raw_buffer        || !ctx->raw_samples ||
+        !ctx->raw_buffer        || !ctx->raw_samples     ||
         !ctx->raw_dif_buffer    || !ctx->raw_dif_samples ||
-        !ctx->res_buffer        || !ctx->res_samples ||
-        !ctx->num_blocks        || !ctx->bs_info     ||
+        !ctx->res_buffer        || !ctx->res_samples     ||
+        !ctx->num_blocks        || !ctx->bs_info         ||
         !ctx->block_buffer      || !ctx->blocks) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
@@ -1903,10 +1903,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
 
     // assign buffer pointers
-    ctx->raw_samples[0] = ctx->raw_buffer + sconf->max_order;
+    ctx->raw_samples    [0] = ctx->raw_buffer     + sconf->max_order;
     ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + sconf->max_order;
-    ctx->res_samples[0] = ctx->res_buffer + sconf->max_order;
-    ctx->blocks     [0] = ctx->block_buffer;
+    ctx->res_samples    [0] = ctx->res_buffer     + sconf->max_order;
+    ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
