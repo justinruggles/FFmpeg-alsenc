@@ -749,9 +749,16 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
                     if (ret < 0)
                         return ret;
                 } else {
-                    // write channel & channel+1
+                    ret = write_block(ctx, &ctx->blocks[c][b]);
+                    if (ret < 0)
+                        return ret;
+                    ret = write_block(ctx, &ctx->blocks[c+1][b]);
+                    if (ret < 0)
+                        return ret;
                 }
             }
+
+            if(!ctx->independent_bs[c]) c++;
         }
     } else {
 
