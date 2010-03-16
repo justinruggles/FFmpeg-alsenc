@@ -192,14 +192,42 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     //                correct output of mcc frames/block)
 
     ctx->js_switch = sconf->mc_coding;
+    c              = 0;
 
-    if (!sconf->mc_coding || ctx->js_switch)
-        for (c = 0; c < avctx->channels; c++)
-            ctx->independent_bs[c] = 1;
+
+    // if joint-stereo is enabled, dependently code each channel pair
+    if (sconf->joint_stereo) {
+        for (; c < avctx->channels - 1; c += 2) {
+            ctx->independent_bs[c    ] = 0;
+            ctx->independent_bs[c + 1] = 0;
+        }
+    }
+
+
+    // set (the remaining) channels to dependent coding
+    for (; c < avctx->channels; c++)
+        ctx->independent_bs[c] = 1;
+
+
+    // generate difference signal if needed
+    if (sconf->joint_stereo) {
+        for (c = 0; c < avctx->channels - 1; c+=2) {
+            gen_diff_signal(ctx, c);
+        }
+    }
+
 
     // generate all block sizes for this frame
     for (c = 0; c < avctx->channels; c++) {
         gen_sizes(ctx, c, 0);
+    }
+
+
+    // select difference signals wherever suitable
+    if (sconf->joint_stereo) {
+        for (c = 0; c < avctx->channels - 1; c+=2) {
+            gen_js_blocks(ctx, c, 0);
+        }
     }
 }
 
