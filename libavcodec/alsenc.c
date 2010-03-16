@@ -1289,23 +1289,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-#if 0
-/** Very roughly estimates overhead for one block
- */
-static int get_block_overhead(ALSEncContext *ctx, ALSBlock *block)
-{
-    int overhead = block->sub_blocks * ctx->max_rice_param // s[k]
-                 + 10                            // opt_order_length
-                 + block->opt_order  * 7         // quant_cof
-                 + 0                             // LTP
-                 + 0                             // progressively coded ra-samples
-                 ;
-
-    return overhead;
-}
-#endif
-
-
 /** Generates all possible block sizes for all possible block-switching stages
  */
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
