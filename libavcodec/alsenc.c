@@ -82,6 +82,7 @@ typedef struct {
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
     int32_t *res_ptr;               ///< points to the first residual for this block
     int32_t *smp_ptr;               ///< points to the first raw sample for this block
+    int32_t *dif_ptr;               ///< points to the first difference sample for this block
     int bits_const_block;           ///< bit count for const block params
     int bits_misc;                  ///< bit count for js_block and shift_lsbs
     int bits_ec_param_and_res;      ///< bit count for Rice/BGMC params and residuals
@@ -344,6 +345,7 @@ static void get_block_sizes(ALSEncContext *ctx,
     unsigned int b;
     int32_t *res_ptr = ctx->res_samples[c1];
     int32_t *smp_ptr = ctx->raw_samples[c1];
+    int32_t *dif_ptr = ctx->raw_dif_samples[c1 >> 1];
 
     ALSBlock *block = ctx->blocks[c1];
 
@@ -371,8 +373,10 @@ static void get_block_sizes(ALSEncContext *ctx,
         block->length  = div_blocks[b];
         block->res_ptr = res_ptr;
         block->smp_ptr = smp_ptr;
+        block->dif_ptr = dif_ptr;
         res_ptr += block->length;
         smp_ptr += block->length;
+        dif_ptr       += block->length;
         block++;
     }
 
@@ -392,6 +396,7 @@ static void get_block_sizes(ALSEncContext *ctx,
     if (c1 != c2) {
         res_ptr = ctx->res_samples[c2];
         smp_ptr = ctx->raw_samples[c2];
+        dif_ptr = ctx->raw_dif_samples[c1 >> 1];
         ctx->num_blocks[c2] = ctx->num_blocks[c1];
         block = ctx->blocks[c2];
 
@@ -399,8 +404,10 @@ static void get_block_sizes(ALSEncContext *ctx,
             block->length  = ctx->blocks[c1][b].length;
             block->res_ptr = res_ptr;
             block->smp_ptr = smp_ptr;
+            block->dif_ptr = dif_ptr;
             res_ptr += block->length;
             smp_ptr += block->length;
+            dif_ptr       += block->length;
             block++;
         }
     }
@@ -1093,7 +1100,7 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
     int i, j;
 
     int32_t *res_ptr = block->res_ptr;
-    int32_t *smp_ptr = block->smp_ptr;
+    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
@@ -1143,7 +1150,7 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 {
     unsigned int n = block->length;
-    int32_t *smp_ptr = block->smp_ptr;
+    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
     int32_t val = *smp_ptr++;
 
     block->constant = 1;
@@ -1176,7 +1183,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     int bit_count;
 
     int32_t *res_ptr = block->res_ptr;
-    int32_t *smp_ptr = block->smp_ptr;
+    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
 
     block->bits_misc = 1;   // block_type
 
