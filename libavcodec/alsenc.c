@@ -1472,7 +1472,9 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                 if (ctx->independent_bs[c]) {
                     find_block_params(ctx, &ctx->blocks[c][b]);
                 } else {
-                    // encode channel & channel+1
+                    find_block_params(ctx, &ctx->blocks[c    ][b]);
+                    find_block_params(ctx, &ctx->blocks[c + 1][b]);
+                    c++;
                 }
             }
         }
