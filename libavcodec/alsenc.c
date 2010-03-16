@@ -1934,7 +1934,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         channel_sorting(ctx);
 
 
-    // allocate bs buffers
+    // allocate block-switching and joint-stereo buffers
     num_bs_sizes = (8 << sconf->block_switching) - 1;
 
     ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
