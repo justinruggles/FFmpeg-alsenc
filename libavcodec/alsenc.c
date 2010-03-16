@@ -124,6 +124,7 @@ typedef struct {
 
 static int write_specific_config(AVCodecContext *avctx);
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
+static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage);
 
 
 /** Converts an array of channel-interleaved samples into
@@ -1343,6 +1344,49 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         gen_sizes(ctx, channel, stage + 1);
     else
         ctx->bs_info[channel] = bs_info_tmp;
+}
+
+
+/** Generates all suitable difference coding blocks for all possible block-switching stages
+ */
+static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    ALSBlock *block          = ctx->blocks[channel    ];
+    ALSBlock *buddy          = ctx->blocks[channel + 1];
+    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
+    unsigned int b;
+
+    for (b = 0; b < num_blocks; b++) {
+        unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
+        unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
+        unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
+
+        // replace normal signal with difference signal if suitable
+        if (js_size[b] < block_size[b] ||
+            js_size[b] < buddy_size[b]) {
+            // mark the larger encoded block with the difference signal
+            // and update this blocks size in bs_sizes
+            if (block_size[b] > buddy_size[b]) {
+                block_size[b]   = js_size[b];
+                block->js_block = 1;
+                buddy->js_block = 0;
+            } else {
+                buddy_size[b]   = js_size[b];
+                block->js_block = 0;
+                buddy->js_block = 1;
+            }
+        } else {
+            block->js_block = 0;
+            buddy->js_block = 0;
+        }
+
+        block++;
+        buddy++;
+    }
+
+    if (sconf->block_switching && stage < sconf->block_switching + 2)
+        gen_js_blocks(ctx, channel, stage + 1);
 }
 
 
