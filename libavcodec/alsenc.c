@@ -1759,6 +1759,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int channel_size;
     int ret, b, c;
+    int num_bs_sizes;
 
     ctx->avctx = avctx;
 
@@ -1849,21 +1850,19 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
 
     // allocate bs buffers
-    if (sconf->block_switching) {
-        int num_bs_sizes = (8 << sconf->block_switching) - 1;
+    num_bs_sizes = (8 << sconf->block_switching) - 1;
 
-        ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
-        ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
+    ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
+    ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
 
-        if (!ctx->bs_sizes || !ctx->bs_sizes_buffer) {
-            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
-            encode_end(avctx);
-            return AVERROR(ENOMEM);
-        }
+    if (!ctx->bs_sizes || !ctx->bs_sizes_buffer) {
+        av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+        encode_end(avctx);
+        return AVERROR(ENOMEM);
+    }
 
-        for (c = 0; c < avctx->channels; c++) {
-            ctx->bs_sizes[c] = ctx->bs_sizes_buffer + c * num_bs_sizes;
-        }
+    for (c = 0; c < avctx->channels; c++) {
+        ctx->bs_sizes[c] = ctx->bs_sizes_buffer + c * num_bs_sizes;
     }
 
 
