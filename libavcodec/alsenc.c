@@ -108,6 +108,8 @@ typedef struct {
     int *num_blocks;                 ///< number of blocks used for the block partitioning
     unsigned int *bs_sizes_buffer;   ///< buffer containing all block sizes for all channels
     unsigned int **bs_sizes;         ///< pointer to the beginning of the channel's block sizes for each channel
+    unsigned int *js_sizes_buffer;   ///< buffer containing all block sizes for all channel-pairs of the difference signal
+    unsigned int **js_sizes;         ///< pointer to the beginning of the channel's block sizes for each channel-pair difference signal
     ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
@@ -1322,9 +1324,17 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
     for (b = 0; b < num_blocks; b++) {
         unsigned int *bs_sizes = ctx->bs_sizes[channel] + num_blocks - 1;
+        unsigned int *js_sizes = ctx->js_sizes[channel >> 1] + num_blocks - 1;
 
         // count residuals + block overhead
+        block->js_block = 0;
         bs_sizes[b] = find_block_params(ctx, block);
+
+        if (sconf->joint_stereo && !(channel & 1)) {
+            block->js_block = 1;
+            js_sizes[b]    = find_block_params(ctx, block);
+            block->js_block = 0;
+        }
 
         block++;
     }
@@ -1704,6 +1714,8 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->num_blocks);
     av_freep(&ctx->bs_sizes_buffer);
     av_freep(&ctx->bs_sizes);
+    av_freep(&ctx->js_sizes_buffer);
+    av_freep(&ctx->js_sizes);
     av_freep(&ctx->q_parcor_coeff_buffer);
     av_freep(&ctx->acf_coeff);
     av_freep(&ctx->parcor_coeff);
@@ -1847,8 +1859,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
     ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
+    ctx->js_sizes_buffer = av_malloc(sizeof(*ctx->js_sizes_buffer) * num_bs_sizes * (avctx->channels >> 1));
+    ctx->js_sizes        = av_malloc(sizeof(*ctx->js_sizes)        * num_bs_sizes);
 
-    if (!ctx->bs_sizes || !ctx->bs_sizes_buffer) {
+    if (!ctx->bs_sizes || !ctx->bs_sizes_buffer ||
+        !ctx->js_sizes || !ctx->js_sizes_buffer) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
         return AVERROR(ENOMEM);
@@ -1856,6 +1871,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     for (c = 0; c < avctx->channels; c++) {
         ctx->bs_sizes[c] = ctx->bs_sizes_buffer + c * num_bs_sizes;
+    }
+
+    for (c = 0; c < avctx->channels - 1; c += 2) {
+        ctx->js_sizes[c    ] = ctx->js_sizes_buffer + (c    ) * num_bs_sizes;
+        ctx->js_sizes[c + 1] = ctx->js_sizes_buffer + (c + 1) * num_bs_sizes;
     }
 
 
