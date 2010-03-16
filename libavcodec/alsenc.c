@@ -212,7 +212,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     // generate difference signal if needed
     if (sconf->joint_stereo) {
         for (c = 0; c < avctx->channels - 1; c+=2) {
-            gen_diff_signal(ctx, c);
+            gen_dif_signal(ctx, c);
         }
     }
 
