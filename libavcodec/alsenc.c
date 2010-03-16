@@ -432,40 +432,25 @@ static void block_partitioning(ALSEncContext *ctx)
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int c;
 
-    if (sconf->block_switching && !(ctx->cur_frame_length & 1)) { // even number of samples only by now
+    // generate all block sizes for this frame
+    for (c = 0; c < avctx->channels; c++) {
+        gen_sizes(ctx, c, 0);
+    }
 
-        // generate all block sizes for this frame
+    // find the best partitioning for each channel
+    if (!sconf->mc_coding || ctx->js_switch) {
         for (c = 0; c < avctx->channels; c++) {
-            gen_sizes(ctx, c, 0);
-        }
-
-        // find the best partitioning for each channel
-        if (!sconf->mc_coding || ctx->js_switch) {
-            for (c = 0; c < avctx->channels; c++) {
-                if (ctx->independent_bs[c]) {
-                    get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c);
-                } else {
-                    get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c + 1);
-                    c++;
-                }
+            if (ctx->independent_bs[c]) {
+                get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c);
+            } else {
+                get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c + 1);
+                c++;
             }
-        } else {
-
-            // MCC: to be implemented
-
         }
-
     } else {
 
-        // generate result for no block-switching,
-        // one block per channel as long as the frame
+        // MCC: to be implemented
 
-        for (c = 0; c < avctx->channels; c++) {
-            ctx->num_blocks[c]        = 1;
-            ctx->blocks[c][0].length  = ctx->cur_frame_length;
-            ctx->blocks[c][0].res_ptr = ctx->res_samples[c];
-            ctx->blocks[c][0].smp_ptr = ctx->raw_samples[c];
-        }
     }
 }
 
@@ -1312,8 +1297,9 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
  */
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
+    ALSSpecificConfig *sconf = &ctx->sconf;
     ALSBlock *block          = ctx->blocks[channel];
-    unsigned int num_blocks  = 1 << stage;
+    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
     uint32_t bs_info_tmp     = 0;
     unsigned int b;
 
@@ -1336,7 +1322,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         block++;
     }
 
-    if (stage < ctx->sconf.block_switching + 2)
+    if (sconf->block_switching && stage < sconf->block_switching + 2)
         gen_sizes(ctx, channel, stage + 1);
     else
         ctx->bs_info[channel] = bs_info_tmp;
