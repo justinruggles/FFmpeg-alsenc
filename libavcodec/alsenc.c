@@ -196,6 +196,11 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     if (!sconf->mc_coding || ctx->js_switch)
         for (c = 0; c < avctx->channels; c++)
             ctx->independent_bs[c] = 1;
+
+    // generate all block sizes for this frame
+    for (c = 0; c < avctx->channels; c++) {
+        gen_sizes(ctx, c, 0);
+    }
 }
 
 
@@ -441,11 +446,6 @@ static void block_partitioning(ALSEncContext *ctx)
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int c;
-
-    // generate all block sizes for this frame
-    for (c = 0; c < avctx->channels; c++) {
-        gen_sizes(ctx, c, 0);
-    }
 
     // find the best partitioning for each channel
     if (!sconf->mc_coding || ctx->js_switch) {
