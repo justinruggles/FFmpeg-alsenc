@@ -60,9 +60,6 @@
 #define SET_OPTIONS(stage)                                \
 {                                                         \
     ctx->cur_stage         = ctx->stages + (stage);       \
-    ctx->sconf.adapt_order = ctx->cur_stage->adapt_order; \
-    ctx->sconf.max_order   = ctx->cur_stage->max_order;   \
-    ctx->sconf.sb_part     = ctx->cur_stage->sb_part;     \
 }
 
 
@@ -89,9 +86,9 @@
 /** grouped encoding algorithms and options */
 typedef struct {
     // encoding options used during the processing of the stage
-    int adapt_order;                ///< override adaptive order flag in ALSSpecificConfig
-    int max_order;                  ///< override max_oder field in ALSSpecificConfig
-    int sb_part;                    ///< override sb_part field in ALSSpecificConfig
+    int adapt_order;                ///< adaptive order to use during this stage
+    int max_order;                  ///< max_oder to use during this stage
+    int sb_part;                    ///< sb_part to use during this stage
 
     // encoding algorithms used during the processing of the stage
     int param_algorithm;            ///< algorithm to use to determine Rice parameters
@@ -962,7 +959,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     unsigned int count1, count4;
     ALSEncStage *stage = ctx->cur_stage;
 
-    if (!ctx->sconf.sb_part || block->length & 0x3 || block->length < 16)
+    if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
     else
         sb_max = 4;
@@ -1042,8 +1039,9 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     int k, step, sb, sb_max, sb_length;
     int best_k;
     unsigned int count1, count4;
+    ALSEncStage *stage = ctx->cur_stage;
 
-    if (!ctx->sconf.sb_part || block->length & 0x3 || block->length < 16)
+    if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
     else
         sb_max = 4;
