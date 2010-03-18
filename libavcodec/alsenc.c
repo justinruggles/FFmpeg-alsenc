@@ -47,6 +47,25 @@
 #define ALS_SPECIFIC_CFG_SIZE  30
 
 
+/** Total number of stages used for allocation */
+#define NUM_STAGES 2
+
+/** Give the different stages used for encoding a readable name */
+#define STAGE_BLOCK_SWITCHING  0
+#define STAGE_LPC_ORDER_SEARCH 1
+
+
+/** Sets the current stage pointer in the context to the desired stage
+ *  and writes all overriding options into specific config */
+#define SET_OPTIONS(stage)                                \
+{                                                         \
+    ctx->cur_stage         = ctx->stages + (stage);       \
+    ctx->sconf.adapt_order = ctx->cur_stage->adapt_order; \
+    ctx->sconf.max_order   = ctx->cur_stage->max_order;   \
+    ctx->sconf.sb_part     = ctx->cur_stage->sb_part;     \
+}
+
+
 /** Estimates Rice parameters using sum of unsigned residual samples */
 #define RICE_PARAM_ALGORITHM_ESTIMATE   0
 /** Calculates Rice parameters using a search algorithm based on exact bit count */
@@ -65,6 +84,20 @@
 
 /** Get the bit at position pos+1 in uint32_t *ptr_bs_info */
 #define GET_BS_BIT(ptr_bs_info, pos) ((*ptr_bs_info & (1 << (30 - pos))) > 0)
+
+
+/** grouped encoding algorithms and options */
+typedef struct {
+    // encoding options used during the processing of the stage
+    int adapt_order;                ///< override adaptive order flag in ALSSpecificConfig
+    int max_order;                  ///< override max_oder field in ALSSpecificConfig
+    int sb_part;                    ///< override sb_part field in ALSSpecificConfig
+
+    // encoding algorithms used during the processing of the stage
+    int param_algorithm;            ///< algorithm to use to determine Rice parameters
+    int count_algorithm;            ///< algorithm to use for residual + rice param bit count
+    int merge_algorithm;            ///< algorithm to use to determine final block partitioning
+} ALSEncStage;
 
 
 // probably mergeable or the very same as ALSBlockData from the decoder
@@ -95,6 +128,8 @@ typedef struct {
     ALSSpecificConfig sconf;
     PutBitContext pb;
     DSPContext dsp;
+    ALSEncStage *stages;             ///< array containing all grouped encoding and algorithm options for each possible stage
+    ALSEncStage *cur_stage;          ///< points to the currently used encoding stage
     unsigned int cur_frame_length;   ///< length of the current frame, in samples
     int js_switch;                   ///< force joint-stereo in case of MCC
     int *independent_bs;             ///< array containing independent_bs flag for each channel
@@ -454,9 +489,11 @@ static void get_block_sizes(ALSEncContext *ctx,
  *  depending on the chosen algorithm and sets the block sizes
  *  accordingly
  */
-static void get_partition(ALSEncContext *ctx, int alg, unsigned int c1, unsigned int c2)
+static void get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
 {
-    if(alg == BS_ALGORITHM_BOTTOM_UP) {
+    ALSEncStage *stage = ctx->cur_stage;
+
+    if(stage->merge_algorithm == BS_ALGORITHM_BOTTOM_UP) {
         merge_bs_bottomup(ctx, 0, c1, c2);
     } else {
         merge_bs_fullsearch(ctx, 0, c1, c2);
@@ -479,9 +516,9 @@ static void block_partitioning(ALSEncContext *ctx)
     if (!sconf->mc_coding || ctx->js_switch) {
         for (c = 0; c < avctx->channels; c++) {
             if (ctx->independent_bs[c]) {
-                get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c);
+                get_partition(ctx, c, c);
             } else {
-                get_partition(ctx, BS_ALGORITHM_FULL_SEARCH, c, c + 1);
+                get_partition(ctx, c, c + 1);
                 c++;
             }
         }
@@ -917,12 +954,13 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 
 
 static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
-                                      int order, int count_algorithm)
+                                      int order)
 {
     int i, sb, sb_max, sb_length;
     uint64_t sum[5] = {0,};
     int param[5];
     unsigned int count1, count4;
+    ALSEncStage *stage = ctx->cur_stage;
 
     if (!ctx->sconf.sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
@@ -949,7 +987,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
     param[4] = optimal_rice_param(sum[4], block->length, ctx->max_rice_param);
 
-    if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
+    if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
         count1 = block_rice_count_exact(ctx, block, 1, &param[4], order);
     } else {
         count1 = rice_encode_count(sum[4], block->length, param[4]);
@@ -963,7 +1001,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         block->bits_ec_param_and_res = count1;
     }
 
-    if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
+    if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
         count4 = block_rice_count_exact(ctx, block, 4, param, order);
     } else {
         count4 = 0;
@@ -988,7 +1026,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         block->rice_param[3] = param[3];
     }
 
-    if (count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
+    if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
         block->bits_ec_param_and_res = block_rice_count_exact(ctx, block,
                                       block->sub_blocks, block->rice_param,
                                       order);
@@ -1101,20 +1139,19 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
 /**
  * Calculate optimal sub-block division and Rice parameters for a block.
- * @param[in] param_algorithm   which algorithm to use for determining Rice parameters
- * @param[in] count_algorithm   which bit count algorithm to use for determining sb_part
  * @param ctx                   encoder context
  * @param block                 current block
  * @param[in] ra_block          indicates if this is a random access block
  * @param[in] order             LPC order
  */
 static void find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
-                                   int order, int param_algorithm,
-                                   int count_algorithm)
+                                   int order)
 {
-    if (param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
-        find_block_rice_params_est(ctx, block, order, count_algorithm);
-    } else if (param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
+    ALSEncStage *stage = ctx->cur_stage;
+
+    if (stage->param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
+        find_block_rice_params_est(ctx, block, order);
+    } else if (stage->param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
         find_block_rice_params_exact(ctx, block, order);
     }
 }
@@ -1325,9 +1362,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
 
     // search for rice parameter:
-    find_block_rice_params(ctx, block, block->opt_order,
-                           RICE_PARAM_ALGORITHM_EXACT,
-                           RICE_BIT_COUNT_ALGORITHM_EXACT);
+    find_block_rice_params(ctx, block, block->opt_order);
 
     bit_count = block->bits_misc + block->bits_parcor_coeff +
                 block->bits_ec_param_and_res;
@@ -1457,12 +1492,14 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     // preprocessing
+    SET_OPTIONS(STAGE_BLOCK_SWITCHING);
     deinterleave_raw_samples(ctx, data);
     select_difference_coding_mode(ctx);
     block_partitioning(ctx);
 
 
-    // encoding loop
+    // find optimal encoding parameters
+    SET_OPTIONS(STAGE_LPC_ORDER_SEARCH);
     if (!sconf->mc_coding || ctx->js_switch) {
         for (b= 0; b < 32; b++) {
             for (c = 0; c < avctx->channels; c++) {
@@ -1781,6 +1818,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
 {
     ALSEncContext *ctx = avctx->priv_data;
 
+    av_freep(&ctx->stages);
     av_freep(&ctx->independent_bs);
     av_freep(&ctx->raw_buffer);
     av_freep(&ctx->raw_samples);
@@ -1868,6 +1906,37 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
 
     channel_size = sconf->frame_length + sconf->max_order;
+
+
+    // set up stage options
+    ctx->stages = av_malloc(sizeof(*ctx->stages) * NUM_STAGES);
+    if (!ctx->stages) {
+        av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+        encode_end(avctx);
+        return AVERROR(ENOMEM);
+    }
+
+    // fill options stages
+    // stage[0] is for temporal block parameter estimation during
+    // joint-stereo selection and block-switching
+    ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order     = 1;
+    ctx->stages[STAGE_BLOCK_SWITCHING].max_order       = sconf->max_order;
+    ctx->stages[STAGE_BLOCK_SWITCHING].sb_part         = 1;
+
+    // stage[1] is for final block parameter estimation during
+    // final bitstream assembly
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_order     = 1;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].max_order       = sconf->max_order;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].sb_part         = 1;
+
+    // set cur_stage pointer to the first stage
+    ctx->cur_stage = ctx->stages;
 
 
     // allocate buffers
