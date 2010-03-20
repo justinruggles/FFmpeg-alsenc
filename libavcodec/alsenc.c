@@ -126,33 +126,33 @@ typedef struct {
     ALSSpecificConfig sconf;
     PutBitContext pb;
     DSPContext dsp;
-    ALSEncStage *stages;             ///< array containing all grouped encoding and algorithm options for each possible stage
-    ALSEncStage *cur_stage;          ///< points to the currently used encoding stage
-    unsigned int cur_frame_length;   ///< length of the current frame, in samples
-    int js_switch;                   ///< force joint-stereo in case of MCC
-    int *independent_bs;             ///< array containing independent_bs flag for each channel
-    int32_t *raw_buffer;             ///< buffer containing all raw samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
-    int32_t **raw_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
-    int32_t *raw_dif_buffer;         ///< buffer containing all raw difference samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
-    int32_t **raw_dif_samples;       ///< pointer to the beginning of the current frame's difference samples in the buffer for each channel
-    int32_t *res_buffer;             ///< buffer containing all residual samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
-    int32_t **res_samples;           ///< pointer to the beginning of the current frame's samples in the buffer for each channel
-    uint32_t *bs_info;               ///< block-partitioning used for the current frame
-    int *num_blocks;                 ///< number of blocks used for the block partitioning
-    unsigned int *bs_sizes_buffer;   ///< buffer containing all block sizes for all channels
-    unsigned int **bs_sizes;         ///< pointer to the beginning of the channel's block sizes for each channel
-    unsigned int *js_sizes_buffer;   ///< buffer containing all block sizes for all channel-pairs of the difference signal
-    unsigned int **js_sizes;         ///< pointer to the beginning of the channel's block sizes for each channel-pair difference signal
-    ALSBlock *block_buffer;          ///< buffer containing all ALSBlocks for each channel
-    ALSBlock **blocks;               ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
-    int32_t *q_parcor_coeff_buffer;  ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
-    double *acf_coeff;               ///< autocorrelation function coefficients for the current block
-    double *parcor_coeff;            ///< double-precision PARCOR coefficients for the current block
-    int32_t *r_parcor_coeff;         ///< scaled 21-bit quantized PARCOR coefficients for the current block
-    int32_t *lpc_coeff;              ///< LPC coefficients for the current block
-    unsigned int max_rice_param;     ///< maximum Rice param, depends on sample depth
-    double *acf_window_buffer;       ///< buffer containing all pre-calculated autocorrelation windows
-    double *acf_window[6];           ///< pre-calculated autocorrelation windows for each block switching depth
+    ALSEncStage *stages;            ///< array containing all grouped encoding and algorithm options for each possible stage
+    ALSEncStage *cur_stage;         ///< points to the currently used encoding stage
+    unsigned int cur_frame_length;  ///< length of the current frame, in samples
+    int js_switch;                  ///< force joint-stereo in case of MCC
+    int *independent_bs;            ///< array containing independent_bs flag for each channel
+    int32_t *raw_buffer;            ///< buffer containing all raw samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
+    int32_t **raw_samples;          ///< pointer to the beginning of the current frame's samples in the buffer for each channel
+    int32_t *raw_dif_buffer;        ///< buffer containing all raw difference samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
+    int32_t **raw_dif_samples;      ///< pointer to the beginning of the current frame's difference samples in the buffer for each channel
+    int32_t *res_buffer;            ///< buffer containing all residual samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
+    int32_t **res_samples;          ///< pointer to the beginning of the current frame's samples in the buffer for each channel
+    uint32_t *bs_info;              ///< block-partitioning used for the current frame
+    int *num_blocks;                ///< number of blocks used for the block partitioning
+    unsigned int *bs_sizes_buffer;  ///< buffer containing all block sizes for all channels
+    unsigned int **bs_sizes;        ///< pointer to the beginning of the channel's block sizes for each channel
+    unsigned int *js_sizes_buffer;  ///< buffer containing all block sizes for all channel-pairs of the difference signal
+    unsigned int **js_sizes;        ///< pointer to the beginning of the channel's block sizes for each channel-pair difference signal
+    ALSBlock *block_buffer;         ///< buffer containing all ALSBlocks for each channel
+    ALSBlock **blocks;              ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
+    int32_t *q_parcor_coeff_buffer; ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
+    double *acf_coeff;              ///< autocorrelation function coefficients for the current block
+    double *parcor_coeff;           ///< double-precision PARCOR coefficients for the current block
+    int32_t *r_parcor_coeff;        ///< scaled 21-bit quantized PARCOR coefficients for the current block
+    int32_t *lpc_coeff;             ///< LPC coefficients for the current block
+    unsigned int max_rice_param;    ///< maximum Rice param, depends on sample depth
+    double *acf_window_buffer;      ///< buffer containing all pre-calculated autocorrelation windows
+    double *acf_window[6];          ///< pre-calculated autocorrelation windows for each block switching depth
 } ALSEncContext;
 
 
