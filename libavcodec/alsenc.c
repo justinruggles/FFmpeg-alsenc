@@ -103,7 +103,7 @@ typedef struct {
     int constant;                   ///< indicates constant block values
     int32_t constant_value;         ///< if constant, this is the value
     unsigned int length;            ///< length of the block in # of samples
-    int div_block;                  ///< if > 0, this block length is 1/div_block of a full frame
+    int div_block;                  ///< if > 0, this block length is 1/(1<<div_block) of a full frame
     unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
     unsigned int rice_param[4];     ///< rice parameters to encode the residuals
                                     ///< of this block in case of not bgmc
