@@ -103,6 +103,7 @@ typedef struct {
     int constant;                   ///< indicates constant block values
     int32_t constant_value;         ///< if constant, this is the value
     unsigned int length;            ///< length of the block in # of samples
+    int div_block;                  ///< if > 0, this block length is 1/div_block of a full frame
     unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
     unsigned int rice_param[4];     ///< rice parameters to encode the residuals
                                     ///< of this block in case of not bgmc
@@ -150,7 +151,8 @@ typedef struct {
     int32_t *r_parcor_coeff;         ///< scaled 21-bit quantized PARCOR coefficients for the current block
     int32_t *lpc_coeff;              ///< LPC coefficients for the current block
     unsigned int max_rice_param;     ///< maximum Rice param, depends on sample depth
-    double *acf_window;              ///< pre-calculated autocorrelation window
+    double *acf_window_buffer;       ///< buffer containing all pre-calculated autocorrelation windows
+    double *acf_window[6];           ///< pre-calculated autocorrelation windows for each block switching depth
 } ALSEncContext;
 
 
@@ -437,6 +439,7 @@ static void get_block_sizes(ALSEncContext *ctx,
     // frame.
 
     for (b = 0; b < ctx->num_blocks[c1]; b++) {
+        block->div_block = div_blocks[b];
         div_blocks[b]  = ctx->sconf.frame_length >> div_blocks[b];
         block->length  = div_blocks[b];
         block->res_ptr = res_ptr;
@@ -453,6 +456,7 @@ static void get_block_sizes(ALSEncContext *ctx,
 
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
             if (remaining <= div_blocks[b]) {
+                ctx->blocks[c1][b].div_block = -1;
                 ctx->blocks[c1][b].length = remaining;
                 ctx->num_blocks[c1] = b + 1;
                 break;
@@ -469,6 +473,7 @@ static void get_block_sizes(ALSEncContext *ctx,
         ctx->num_blocks[c2] = ctx->num_blocks[c1];
 
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
+            block->div_block = ctx->blocks[c1][b].div_block;
             block->length  = ctx->blocks[c1][b].length;
             block->res_ptr = res_ptr;
             block->smp_ptr = smp_ptr;
@@ -1309,8 +1314,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
     if (sconf->max_order) {
         // calculate PARCOR coefficients
-        if (block->length == sconf->frame_length)
-            ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window,
+        if (block->div_block >= 0)
+            ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window[block->div_block],
                                           block->length, sconf->max_order,
                                           ctx->acf_coeff);
         else
@@ -1665,6 +1670,14 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->block_switching = 0; // set to 1 to test block-switching
                                 // with two blocks per frame
 
+    // limit the block_switching depth based on whether the full frame length
+    // is evenly divisible by the minimum block size.
+    // FIXME: should we do this in sconf or just limit the actual depth used?
+    while (sconf->block_switching > 0 &&
+           sconf->frame_length % (1 << (sconf->block_switching + 2))) {
+        sconf->block_switching--;
+    }
+
 
     // determine if BGMC mode is used
     // should be user-defineable
@@ -1954,7 +1967,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->parcor_coeff      = av_malloc (sizeof(*ctx->parcor_coeff)   * sconf->max_order);
     ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
     ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
-    ctx->acf_window        = av_malloc (sizeof(*ctx->acf_window)     * sconf->frame_length);
+    ctx->acf_window_buffer = av_malloc (sizeof(*ctx->acf_window)     * sconf->frame_length * 2);
 
     // check buffers
     if (!ctx->independent_bs    ||
@@ -2032,7 +2045,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     dsputil_init(&ctx->dsp, avctx);
 
-    init_hanning_window(ctx->acf_window, sconf->frame_length);
+    // initialize autocorrelation window for each block size
+    ctx->acf_window[0] = ctx->acf_window_buffer;
+    for (b = 0; b <= sconf->block_switching + 2; b++) {
+        int block_length = sconf->frame_length / (1 << b);
+        init_hanning_window(ctx->acf_window[b], block_length);
+        ctx->acf_window[b+1] = ctx->acf_window[b] + block_length;
+        if (!sconf->block_switching)
+            break;
+    }
 
     return 0;
 }
