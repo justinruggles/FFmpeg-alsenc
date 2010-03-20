@@ -679,11 +679,13 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                 // write coefficients 20 to 126
                 next_max_order = FFMIN(block->opt_order, 127);
                 for (; i < next_max_order; i++)
-                    set_sr_golomb_als(pb, block->q_parcor_coeff[i] - (i & 1), 2);
+                    if (set_sr_golomb_als(pb, block->q_parcor_coeff[i] - (i & 1), 2))
+                        return -1;
 
                 // write coefficients 127 to opt_order
                 for (; i < block->opt_order; i++)
-                    set_sr_golomb_als(pb, block->q_parcor_coeff[i], 1);
+                    if (set_sr_golomb_als(pb, block->q_parcor_coeff[i], 1))
+                        return -1;
             }
         }
 
