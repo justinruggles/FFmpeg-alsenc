@@ -1258,7 +1258,7 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
-    int bit_count;
+    int bit_count, max_order;
 
     int32_t *res_ptr = block->res_ptr;
     int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
@@ -1312,19 +1312,26 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // LPC / PARCOR coefficients to be stored in context
     // they depend on js_block and opt_order which may be changing later on
 
+    max_order = sconf->max_order;
     if (sconf->max_order) {
+        if (sconf->adapt_order) {
+            int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
+                                                2, sconf->max_order + 1));
+            max_order = (1 << opt_order_length) - 1;
+        }
+
         // calculate PARCOR coefficients
         if (block->div_block >= 0)
             ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window[block->div_block],
-                                          block->length, sconf->max_order,
+                                          block->length, max_order,
                                           ctx->acf_coeff);
         else
             ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length,
-                                          sconf->max_order, ctx->acf_coeff);
-        compute_ref_coefs(ctx->acf_coeff, sconf->max_order, ctx->parcor_coeff);
+                                          max_order, ctx->acf_coeff);
+        compute_ref_coefs(ctx->acf_coeff, max_order, ctx->parcor_coeff);
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
-        quantize_parcor_coeffs(ctx->parcor_coeff, sconf->max_order,
+        quantize_parcor_coeffs(ctx->parcor_coeff, max_order,
                                block->q_parcor_coeff, ctx->r_parcor_coeff);
     }
 
@@ -1335,7 +1342,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // significantly better results.
     if (sconf->max_order && sconf->adapt_order) {
         block->opt_order = estimate_best_order(ctx->r_parcor_coeff,
-                                               sconf->max_order);
+                                               max_order);
     } else {
         block->opt_order = sconf->max_order;
     }
