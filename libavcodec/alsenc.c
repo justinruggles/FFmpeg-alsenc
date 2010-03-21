@@ -1231,27 +1231,27 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 {
     if (ctx->cur_stage->check_constant) {
-    unsigned int n = block->length;
-    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
-    int32_t val = *smp_ptr++;
+        unsigned int n = block->length;
+        int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
+        int32_t val = *smp_ptr++;
 
-    block->constant = 1;
-    while (--n > 0) {
-        if (*smp_ptr++ != val) {
-            block->constant = 0;
-            break;
+        block->constant = 1;
+        while (--n > 0) {
+            if (*smp_ptr++ != val) {
+                block->constant = 0;
+                break;
+            }
         }
-    }
 
-    block->bits_const_block = 0;
-    if (block->constant) {
-        block->constant_value = val;
-        block->bits_const_block += 6;   // const_block + reserved
-        if (block->constant_value) {
-            block->bits_const_block += ctx->sconf.floating ? 24 :
-                                       ctx->avctx->bits_per_raw_sample;
+        block->bits_const_block = 0;
+        if (block->constant) {
+            block->constant_value = val;
+            block->bits_const_block += 6;   // const_block + reserved
+            if (block->constant_value) {
+                block->bits_const_block += ctx->sconf.floating ? 24 :
+                                        ctx->avctx->bits_per_raw_sample;
+            }
         }
-    }
     } else {
         block->constant = 0;
     }
