@@ -86,6 +86,7 @@
 /** grouped encoding algorithms and options */
 typedef struct {
     // encoding options used during the processing of the stage
+    int check_constant;             ///< check for constant sample value during this stage
     int adapt_order;                ///< adaptive order to use during this stage
     int max_order;                  ///< max_oder to use during this stage
     int sb_part;                    ///< sb_part to use during this stage
@@ -1224,26 +1225,30 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
  */
 static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 {
-    unsigned int n = block->length;
-    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
-    int32_t val = *smp_ptr++;
+    if (ctx->cur_stage->check_constant) {
+        unsigned int n = block->length;
+        int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
+        int32_t val = *smp_ptr++;
 
-    block->constant = 1;
-    while (--n > 0) {
-        if (*smp_ptr++ != val) {
-            block->constant = 0;
-            break;
+        block->constant = 1;
+        while (--n > 0) {
+            if (*smp_ptr++ != val) {
+                block->constant = 0;
+                break;
+            }
         }
-    }
 
-    block->bits_const_block = 0;
-    if (block->constant) {
-        block->constant_value = val;
-        block->bits_const_block += 6;   // const_block + reserved
-        if (block->constant_value) {
-            block->bits_const_block += ctx->sconf.floating ? 24 :
-                                       ctx->avctx->bits_per_raw_sample;
+        block->bits_const_block = 0;
+        if (block->constant) {
+            block->constant_value = val;
+            block->bits_const_block += 6;   // const_block + reserved
+            if (block->constant_value) {
+                block->bits_const_block += ctx->sconf.floating ? 24 :
+                                        ctx->avctx->bits_per_raw_sample;
+            }
         }
+    } else {
+        block->constant = 0;
     }
 }
 
@@ -1937,6 +1942,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_BLOCK_SWITCHING].check_constant  = 1;
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order     = 1;
     ctx->stages[STAGE_BLOCK_SWITCHING].max_order       = sconf->max_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part         = 1;
@@ -1946,6 +1952,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_LPC_ORDER_SEARCH].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].check_constant  = 1;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_order     = 1;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].max_order       = sconf->max_order;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].sb_part         = 1;
