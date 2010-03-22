@@ -144,6 +144,8 @@ typedef struct {
     unsigned int **bs_sizes;        ///< pointer to the beginning of the channel's block sizes for each channel
     unsigned int *js_sizes_buffer;  ///< buffer containing all block sizes for all channel-pairs of the difference signal
     unsigned int **js_sizes;        ///< pointer to the beginning of the channel's block sizes for each channel-pair difference signal
+    uint8_t *js_infos_buffer;       ///< buffer containing all joint-stereo flags for all channel-pairs
+    uint8_t **js_infos;             ///< pointer to the beginning of the channel's joint-stereo flags for each channel-pair
     ALSBlock *block_buffer;         ///< buffer containing all ALSBlocks for each channel
     ALSBlock **blocks;              ///< array of 32 ALSBlock pointers per channel pointing into the block_buffer
     int32_t *q_parcor_coeff_buffer; ///< buffer containing 7-bit PARCOR coefficients for all blocks in all channels
@@ -299,6 +301,30 @@ static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
         n        *= 2;
         parse_bs_zero(bs_info, n + 1);
         parse_bs_zero(bs_info, n + 2);
+    }
+}
+
+
+/** Recursively parses a given block partitioning and
+ *  set all joint-stereo block flags
+ */
+static void parse_bs_js(const uint32_t bs_info, unsigned int n,
+                        uint8_t *js_info,
+                        ALSBlock **block_c1, ALSBlock **block_c2)
+{
+    if (n < 31 && ((bs_info << n) & 0x40000000)) {
+        // if the level is valid and the investigated bit n is set
+        // then recursively check both children at bits (2n+1) and (2n+2)
+        n   *= 2;
+        parse_bs_js(bs_info, n + 1, js_info, block_c1, block_c2);
+        parse_bs_js(bs_info, n + 2, js_info, block_c1, block_c2);
+    } else {
+        // else the bit is not set or the last level has been reached
+        // (bit implicitly not set)
+        (*block_c1)->js_block = (js_info[n] == 1);
+        (*block_c2)->js_block = (js_info[n] == 2);
+        (*block_c1)++;
+        (*block_c2)++;
     }
 }
 
@@ -498,6 +524,12 @@ static void get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
     }
 
     get_block_sizes(ctx, &ctx->bs_info[c1], c1, c2);
+
+    if (ctx->sconf.joint_stereo) {
+        ALSBlock *ptr_blocks_c1 = ctx->blocks[c1];
+        ALSBlock *ptr_blocks_c2 = ctx->blocks[c2];
+        parse_bs_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
+    }
 }
 
 
@@ -1433,8 +1465,6 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
-    ALSBlock *block          = ctx->blocks[channel    ];
-    ALSBlock *buddy          = ctx->blocks[channel + 1];
     unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
     unsigned int b;
 
@@ -1442,6 +1472,7 @@ static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
         unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
         unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
         unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
+        uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
 
         // replace normal signal with difference signal if suitable
         if (js_size[b] < block_size[b] ||
@@ -1450,20 +1481,14 @@ static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
             // and update this blocks size in bs_sizes
             if (block_size[b] > buddy_size[b]) {
                 block_size[b]   = js_size[b];
-                block->js_block = 1;
-                buddy->js_block = 0;
+                js_info[b] = 1;
             } else {
                 buddy_size[b]   = js_size[b];
-                block->js_block = 0;
-                buddy->js_block = 1;
+                js_info[b] = 2;
             }
         } else {
-            block->js_block = 0;
-            buddy->js_block = 0;
+            js_info[b] = 0;
         }
-
-        block++;
-        buddy++;
     }
 
     if (sconf->block_switching && stage < sconf->block_switching + 2)
@@ -1854,6 +1879,8 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->bs_sizes);
     av_freep(&ctx->js_sizes_buffer);
     av_freep(&ctx->js_sizes);
+    av_freep(&ctx->js_infos_buffer);
+    av_freep(&ctx->js_infos);
     av_freep(&ctx->q_parcor_coeff_buffer);
     av_freep(&ctx->acf_coeff);
     av_freep(&ctx->parcor_coeff);
@@ -2032,9 +2059,12 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
     ctx->js_sizes_buffer = av_malloc(sizeof(*ctx->js_sizes_buffer) * num_bs_sizes * (avctx->channels >> 1));
     ctx->js_sizes        = av_malloc(sizeof(*ctx->js_sizes)        * num_bs_sizes);
+    ctx->js_infos_buffer = av_malloc(sizeof(*ctx->js_infos_buffer) * num_bs_sizes * (avctx->channels >> 1));
+    ctx->js_infos        = av_malloc(sizeof(*ctx->js_infos)        * num_bs_sizes);
 
     if (!ctx->bs_sizes || !ctx->bs_sizes_buffer ||
-        !ctx->js_sizes || !ctx->js_sizes_buffer) {
+        !ctx->js_sizes || !ctx->js_sizes_buffer ||
+        !ctx->js_infos || !ctx->js_infos_buffer) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
         return AVERROR(ENOMEM);
@@ -2047,6 +2077,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     for (c = 0; c < avctx->channels - 1; c += 2) {
         ctx->js_sizes[c    ] = ctx->js_sizes_buffer + (c    ) * num_bs_sizes;
         ctx->js_sizes[c + 1] = ctx->js_sizes_buffer + (c + 1) * num_bs_sizes;
+        ctx->js_infos[c    ] = ctx->js_infos_buffer + (c    ) * num_bs_sizes;
+        ctx->js_infos[c + 1] = ctx->js_infos_buffer + (c + 1) * num_bs_sizes;
     }
 
 
