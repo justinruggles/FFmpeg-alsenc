@@ -346,11 +346,6 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
                 ctx->bs_info[c2] = *bs_info;
             }
         }
-
-        if (GET_BS_BIT(bs_info, a) && GET_BS_BIT(bs_info, b)) {
-            merge_bs_fullsearch(ctx, a, c1, c2);
-            merge_bs_fullsearch(ctx, b, c1, c2);
-        }
     }
 }
 
