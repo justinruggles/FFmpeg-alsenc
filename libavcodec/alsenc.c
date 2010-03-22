@@ -1976,7 +1976,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->parcor_coeff      = av_malloc (sizeof(*ctx->parcor_coeff)   * sconf->max_order);
     ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
     ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
-    ctx->acf_window_buffer = av_malloc (sizeof(*ctx->acf_window)     * sconf->frame_length * 2);
+    ctx->acf_window_buffer = av_malloc (sizeof(*ctx->acf_window_buffer) * sconf->frame_length * 2);
 
     // check buffers
     if (!ctx->independent_bs    ||
