@@ -556,13 +556,39 @@ static void block_partitioning(ALSEncContext *ctx)
 
     // find the best partitioning for each channel
     if (!sconf->mc_coding || ctx->js_switch) {
-        for (c = 0; c < avctx->channels; c++) {
-            if (ctx->independent_bs[c]) {
-                get_partition(ctx, c, c);
+        for (c = 0; c < avctx->channels - 1; c += 2) {
+            if (sconf->joint_stereo) {
+                unsigned int bits_ind, bits_dep;
+                unsigned int bs_info_len = 1 << (sconf->block_switching + 2);
+                int32_t bs_info_c1, bs_info_c2;
+                int32_t bs_info = ctx->bs_info[c];
+
+                bits_ind    = get_partition(ctx, c    , c    );
+                bits_ind   += get_partition(ctx, c + 1, c + 1);
+                bs_info_c1  = ctx->bs_info[c    ];
+                bs_info_c2  = ctx->bs_info[c + 1];
+
+                ctx->bs_info[c] = bs_info;
+
+                use_js_sizes(ctx, c, 0);
+                bits_dep = get_partition(ctx, c, c + 1);
+
+                if (bits_ind + bs_info_len < bits_dep) {
+                    reset_js(ctx, c, 0);
+                    ctx->independent_bs[c    ] = 1;
+                    ctx->independent_bs[c + 1] = 1;
+                    ctx->bs_info       [c    ] = bs_info_c1;
+                    ctx->bs_info       [c + 1] = bs_info_c2;
+                    get_block_sizes(ctx, &ctx->bs_info[c    ], c    , c    );
+                    get_block_sizes(ctx, &ctx->bs_info[c + 1], c + 1, c + 1);
+                }
             } else {
-                get_partition(ctx, c, c + 1);
-                c++;
+                get_partition(ctx, c    , c    );
+                get_partition(ctx, c + 1, c + 1);
             }
+        }
+        if (c < avctx->channels) {
+            get_partition(ctx, c, c);
         }
     } else {
 
