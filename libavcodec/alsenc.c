@@ -531,7 +531,7 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
 
     get_block_sizes(ctx, &ctx->bs_info[c1], c1, c2);
 
-    if (ctx->sconf.joint_stereo) {
+    if (c1 != c2) {
         ALSBlock *ptr_blocks_c1 = ctx->blocks[c1];
         ALSBlock *ptr_blocks_c2 = ctx->blocks[c2];
         parse_bs_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
