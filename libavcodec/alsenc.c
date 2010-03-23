@@ -1391,7 +1391,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
         if (sconf->adapt_order) {
             int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
                                                 2, sconf->max_order + 1));
-            max_order = (1 << opt_order_length) - 1;
+            max_order = FFMIN(sconf->max_order, (1 << opt_order_length) - 1);
         }
 
         // calculate PARCOR coefficients
