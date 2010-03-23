@@ -266,7 +266,6 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     if (sconf->joint_stereo) {
         for (c = 0; c < avctx->channels - 1; c+=2) {
             gen_js_infos(ctx, c, 0);
-            use_js_sizes(ctx, c, 0);
         }
     }
 }
