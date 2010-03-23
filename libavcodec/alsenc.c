@@ -516,9 +516,12 @@ static void get_block_sizes(ALSEncContext *ctx,
  *  depending on the chosen algorithm and sets the block sizes
  *  accordingly
  */
-static void get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
+static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
 {
     ALSEncStage *stage = ctx->cur_stage;
+    unsigned int *sizes_c1 = ctx->bs_sizes[c1];
+    unsigned int *sizes_c2 = ctx->bs_sizes[c2];
+    unsigned int bit_count = 0;
 
     if(stage->merge_algorithm == BS_ALGORITHM_BOTTOM_UP) {
         merge_bs_bottomup(ctx, 0, c1, c2);
@@ -533,6 +536,12 @@ static void get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
         ALSBlock *ptr_blocks_c2 = ctx->blocks[c2];
         parse_bs_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
     }
+
+    parse_bs_size(ctx->bs_info[c1], 0, sizes_c1, &bit_count);
+    if (c1 != c2)
+        parse_bs_size(ctx->bs_info[c1], 0, sizes_c2, &bit_count);
+
+    return bit_count;
 }
 
 
