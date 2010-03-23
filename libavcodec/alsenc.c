@@ -818,6 +818,9 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
                 unsigned int bs_info_len = 1 << (sconf->block_switching + 2);
                 uint32_t bs_info         = ctx->bs_info[c];
 
+                if (sconf->joint_stereo && ctx->independent_bs[c])
+                    bs_info |= (1 << 31);
+
                 if (bs_info_len == 32)
                     put_bits32(&ctx->pb, bs_info);
                 else
