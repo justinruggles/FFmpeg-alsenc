@@ -161,7 +161,8 @@ typedef struct {
 
 static int write_specific_config(AVCodecContext *avctx);
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
-static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage);
+static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage);
+static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
 
 
 /** Converts an array of channel-interleaved samples into
@@ -263,7 +264,8 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     // select difference signals wherever suitable
     if (sconf->joint_stereo) {
         for (c = 0; c < avctx->channels - 1; c+=2) {
-            gen_js_blocks(ctx, c, 0);
+            gen_js_infos(ctx, c, 0);
+            use_js_sizes(ctx, c, 0);
         }
     }
 }
@@ -1460,9 +1462,9 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 }
 
 
-/** Generates all suitable difference coding blocks for all possible block-switching stages
+/** Generates all suitable difference coding infos for all possible block-switching stages
  */
-static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
+static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
@@ -1480,10 +1482,8 @@ static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
             // mark the larger encoded block with the difference signal
             // and update this blocks size in bs_sizes
             if (block_size[b] > buddy_size[b]) {
-                block_size[b]   = js_size[b];
                 js_info[b] = 1;
             } else {
-                buddy_size[b]   = js_size[b];
                 js_info[b] = 2;
             }
         } else {
@@ -1492,7 +1492,34 @@ static void gen_js_blocks(ALSEncContext *ctx, unsigned int channel, int stage)
     }
 
     if (sconf->block_switching && stage < sconf->block_switching + 2)
-        gen_js_blocks(ctx, channel, stage + 1);
+        gen_js_infos(ctx, channel, stage + 1);
+}
+
+
+/** Use all suitable difference coding infos for all possible block-switching stages
+ */
+static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
+    unsigned int b;
+
+    for (b = 0; b < num_blocks; b++) {
+        unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
+        unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
+        unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
+        uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
+
+        // replace normal signal size with
+        // difference signal size if suitable
+        if        (js_info[b] == 1) {
+            FFSWAP(unsigned int, block_size[b], js_size[b]);
+        } else if (js_info[b] == 2)
+            FFSWAP(unsigned int, buddy_size[b], js_size[b]);
+    }
+
+    if (sconf->block_switching && stage < sconf->block_switching + 2)
+        use_js_sizes(ctx, channel, stage + 1);
 }
 
 
