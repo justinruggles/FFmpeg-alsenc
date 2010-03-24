@@ -73,6 +73,11 @@
 /** Calculates Rice sub-block partitioning using an exact bit count */
 #define RICE_BIT_COUNT_ALGORITHM_EXACT      1
 
+/** Find adaptive LPC order using a PARCOR coeff threshold value */
+#define ADAPT_ORDER_ALGORITHM_THRESHOLD     0
+/** Find adaptive LPC order by doing a full bit count for each possible order */
+#define ADAPT_ORDER_ALGORITHM_FULL_SEARCH   1
+
 /** Find optimal block partitioning using Full-Search */
 #define BS_ALGORITHM_FULL_SEARCH    1
 /** Find optimal block partitioning using Bottom-Up */
@@ -94,6 +99,7 @@ typedef struct {
     // encoding algorithms used during the processing of the stage
     int param_algorithm;            ///< algorithm to use to determine Rice parameters
     int count_algorithm;            ///< algorithm to use for residual + rice param bit count
+    int adapt_algorithm;            ///< algorithm to use for adaptive LPC order
     int merge_algorithm;            ///< algorithm to use to determine final block partitioning
 } ALSEncStage;
 
@@ -921,6 +927,12 @@ static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
     int i, next_max_order, bit_count;
 
     bit_count = 0;
+
+    if (ctx->sconf.adapt_order) {
+        bit_count += av_ceil_log2(av_clip((block->length >> 3) - 1,
+                                          2, ctx->sconf.max_order + 1));
+    }
+
     next_max_order = FFMIN(order, 20);
     for (i = 0; i < next_max_order; i++) {
         int rice_param = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][1];
@@ -1291,6 +1303,29 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+static void find_block_adapt_order_full_search(ALSEncContext *ctx,
+                                               ALSBlock *block, int max_order)
+{
+    int i;
+    int count[max_order];
+    int best = 0;
+    count[0] = INT_MAX;
+    for (i = 0; i < max_order; i++) {
+        calc_short_term_prediction(ctx, block, i+1);
+        calc_parcor_coeff_bit_size(ctx, block, i+1);
+        find_block_rice_params    (ctx, block, i+1);
+
+        count[i] = block->bits_misc + block->bits_parcor_coeff +
+                   block->bits_ec_param_and_res;
+        count[i] += (8 - (count[i] & 7)) & 7; // byte align
+
+        if (count[i] < count[best])
+            best = i;
+    }
+    block->opt_order = best + 1;
+}
+
+
 /** Tests given block samples to be of constant value
  * Sets block->const_block_bits to the number of bits used for encoding the
  * constant block, or to zero if the block is not a constant block.
@@ -1414,11 +1449,14 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     //
     // quick estimate for LPC order. better searches will give better
     // significantly better results.
-    if (sconf->max_order && sconf->adapt_order) {
-        block->opt_order = estimate_best_order(ctx->r_parcor_coeff,
-                                               max_order);
+    if (sconf->max_order && sconf->adapt_order && ctx->cur_stage->adapt_order) {
+        if (ctx->cur_stage->adapt_algorithm == ADAPT_ORDER_ALGORITHM_THRESHOLD) {
+            block->opt_order = estimate_best_order(ctx->r_parcor_coeff, max_order);
+        } else if (ctx->cur_stage->adapt_algorithm == ADAPT_ORDER_ALGORITHM_FULL_SEARCH) {
+            find_block_adapt_order_full_search(ctx, block, max_order);
+        }
     } else {
-        block->opt_order = sconf->max_order;
+        block->opt_order = max_order;
     }
     calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
 
@@ -2066,9 +2104,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // joint-stereo selection and block-switching
     ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_BLOCK_SWITCHING].check_constant  = 1;
-    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order     = 1;
+    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order     = sconf->adapt_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].max_order       = sconf->max_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part         = 1;
 
@@ -2076,9 +2115,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // final bitstream assembly
     ctx->stages[STAGE_LPC_ORDER_SEARCH].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_algorithm = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].check_constant  = 1;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_order     = 1;
+    ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_order     = sconf->adapt_order;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].max_order       = sconf->max_order;
     ctx->stages[STAGE_LPC_ORDER_SEARCH].sb_part         = 1;
 
