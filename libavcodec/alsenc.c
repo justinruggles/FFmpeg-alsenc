@@ -1308,16 +1308,18 @@ static void find_block_adapt_order_full_search(ALSEncContext *ctx,
                                                ALSBlock *block, int max_order)
 {
     int i;
-    int count[max_order];
+    int count[max_order+1];
     int best = 0;
     int32_t *save_ptr = block->cur_ptr;
 
     count[0] = INT_MAX;
-    for (i = 0; i < max_order; i++) {
-        calc_short_term_prediction(ctx, block, i+1);
-        calc_parcor_coeff_bit_size(ctx, block, i+1);
-        block->cur_ptr = block->res_ptr;
-        find_block_rice_params    (ctx, block, i+1);
+    for (i = 0; i <= max_order; i++) {
+        if (i) {
+            calc_short_term_prediction(ctx, block, i);
+            block->cur_ptr = block->res_ptr;
+        }
+        calc_parcor_coeff_bit_size(ctx, block, i);
+        find_block_rice_params    (ctx, block, i);
 
         count[i] = block->bits_misc + block->bits_parcor_coeff +
                    block->bits_ec_param_and_res;
@@ -1328,7 +1330,7 @@ static void find_block_adapt_order_full_search(ALSEncContext *ctx,
 
         block->cur_ptr = save_ptr;
     }
-    block->opt_order = best + 1;
+    block->opt_order = best;
 }
 
 
