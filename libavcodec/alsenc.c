@@ -121,6 +121,7 @@ typedef struct {
     int32_t *res_ptr;               ///< points to the first residual for this block
     int32_t *smp_ptr;               ///< points to the first raw sample for this block
     int32_t *dif_ptr;               ///< points to the first difference sample for this block
+    int32_t *cur_ptr;               ///< points to the current sample buffer for this block
     int bits_const_block;           ///< bit count for const block params
     int bits_misc;                  ///< bit count for js_block and shift_lsbs
     int bits_ec_param_and_res;      ///< bit count for Rice/BGMC params and residuals
@@ -777,7 +778,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         // for now, all frames are RA frames, so use progressive prediction for
         // the first 3 residual samples, up to opt_order
 
-        res_ptr = block->res_ptr;
+        res_ptr = block->cur_ptr;
         sb_length = block->length / block->sub_blocks;
 
         for (sb = 0; sb < block->sub_blocks; sb++) {
@@ -990,7 +991,7 @@ static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
                                            int sub_blocks, int *rice_param,
                                            int order)
 {
-    int32_t *res_ptr = block->res_ptr;
+    int32_t *res_ptr = block->cur_ptr;
     unsigned int count = 0;
     int sb_length, sb;
 
@@ -1053,7 +1054,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     sb_length = block->length / sb_max;
 
     for (sb = 0; sb < sb_max; sb++) {
-        const int32_t *res_ptr1 = block->res_ptr + (sb * sb_length);
+        const int32_t *res_ptr1 = block->cur_ptr + (sb * sb_length);
         for (i = 0; i < sb_length; i++) {
             int v = *res_ptr1++;
             if (ctx->max_rice_param > 15) {
@@ -1137,11 +1138,11 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     for (sb = 0; sb < sb_max; sb++) {
         /* start 1/3 distance between 0 and max_param */
         k = ctx->max_rice_param / 3;
-        count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
+        count[sb][k] = subblock_rice_count_exact(block->cur_ptr + (sb * sb_length),
                                                  sb_length, k, ctx->max_rice_param,
                                                  !sb && block->ra_block, order);
         k++;
-        count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
+        count[sb][k] = subblock_rice_count_exact(block->cur_ptr + (sb * sb_length),
                                                  sb_length, k, ctx->max_rice_param,
                                                  !sb && block->ra_block, order);
         if (count[sb][k] < count[sb][k-1]) {
@@ -1155,7 +1156,7 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         }
 
         for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
-            count[sb][k] = subblock_rice_count_exact(block->res_ptr + (sb * sb_length),
+            count[sb][k] = subblock_rice_count_exact(block->cur_ptr + (sb * sb_length),
                                                      sb_length, k, ctx->max_rice_param,
                                                      !sb && block->ra_block, order);
 
@@ -1260,7 +1261,7 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
     int i, j;
 
     int32_t *res_ptr = block->res_ptr;
-    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
+    int32_t *smp_ptr = block->cur_ptr;
 
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
@@ -1309,10 +1310,13 @@ static void find_block_adapt_order_full_search(ALSEncContext *ctx,
     int i;
     int count[max_order];
     int best = 0;
+    int32_t *save_ptr = block->cur_ptr;
+
     count[0] = INT_MAX;
     for (i = 0; i < max_order; i++) {
         calc_short_term_prediction(ctx, block, i+1);
         calc_parcor_coeff_bit_size(ctx, block, i+1);
+        block->cur_ptr = block->res_ptr;
         find_block_rice_params    (ctx, block, i+1);
 
         count[i] = block->bits_misc + block->bits_parcor_coeff +
@@ -1321,6 +1325,8 @@ static void find_block_adapt_order_full_search(ALSEncContext *ctx,
 
         if (count[i] < count[best])
             best = i;
+
+        block->cur_ptr = save_ptr;
     }
     block->opt_order = best + 1;
 }
@@ -1334,7 +1340,7 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 {
     if (ctx->cur_stage->check_constant) {
         unsigned int n = block->length;
-        int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
+        int32_t *smp_ptr = block->cur_ptr;
         int32_t val = *smp_ptr++;
 
         block->constant = 1;
@@ -1369,8 +1375,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     ALSSpecificConfig *sconf = &ctx->sconf;
     int bit_count, max_order;
 
-    int32_t *res_ptr = block->res_ptr;
-    int32_t *smp_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
+    block->cur_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
 
     block->bits_misc = 1;   // block_type
 
@@ -1431,11 +1436,11 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
         // calculate PARCOR coefficients
         if (block->div_block >= 0)
-            ctx->dsp.lpc_compute_autocorr(smp_ptr, ctx->acf_window[block->div_block],
+            ctx->dsp.lpc_compute_autocorr(block->cur_ptr, ctx->acf_window[block->div_block],
                                           block->length, max_order,
                                           ctx->acf_coeff);
         else
-            ctx->dsp.lpc_compute_autocorr(smp_ptr, NULL, block->length,
+            ctx->dsp.lpc_compute_autocorr(block->cur_ptr, NULL, block->length,
                                           max_order, ctx->acf_coeff);
         compute_ref_coefs(ctx->acf_coeff, max_order, ctx->parcor_coeff);
 
@@ -1465,8 +1470,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
     if (block->opt_order) {
         calc_short_term_prediction(ctx, block, block->opt_order);
-    } else {
-        memcpy(res_ptr, smp_ptr, sizeof(*res_ptr) * block->length);
+        block->cur_ptr = block->res_ptr;
     }
 
 
