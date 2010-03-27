@@ -1304,31 +1304,44 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+static uint32_t calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
+                                            int order)
+{
+    uint32_t count;
+    int32_t *save_ptr = block->cur_ptr;
+
+    if (order) {
+        calc_short_term_prediction(ctx, block, order);
+        block->cur_ptr = block->res_ptr;
+    }
+    calc_parcor_coeff_bit_size(ctx, block, order);
+    find_block_rice_params    (ctx, block, order);
+
+    count  = block->bits_misc + block->bits_parcor_coeff +
+                    block->bits_ec_param_and_res;
+    count += (8 - (count & 7)) & 7; // byte align
+
+    block->cur_ptr = save_ptr;
+
+    return count;
+}
+
+
 static void find_block_adapt_order_full_search(ALSEncContext *ctx,
                                                ALSBlock *block, int max_order)
 {
     int i;
-    int count[max_order+1];
+    uint32_t count[max_order+1];
     int best = 0;
-    int32_t *save_ptr = block->cur_ptr;
 
-    count[0] = INT_MAX;
+    memset(count, -1, sizeof(count));
+
     for (i = 0; i <= max_order; i++) {
-        if (i) {
-            calc_short_term_prediction(ctx, block, i);
-            block->cur_ptr = block->res_ptr;
-        }
-        calc_parcor_coeff_bit_size(ctx, block, i);
-        find_block_rice_params    (ctx, block, i);
 
-        count[i] = block->bits_misc + block->bits_parcor_coeff +
-                   block->bits_ec_param_and_res;
-        count[i] += (8 - (count[i] & 7)) & 7; // byte align
+        count[i] = calc_block_size_fixed_order(ctx, block, i);
 
         if (count[i] < count[best])
             best = i;
-
-        block->cur_ptr = save_ptr;
     }
     block->opt_order = best;
 }
