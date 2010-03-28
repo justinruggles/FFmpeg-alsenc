@@ -2137,14 +2137,14 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_JOINT_STEREO].max_order           = sconf->max_order;
     ctx->stages[STAGE_JOINT_STEREO].sb_part             = sconf->sb_part;
 
-    ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
-    ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
-    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_BLOCK_SWITCHING].check_constant  = 1;
-    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order     = sconf->adapt_order;
-    ctx->stages[STAGE_BLOCK_SWITCHING].max_order       = sconf->max_order;
-    ctx->stages[STAGE_BLOCK_SWITCHING].sb_part         = sconf->sb_part;
+    ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm  = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm  = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm  = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_BLOCK_SWITCHING].check_constant   = 1;
+    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order      = sconf->adapt_order;
+    ctx->stages[STAGE_BLOCK_SWITCHING].max_order        = sconf->max_order;
+    ctx->stages[STAGE_BLOCK_SWITCHING].sb_part          = sconf->sb_part;
 
     ctx->stages[STAGE_FINAL].param_algorithm            = RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_FINAL].count_algorithm            = RICE_BIT_COUNT_ALGORITHM_EXACT;
