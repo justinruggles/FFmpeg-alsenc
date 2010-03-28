@@ -1765,6 +1765,8 @@ static void frame_partitioning(ALSEncContext *ctx)
 
     // ensure a certain boundary for the frame size
     // maximum value is 0xFFFF using 16 bit in ALSSpecificConf
+    // TODO: find out why small frame sizes don't work and why they crash
+    //       the decoder
     avctx->frame_size = av_clip(avctx->frame_size, 1024, 0xFFFF);
 
     // enforce a frame length that is a power of 2?
