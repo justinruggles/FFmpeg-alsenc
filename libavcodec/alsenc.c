@@ -1930,6 +1930,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     //
     // to be implemented and added to ALSSpecificConfig
 
+
+    // print ALSSpecificConfig info
+    ff_als_dprint_specific_config(avctx, sconf);
+
+
     return 0;
 }
 

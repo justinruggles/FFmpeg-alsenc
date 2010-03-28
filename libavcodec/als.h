@@ -32,6 +32,8 @@
 
 #include <stdint.h>
 
+#include "avcodec.h"
+
 
 enum RA_Flag {
     RA_FLAG_NONE,
@@ -62,6 +64,13 @@ typedef struct {
     int chan_config_info;     ///< mapping of channels to loudspeaker locations. Unused until setting channel configuration is implemented.
     int *chan_pos;            ///< original channel positions
 } ALSSpecificConfig;
+
+
+/**
+ * Prints out AlSSpecificConfig
+ */
+void ff_als_dprint_specific_config(AVCodecContext *avctx,
+                                   ALSSpecificConfig *sconf);
 
 
 /**

@@ -146,35 +146,6 @@ typedef struct {
 } ALSBlockData;
 
 
-static av_cold void dprint_specific_config(ALSDecContext *ctx)
-{
-#ifdef DEBUG
-    AVCodecContext *avctx    = ctx->avctx;
-    ALSSpecificConfig *sconf = &ctx->sconf;
-
-    dprintf(avctx, "samples = %i\n",              sconf->samples);
-    dprintf(avctx, "resolution = %i\n",           sconf->resolution);
-    dprintf(avctx, "floating = %i\n",             sconf->floating);
-    dprintf(avctx, "frame_length = %i\n",         sconf->frame_length);
-    dprintf(avctx, "ra_distance = %i\n",          sconf->ra_distance);
-    dprintf(avctx, "ra_flag = %i\n",              sconf->ra_flag);
-    dprintf(avctx, "adapt_order = %i\n",          sconf->adapt_order);
-    dprintf(avctx, "coef_table = %i\n",           sconf->coef_table);
-    dprintf(avctx, "long_term_prediction = %i\n", sconf->long_term_prediction);
-    dprintf(avctx, "max_order = %i\n",            sconf->max_order);
-    dprintf(avctx, "block_switching = %i\n",      sconf->block_switching);
-    dprintf(avctx, "bgmc = %i\n",                 sconf->bgmc);
-    dprintf(avctx, "sb_part = %i\n",              sconf->sb_part);
-    dprintf(avctx, "joint_stereo = %i\n",         sconf->joint_stereo);
-    dprintf(avctx, "mc_coding = %i\n",            sconf->mc_coding);
-    dprintf(avctx, "chan_config = %i\n",          sconf->chan_config);
-    dprintf(avctx, "chan_sort = %i\n",            sconf->chan_sort);
-    dprintf(avctx, "RLSLMS = %i\n",               sconf->rlslms);
-    dprintf(avctx, "chan_config_info = %i\n",     sconf->chan_config_info);
-#endif
-}
-
-
 /** Reads an ALSSpecificConfig from a buffer into the output struct.
  */
 static av_cold int read_specific_config(ALSDecContext *ctx)
@@ -299,7 +270,7 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
 
     // no need to read the rest of ALSSpecificConfig (ra_unit_size & aux data)
 
-    dprint_specific_config(ctx);
+    ff_als_dprint_specific_config(avctx, sconf);
 
     return 0;
 }
