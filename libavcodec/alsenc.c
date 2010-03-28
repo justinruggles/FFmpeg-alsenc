@@ -52,11 +52,12 @@
 
 
 /** Total number of stages used for allocation */
-#define NUM_STAGES 2
+#define NUM_STAGES 3
 
 /** Give the different stages used for encoding a readable name */
-#define STAGE_BLOCK_SWITCHING  0
-#define STAGE_LPC_ORDER_SEARCH 1
+#define STAGE_JOINT_STEREO     0
+#define STAGE_BLOCK_SWITCHING  1
+#define STAGE_FINAL            2
 
 
 /** Sets the current stage pointer in the context to the desired stage
@@ -1688,14 +1689,18 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     // preprocessing
-    SET_OPTIONS(STAGE_BLOCK_SWITCHING);
     deinterleave_raw_samples(ctx, data);
-    select_difference_coding_mode(ctx);
-    block_partitioning(ctx);
 
 
     // find optimal encoding parameters
-    SET_OPTIONS(STAGE_LPC_ORDER_SEARCH);
+
+    SET_OPTIONS(STAGE_JOINT_STEREO)
+    select_difference_coding_mode(ctx);
+
+    SET_OPTIONS(STAGE_BLOCK_SWITCHING);
+    block_partitioning(ctx);
+
+    SET_OPTIONS(STAGE_FINAL);
     if (!sconf->mc_coding || ctx->js_switch) {
         for (b = 0; b < ALS_MAX_BLOCKS; b++) {
             for (c = 0; c < avctx->channels; c++) {
@@ -2123,8 +2128,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     // fill options stages
-    // stage[0] is for temporal block parameter estimation during
-    // joint-stereo selection and block-switching
+    ctx->stages[STAGE_JOINT_STEREO].param_algorithm     = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_JOINT_STEREO].count_algorithm     = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_JOINT_STEREO].adapt_algorithm     = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_JOINT_STEREO].merge_algorithm     = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_JOINT_STEREO].check_constant      = 1;
+    ctx->stages[STAGE_JOINT_STEREO].adapt_order         = sconf->adapt_order;
+    ctx->stages[STAGE_JOINT_STEREO].max_order           = sconf->max_order;
+    ctx->stages[STAGE_JOINT_STEREO].sb_part             = 1;
+
     ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
@@ -2134,16 +2146,14 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_BLOCK_SWITCHING].max_order       = sconf->max_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part         = 1;
 
-    // stage[1] is for final block parameter estimation during
-    // final bitstream assembly
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_algorithm = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].merge_algorithm = BS_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].check_constant  = 1;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].adapt_order     = sconf->adapt_order;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].max_order       = sconf->max_order;
-    ctx->stages[STAGE_LPC_ORDER_SEARCH].sb_part         = 1;
+    ctx->stages[STAGE_FINAL].param_algorithm            = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_FINAL].count_algorithm            = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    ctx->stages[STAGE_FINAL].adapt_algorithm            = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_FINAL].merge_algorithm            = BS_ALGORITHM_FULL_SEARCH;
+    ctx->stages[STAGE_FINAL].check_constant             = 1;
+    ctx->stages[STAGE_FINAL].adapt_order                = sconf->adapt_order;
+    ctx->stages[STAGE_FINAL].max_order                  = sconf->max_order;
+    ctx->stages[STAGE_FINAL].sb_part                    = 1;
 
     // set cur_stage pointer to the first stage
     ctx->cur_stage = ctx->stages;
