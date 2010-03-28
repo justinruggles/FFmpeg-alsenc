@@ -47,6 +47,10 @@
 #define ALS_SPECIFIC_CFG_SIZE  30
 
 
+/** Maximum number of blocks in a frame */
+#define ALS_MAX_BLOCKS  32
+
+
 /** Total number of stages used for allocation */
 #define NUM_STAGES 2
 
@@ -1693,7 +1697,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     // find optimal encoding parameters
     SET_OPTIONS(STAGE_LPC_ORDER_SEARCH);
     if (!sconf->mc_coding || ctx->js_switch) {
-        for (b= 0; b < 32; b++) {
+        for (b = 0; b < ALS_MAX_BLOCKS; b++) {
             for (c = 0; c < avctx->channels; c++) {
                 if (b >= ctx->num_blocks[c])
                     continue;
@@ -2155,9 +2159,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->res_samples       = av_malloc (sizeof(*ctx->raw_samples)    * avctx->channels);
     ctx->num_blocks        = av_malloc (sizeof(*ctx->num_blocks)     * avctx->channels);
     ctx->bs_info           = av_malloc (sizeof(*ctx->bs_info)        * avctx->channels);
-    ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * 32);
+    ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * ALS_MAX_BLOCKS);
     ctx->blocks            = av_malloc (sizeof(*ctx->blocks)         * avctx->channels);
-    ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * 32 * sconf->max_order);
+    ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
     ctx->acf_coeff         = av_malloc (sizeof(*ctx->acf_coeff)      *(sconf->max_order + 1));
     ctx->parcor_coeff      = av_malloc (sizeof(*ctx->parcor_coeff)   * sconf->max_order);
     ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
@@ -2195,11 +2199,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
     for (c = 0; c < avctx->channels; c++) {
-        for (b = 0; b < 32; b++) {
+        for (b = 0; b < ALS_MAX_BLOCKS; b++) {
             if (b)
                 ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
             else if (c)
-                ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + 32 * sconf->max_order;
+                ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
         }
     }
 
