@@ -630,12 +630,7 @@ void ff_bgmc_encode_init(unsigned int *h, unsigned int *l, unsigned int *f)
 void ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f)
 {
     *f += 1;
-
     put_bits_follow(pb, *l >= FIRST_QTR, f);
-/*    if (*l < FIRST_QTR)
-        put_bits_follow(pb, 0, f);
-    else
-        put_bits_follow(pb, 1, f);*/
 }
 
 
