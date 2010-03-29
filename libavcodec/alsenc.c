@@ -117,8 +117,9 @@ typedef struct {
     unsigned int length;            ///< length of the block in # of samples
     int div_block;                  ///< if > 0, this block length is 1/(1<<div_block) of a full frame
     unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
-    unsigned int rice_param[4];     ///< rice parameters to encode the residuals
-                                    ///< of this block in case of not bgmc
+    unsigned int rice_param[8];     ///< rice parameters to encode the residuals
+                                    ///< of this block
+    unsigned int bgmc_param[8];     ///< LSB's of estimated Rice parameters in case of BGMC mode
     unsigned int opt_order;         ///< prediction order for this block
     int32_t *q_parcor_coeff;        ///< 7-bit quantized PARCOR coefficients
     unsigned int js_block;          ///< indicates actual usage of joint-stereo coding
