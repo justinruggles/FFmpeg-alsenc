@@ -41,6 +41,15 @@
 #define LUT_BUFF   4                       // number of buffered lookup tables
 
 
+/** Predefined maximum values
+ */
+int ff_bgmc_max[16] = {
+    127, 127, 127,
+    191, 191, 191, 191, 191, 191, 191, 191,
+    255, 255, 255, 255, 255
+};
+
+
 /** Cumulative frequency tables for block Gilbert-Moore coding.
  */
 static const uint16_t cf_tables_1[3][129] = {
