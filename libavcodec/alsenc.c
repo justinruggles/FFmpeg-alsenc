@@ -688,6 +688,33 @@ void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
 }
 
 
+/** Count bits needed to encode the LSB part of the given symbols
+ */
+static void bgmc_encode_lsb_count(unsigned int *bits, const int32_t *symbols, unsigned int n,
+                                  unsigned int k, unsigned int max, unsigned int s)
+{
+    int abs_max        = (max + 1) >> 1;
+
+    for (; n > 0; n--) {
+        int32_t res = *symbols;
+
+        res >>= k;
+
+        if        (res >=  abs_max) {
+            res = *symbols - (abs_max << k);
+            *bits += rice_count(res, s);
+        } else if (res <= -abs_max) {
+            res = *symbols + ((abs_max - 1) << k);
+            *bits += rice_count(res, s);
+        } else if (k) {
+            *bits += k;
+        }
+
+        symbols++;
+    }
+}
+
+
 /** Write a given block of a given channel
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block)
@@ -1067,6 +1094,58 @@ static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
 }
 
 
+/** Count bits needed to encode all symbols of a given subblock
+ *  using given parameters
+ */
+static unsigned int subblock_bgmc_count_exact(const int32_t *res_ptr,
+                                              int b_length, unsigned int sx,
+                                              int sb_length, int rice_param,
+                                              int max_param, int ra_subblock,
+                                              int order)
+{
+    unsigned int count = 0;
+    unsigned int len   = 0;
+    unsigned int high, low, follow;
+    unsigned int delta, k, max, b;
+
+    if (ra_subblock) {
+        len = FFMIN(order, sb_length);
+        if (len > 0) {
+            int v = *res_ptr++;
+            count += rice_count(v, max_param - 3);
+            if (len > 1) {
+                v = *res_ptr++;
+                count += rice_count(v, FFMIN(rice_param+3, max_param));
+                if (len > 2) {
+                    v = *res_ptr++;
+                    count += rice_count(v, FFMIN(rice_param+1, max_param));
+                }
+            }
+        }
+    }
+
+    // count msb's
+    ff_bgmc_encode_init(&high, &low, &follow);
+
+    b     = av_clip((av_ceil_log2(b_length) - 3) >> 1, 0, 5);
+    k     = rice_param > b ? rice_param - b : 0;
+    delta = 5 - rice_param + k;
+    max = ff_bgmc_max[sx] >> delta;
+
+    ff_bgmc_encode_msb_count(&count, res_ptr, sb_length - len,
+                             k, delta, max, rice_param, sx,
+                             &high, &low, &follow);
+
+    ff_bgmc_encode_end_count(&count, &follow);
+
+    // count lsb's
+    bgmc_encode_lsb_count(&count, res_ptr, sb_length - len,
+                          k, max, rice_param);
+
+    return count;
+}
+
+
 static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
                                            int sub_blocks, int *rice_param,
                                            int order)
@@ -1115,6 +1194,32 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
     }
 
     return FFMIN(k, max_param);
+}
+
+
+/** Get an estimated Rice parameter and split it into its LSB and MSB
+ *  for further processing in BGMC
+ */
+static void find_subblock_bgmc_params_est(int32_t *res_ptr, unsigned int n, int *s, int *sx)
+{
+#define SUM 15.534836119602025
+#define FAC 23.083120654223415
+#define MIN  0.532862482278539
+    double mean;
+    int tmp;
+
+    mean = abs(res_ptr[0]);
+    for (int k = 1; k < n; k++)
+        mean += abs(res_ptr[k]);
+    mean /= n;
+
+    if (mean <= MIN) {
+        tmp = 0;
+    } else
+        tmp = (int)(SUM + FAC * log(mean));
+
+    *sx = tmp & 0x0F;
+    *s  = tmp >> 4;
 }
 
 
@@ -1196,6 +1301,64 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
                                       block->sub_blocks, block->rice_param,
                                       order);
     block->bits_ec_param_and_res = FFMIN(count1, count4);
+}
+
+
+/** Full search for optimal BGMC parameters and and sub-block devision
+ */
+static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int order)
+{
+    ALSEncStage *stage = ctx->cur_stage;
+    int s[4][8], sx[4][8];
+    int sb, num_subblocks, b;
+    int count[4];
+    int sb_max, sb_length;
+    int sb_min = 0;
+    unsigned int count_min = UINT_MAX;
+
+    if (!stage->sb_part || block->length & 0x3 || block->length < 16)
+        sb_max = 1;
+    else
+        sb_max = 4;
+
+
+    for (sb = 0; sb < sb_max; sb++) {
+        num_subblocks = 1 << sb;
+        sb_length     = block->length / num_subblocks;
+        count[sb]     = 0;
+
+        for (b = 0; b < num_subblocks; b++) {
+            find_subblock_bgmc_params_est(block->res_ptr + b * sb_length, sb_length, &s[sb][b], &sx[sb][b]);
+
+            count[sb] += subblock_bgmc_count_exact(block->res_ptr + b * sb_length,
+                                                   block->length, sx[sb][b],
+                                                   sb_length, s[sb][b], ctx->max_rice_param,
+                                                   !b && block->ra_block, order);
+
+            if (!b) {
+                count[sb] += 4 + (ctx->max_rice_param > 15);     // s [0]
+                count[sb] += 8 + (ctx->max_rice_param > 15);     // sx[0]
+            } else {
+                count[sb] += rice_count(s[sb][b]-s[sb][b-1], 0); // s [i]
+                count[sb] += rice_count(s[sb][b]-s[sb][b-1], 0); // s [i]
+            }
+        }
+
+        count[sb] += 1 + stage->sb_part; // ec_sub
+
+        if (count[sb] < count_min) {
+            count_min = count[sb];
+            sb_min    = sb;
+        }
+    }
+
+    block->sub_blocks            = 1 << sb_min;
+    block->bits_ec_param_and_res = count_min;
+
+    for (b = 0; b < block->sub_blocks; b++) {
+        block->rice_param[b] = s [sb_min][b];
+        block->bgmc_param[b] = sx[sb_min][b];
+    }
 }
 
 
@@ -1310,12 +1473,14 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
  * @param[in] ra_block          indicates if this is a random access block
  * @param[in] order             LPC order
  */
-static void find_block_rice_params(ALSEncContext *ctx, ALSBlock *block,
+static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
                                    int order)
 {
     ALSEncStage *stage = ctx->cur_stage;
 
-    if (stage->param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
+    if (ctx->sconf.bgmc) {
+        find_block_bgmc_params(ctx, block, order);
+    } else if (stage->param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
         find_block_rice_params_est(ctx, block, order);
     } else if (stage->param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
         find_block_rice_params_exact(ctx, block, order);
@@ -1395,7 +1560,7 @@ static uint32_t calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
         block->cur_ptr = block->res_ptr;
     }
     calc_parcor_coeff_bit_size(ctx, block, order);
-    find_block_rice_params    (ctx, block, order);
+    find_block_entropy_params (ctx, block, order);
 
     count  = block->bits_misc + block->bits_parcor_coeff +
                     block->bits_ec_param_and_res;
@@ -1583,7 +1748,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
 
     // search for rice parameter:
-    find_block_rice_params(ctx, block, block->opt_order);
+    find_block_entropy_params(ctx, block, block->opt_order);
 
     bit_count = block->bits_misc + block->bits_parcor_coeff +
                 block->bits_ec_param_and_res;
