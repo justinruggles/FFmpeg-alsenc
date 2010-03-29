@@ -33,6 +33,7 @@
 #include "avcodec.h"
 #include "get_bits.h"
 
+extern const uint8_t ff_bgmc_tail_code[16][6];
 
 int ff_bgmc_init(AVCodecContext *avctx, uint8_t **cf_lut, unsigned int **cf_lut_status);
 
