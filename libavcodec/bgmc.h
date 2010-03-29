@@ -37,6 +37,8 @@
 extern int ff_bgmc_max[16];
 extern const uint8_t ff_bgmc_tail_code[16][6];
 
+
+/* arithmetic decoding of MSB and LSB parts */
 int ff_bgmc_init(AVCodecContext *avctx, uint8_t **cf_lut, unsigned int **cf_lut_status);
 
 
@@ -56,6 +58,7 @@ void ff_bgmc_decode(GetBitContext *gb, unsigned int num, int32_t *dst,
                  uint8_t *cf_lut, unsigned int *cf_lut_status);
 
 
+/* arithmetic encoding of MSB parts */
 void ff_bgmc_encode_init(unsigned int *h, unsigned int *l, unsigned int *f);
 
 
@@ -73,6 +76,7 @@ void ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
 void ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f);
 
 
+/* bit count of arithmetic encoded MSB parts */
 void ff_bgmc_encode_msb_count(unsigned int *bits, const int32_t *symbols, unsigned int n,
                               unsigned int k, unsigned int delta, unsigned int max,
                               unsigned int s, unsigned int sx,
