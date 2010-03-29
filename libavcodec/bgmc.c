@@ -40,6 +40,12 @@
 #define LUT_SIZE   (1 << LUT_BITS)         // size of the lookup tables
 #define LUT_BUFF   4                       // number of buffered lookup tables
 
+#define PUT_BITS_FOLLOW_COUNT(bits, follow) \
+{                                           \
+    (bits)   += (follow) + 1;               \
+    (follow)  = 0;                          \
+}
+
 
 /** Predefined maximum values
  */
@@ -595,4 +601,184 @@ void ff_bgmc_decode(GetBitContext *gb, unsigned int num, int32_t *dst,
     *l = low;
     *v = value;
 }
+
+
+/** Writes bit and a given number of opposite follow bits
+ */
+static void put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *follow)
+{
+    put_bits (pb, 1, bit);
+    for (unsigned int i = 0; i < *follow; i++)
+        put_bits(pb, 1, !bit);
+
+    *follow = 0;
+}
+
+
+/** Initializes encoding
+ */
+void ff_bgmc_encode_init(unsigned int *h, unsigned int *l, unsigned int *f)
+{
+    *h = TOP_VALUE;
+    *l = 0;
+    *f = 0;
+}
+
+
+/** Finish encoding
+ */
+void ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f)
+{
+    *f += 1;
+
+    put_bits_follow(pb, *l >= FIRST_QTR, f);
+/*    if (*l < FIRST_QTR)
+        put_bits_follow(pb, 0, f);
+    else
+        put_bits_follow(pb, 1, f);*/
+}
+
+
+/** Encodes and writes the MSB part of a single symbol
+ */
+void ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
+                    unsigned int delta, unsigned int sx,
+                    unsigned int *h, unsigned int *l, unsigned int *f)
+{
+    // read current state
+    unsigned int high   = *h;
+    unsigned int low    = *l;
+    unsigned int range  = high - low + 1;
+
+    high = low + ((range * cf_table[sx][(symbol    ) << delta] - (1 << FREQ_BITS)) >> FREQ_BITS);
+    low  = low + ((range * cf_table[sx][(symbol + 1) << delta]                   ) >> FREQ_BITS);
+
+    while (1) {
+        if (high >= HALF) {
+            if        (low >= HALF) {
+                put_bits_follow(pb, 1, f);
+                low   -= HALF;
+                high  -= HALF;
+            } else if (low >= FIRST_QTR && high < THIRD_QTR) {
+                *f    += 1;
+                low   -= FIRST_QTR;
+                high  -= FIRST_QTR;
+            } else break;
+        } else
+            put_bits_follow(pb, 0, f);
+
+        low   *= 2;
+        high   = 2 * high  + 1;
+    }
+
+    // save current state
+    *h = high;
+    *l = low;
+}
+
+
+/** Encodes and writes the MSB part of a given symbol array of length n
+ */
+void ff_bgmc_encode_msb(PutBitContext *pb, int32_t *symbols, unsigned int n,
+                        unsigned int k, unsigned int delta, unsigned int max,
+                        unsigned int s, unsigned int sx,
+                        unsigned int *h, unsigned int *l, unsigned int *f)
+{
+    for (; n > 0; n--) {
+        int32_t res = *symbols;
+
+        res >>= k;
+        res <<= 1;
+
+        if (res < 0)
+            res = -res - 1;
+
+        if      (res >= max)
+            res = ff_bgmc_tail_code[sx][delta];
+        else if (res >= ff_bgmc_tail_code[sx][delta])
+            res++;
+
+        ff_bgmc_encode(pb, res, delta, sx, h, l, f);
+
+        symbols++;
+    }
+}
+
+
+/** Encodes and counts the needed bits of the MSB part of a given symbol
+ */
+void ff_bgmc_encode_count(unsigned int *bits, const int32_t symbol,
+                 unsigned int delta, unsigned int sx,
+                 unsigned int *h, unsigned int *l, unsigned int *f)
+{
+    // read current state
+    unsigned int high   = *h;
+    unsigned int low    = *l;
+    unsigned int range  = high - low + 1;
+
+    high = low + ((range * cf_table[sx][(symbol    ) << delta] - (1 << FREQ_BITS)) >> FREQ_BITS);
+    low  = low + ((range * cf_table[sx][(symbol + 1) << delta]                   ) >> FREQ_BITS);
+
+    while (1) {
+        if (high >= HALF) {
+            if        (low >= HALF) {
+                PUT_BITS_FOLLOW_COUNT(*bits, *f);
+                low   -= HALF;
+                high  -= HALF;
+            } else if (low >= FIRST_QTR && high < THIRD_QTR) {
+                *f    += 1;
+                low   -= FIRST_QTR;
+                high  -= FIRST_QTR;
+            } else break;
+        } else {
+            PUT_BITS_FOLLOW_COUNT(*bits, *f);
+        }
+
+        low   *= 2;
+        high   = 2 * high  + 1;
+    }
+
+    // save current state
+    *h = high;
+    *l = low;
+}
+
+
+/** Encodes and counts the needed bits of the MSB part
+ *  of a given symbol array of length n
+ */
+void ff_bgmc_encode_msb_count(unsigned int *bits, const int32_t *symbols, unsigned int n,
+                              unsigned int k, unsigned int delta, unsigned int max,
+                              unsigned int s, unsigned int sx,
+                              unsigned int *h, unsigned int *l, unsigned int *f)
+{
+    for (; n > 0; n--) {
+        int32_t res = *symbols;
+
+        res >>= k;
+        res <<= 1;
+
+        if (res < 0)
+            res = -res - 1;
+
+        if      (res >= max)
+            res = ff_bgmc_tail_code[sx][delta];
+        else if (res >= ff_bgmc_tail_code[sx][delta])
+            res++;
+
+        ff_bgmc_encode_count(bits, res, delta, sx, h, l, f);
+
+        symbols++;
+    }
+}
+
+
+/** Counts the needed bits for finishing up encoding of MSB parts
+ */
+void ff_bgmc_encode_end_count(unsigned int *bits, unsigned int *f)
+{
+    *f += 1;
+    PUT_BITS_FOLLOW_COUNT(*bits, *f);
+}
+
 
