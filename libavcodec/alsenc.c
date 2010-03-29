@@ -41,6 +41,7 @@
 #include "lpc.h"
 #include "mpeg4audio.h"
 #include "audioconvert.h"
+#include "bgmc.h"
 
 
 /** Total size of fixed-size fields in ALSSpecificConfig */
@@ -658,6 +659,35 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 }
 
 
+/** Encode the LSB part of the given symbols
+ */
+void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
+                     unsigned int k, unsigned int max, unsigned int s)
+{
+    int lsb_mask       = (1 << k) - 1;
+    int abs_max        = (max + 1) >> 1;
+
+    for (; n > 0; n--) {
+        int32_t res = *symbols;
+
+        res >>= k;
+
+        if        (res >=  abs_max) {
+            res = *symbols - (abs_max << k);
+            set_sr_golomb_als(pb, res, s);
+        } else if (res <= -abs_max) {
+            res = *symbols + ((abs_max - 1) << k);
+            set_sr_golomb_als(pb, res, s);
+        } else if (k) {
+            res = *symbols & lsb_mask;
+            put_sbits(pb, k, res);
+        }
+
+        symbols++;
+    }
+}
+
+
 /** Write a given block of a given channel
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block)
@@ -666,7 +696,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
     ALSSpecificConfig *sconf = &ctx->sconf;
     PutBitContext *pb        = &ctx->pb;
     unsigned int i;
-    int start;
+    int start = 0;
 
 
     // block_type
@@ -694,6 +724,15 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
     } else {
         int32_t *res_ptr;
         int sb, sb_length;
+        unsigned int high;
+        unsigned int low;
+        unsigned int follow;
+        unsigned int delta[8];
+        unsigned int k    [8];
+        unsigned int max  [8];
+        unsigned int *s  = block->rice_param;
+        unsigned int *sx = block->bgmc_param;
+
 
         // js_block
         put_bits(pb, 1, block->js_block);
@@ -710,9 +749,15 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         // s[k], sx[k]
         if (sconf->bgmc) {
+            unsigned int S[8];
 
-             // to be implemented
+            for (sb = 0; sb < block->sub_blocks; sb++)
+                S[sb] = (block->rice_param[sb] << 4) | block->bgmc_param[sb];
 
+            put_bits(pb, 8 + (avctx->bits_per_raw_sample > 16), S[0]);
+            for (sb = 1; sb < block->sub_blocks; sb++)
+                if (set_sr_golomb_als(pb, S[sb] - S[sb-1], 2))
+                    return -1;
         } else {
             put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), block->rice_param[0]);
 
@@ -787,29 +832,58 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         res_ptr = block->cur_ptr;
         sb_length = block->length / block->sub_blocks;
 
+        if (sconf->bgmc)
+            ff_bgmc_encode_init(&high, &low, &follow);
+
         for (sb = 0; sb < block->sub_blocks; sb++) {
-            start = 0;
+            i = 0;
             if (!sb && block->ra_block) {
                 int len = FFMIN(block->opt_order, sb_length);
                 if (len > 0) {
                     if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
                         return -1;
-                    start++;
+                    i++;
                     if (len > 1) {
                         if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(block->rice_param[sb]+3, ctx->max_rice_param)))
                             return -1;
-                        start++;
+                        i++;
                         if (len > 2) {
                             if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(block->rice_param[sb]+1, ctx->max_rice_param)))
                                 return -1;
-                            start++;
+                            i++;
                         }
                     }
                 }
+                start = i;
             }
-            for (i = start; i < sb_length; i++) {
-                if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]))
-                    return -1;
+            if (sconf->bgmc) {
+                unsigned int b = av_clip((av_ceil_log2(block->length) - 3) >> 1, 0, 5);
+                k    [sb] = s[sb] > b ? s[sb] - b : 0;
+                delta[sb] = 5 - s[sb] + k[sb];
+                max  [sb] = ff_bgmc_max[sx[sb]] >> delta[sb];
+
+                ff_bgmc_encode_msb(pb, res_ptr, sb_length - i,
+                                   k[sb], delta[sb], max[sb],
+                                   s[sb], sx[sb],
+                                   &high, &low, &follow);
+
+                res_ptr += sb_length - i;
+            } else {
+                for (; i < sb_length; i++) {
+                    if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]))
+                        return -1;
+                }
+            }
+        }
+
+        if (sconf->bgmc) {
+            ff_bgmc_encode_end(pb, &low, &follow);
+
+            res_ptr = block->res_ptr + start;
+
+            for (sb = 0; sb < block->sub_blocks; sb++, start = 0) {
+                bgmc_encode_lsb(pb, res_ptr, sb_length - start, k[sb], max[sb], s[sb]);
+                res_ptr += sb_length - start;
             }
         }
     }
