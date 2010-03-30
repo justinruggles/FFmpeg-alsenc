@@ -73,6 +73,8 @@
 #define RICE_PARAM_ALGORITHM_ESTIMATE   0
 /** Calculates Rice parameters using a search algorithm based on exact bit count */
 #define RICE_PARAM_ALGORITHM_EXACT      1
+/** Estimates BGMC parameters using mean of unsigned residual samples */
+#define BGMC_PARAM_ALGORITHM_ESTIMATE   2
 
 /** Estimates Rice sub-block partitioning using sum of unsigned residual samples */
 #define RICE_BIT_COUNT_ALGORITHM_ESTIMATE   0
@@ -1478,7 +1480,7 @@ static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
 {
     ALSEncStage *stage = ctx->cur_stage;
 
-    if (ctx->sconf.bgmc) {
+    if        (stage->param_algorithm == BGMC_PARAM_ALGORITHM_ESTIMATE) {
         find_block_bgmc_params(ctx, block, order);
     } else if (stage->param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
         find_block_rice_params_est(ctx, block, order);
@@ -2375,7 +2377,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     // fill options stages
-    ctx->stages[STAGE_JOINT_STEREO].param_algorithm     = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_JOINT_STEREO].param_algorithm     = sconf->bgmc ?
+                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
+                                                          RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_JOINT_STEREO].count_algorithm     = RICE_BIT_COUNT_ALGORITHM_EXACT;
     ctx->stages[STAGE_JOINT_STEREO].adapt_algorithm     = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_JOINT_STEREO].merge_algorithm     = BS_ALGORITHM_FULL_SEARCH;
@@ -2384,7 +2388,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_JOINT_STEREO].max_order           = sconf->max_order;
     ctx->stages[STAGE_JOINT_STEREO].sb_part             = sconf->sb_part;
 
-    ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = sconf->bgmc ?
+                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
+                                                          RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm  = RICE_BIT_COUNT_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm  = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm  = BS_ALGORITHM_FULL_SEARCH;
@@ -2393,7 +2399,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_BLOCK_SWITCHING].max_order        = sconf->max_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part          = sconf->sb_part;
 
-    ctx->stages[STAGE_FINAL].param_algorithm            = RICE_PARAM_ALGORITHM_EXACT;
+    ctx->stages[STAGE_FINAL].param_algorithm            = sconf->bgmc ?
+                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
+                                                          RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_FINAL].count_algorithm            = RICE_BIT_COUNT_ALGORITHM_EXACT;
     ctx->stages[STAGE_FINAL].adapt_algorithm            = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_FINAL].merge_algorithm            = BS_ALGORITHM_FULL_SEARCH;
