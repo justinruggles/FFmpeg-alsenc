@@ -1336,11 +1336,11 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
                                                    !b && block->ra_block, order);
 
             if (!b) {
-                count[sb] += 4 + (ctx->max_rice_param > 15);     // s [0]
-                count[sb] += 8 + (ctx->max_rice_param > 15);     // sx[0]
+                count[sb] += 8 + (ctx->max_rice_param > 15);    // S[0]
             } else {
-                count[sb] += rice_count(s[sb][b]-s[sb][b-1], 0); // s [i]
-                count[sb] += rice_count(s[sb][b]-s[sb][b-1], 0); // s [i]
+                int S = ((s[sb][b    ] << 4) | sx[sb][b    ])
+                      - ((s[sb][b - 1] << 4) | sx[sb][b - 1]);
+                count[sb] += rice_count(S, 2);                  // S[i]
             }
         }
 
