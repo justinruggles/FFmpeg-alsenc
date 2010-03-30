@@ -1215,7 +1215,7 @@ static void find_subblock_bgmc_params_est(int32_t *res_ptr, unsigned int n, int 
         mean += abs(res_ptr[k]);
     mean /= n;
 
-    if (mean <= MIN) {
+    if (mean <= MIN) { // SUM + FAC * log(mean) < 1
         tmp = 0;
     } else
         tmp = (int)(SUM + FAC * log(mean));
