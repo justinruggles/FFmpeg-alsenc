@@ -668,24 +668,18 @@ void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
 {
     int lsb_mask       = (1 << k) - 1;
     int abs_max        = (max + 1) >> 1;
+    int high_offset = -(abs_max      << k);
+    int low_offset  =  (abs_max - 1) << k;
 
     for (; n > 0; n--) {
-        int32_t res = *symbols;
+        int32_t res = *symbols++;
 
-        res >>= k;
-
-        if        (res >=  abs_max) {
-            res = *symbols - (abs_max << k);
-            set_sr_golomb_als(pb, res, s);
-        } else if (res <= -abs_max) {
-            res = *symbols + ((abs_max - 1) << k);
+        if (res >> k >=  abs_max || res >> k <= -abs_max) {
+            res += res >> k >= abs_max ? high_offset : low_offset;
             set_sr_golomb_als(pb, res, s);
         } else if (k) {
-            res = *symbols & lsb_mask;
-            put_sbits(pb, k, res);
+            put_sbits(pb, k, res & lsb_mask);
         }
-
-        symbols++;
     }
 }
 
@@ -696,23 +690,18 @@ static void bgmc_encode_lsb_count(unsigned int *bits, const int32_t *symbols, un
                                   unsigned int k, unsigned int max, unsigned int s)
 {
     int abs_max        = (max + 1) >> 1;
+    int high_offset = -(abs_max      << k);
+    int low_offset  =  (abs_max - 1) << k;
 
     for (; n > 0; n--) {
-        int32_t res = *symbols;
+        int32_t res = *symbols++;
 
-        res >>= k;
-
-        if        (res >=  abs_max) {
-            res = *symbols - (abs_max << k);
-            *bits += rice_count(res, s);
-        } else if (res <= -abs_max) {
-            res = *symbols + ((abs_max - 1) << k);
+        if (res >> k <= -abs_max || res >> k >= abs_max) {
+            res += res >> k >= abs_max ? high_offset : low_offset;
             *bits += rice_count(res, s);
         } else if (k) {
             *bits += k;
         }
-
-        symbols++;
     }
 }
 
@@ -2122,7 +2111,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if BGMC mode is used
     // should be user-defineable
-    sconf->bgmc = 0;
+    sconf->bgmc = 1;
 
 
     // determine what sub-block partitioning is used
