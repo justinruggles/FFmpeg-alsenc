@@ -1320,10 +1320,10 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
     else
-        sb_max = 4;
+        sb_max = 3;
 
 
-    for (sb = 0; sb < sb_max; sb++) {
+    for (sb = 0; sb <= sb_max; sb++) {
         num_subblocks = 1 << sb;
         sb_length     = block->length / num_subblocks;
         count[sb]     = 0;
