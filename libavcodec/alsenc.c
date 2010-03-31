@@ -1318,6 +1318,10 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
         count[sb]     = 0;
 
         for (b = 0; b < num_subblocks; b++) {
+            /* TODO: find_subblock_bgmc_params_est() uses sum of absolute
+                     residuals. we can start at lower levels and add each of
+                     the 2 sums for the next highest level to avoid calculating
+                     it again. See flacenc.c */
             find_subblock_bgmc_params_est(block->res_ptr + b * sb_length, sb_length, &s[sb][b], &sx[sb][b]);
 
             count[sb] += subblock_bgmc_count_exact(block->res_ptr + b * sb_length,
