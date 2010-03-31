@@ -40,12 +40,6 @@
 #define LUT_SIZE   (1 << LUT_BITS)         // size of the lookup tables
 #define LUT_BUFF   4                       // number of buffered lookup tables
 
-#define PUT_BITS_FOLLOW_COUNT(bits, follow) \
-{                                           \
-    (bits)   += (follow) + 1;               \
-    (follow)  = 0;                          \
-}
-
 
 /** Predefined maximum values
  */
@@ -698,6 +692,13 @@ void ff_bgmc_encode_msb(PutBitContext *pb, int32_t *symbols, unsigned int n,
 
         symbols++;
     }
+}
+
+
+#define PUT_BITS_FOLLOW_COUNT(bits, follow) \
+{                                           \
+    (bits)   += (follow) + 1;               \
+    (follow)  = 0;                          \
 }
 
 
