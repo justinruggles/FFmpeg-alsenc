@@ -1204,21 +1204,20 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
  */
 static void find_subblock_bgmc_params_est(int32_t *res_ptr, unsigned int n, int *s, int *sx)
 {
-#define SUM 15.534836119602025
-#define FAC 23.083120654223415
-#define MIN  0.532862482278539
-    double mean;
-    int tmp;
+#define OFFSET 0.97092725747512664825  /* 0.5 + log2(1.386) */
+    uint64_t sum;
+    int tmp, i;
 
-    mean = abs(res_ptr[0]);
-    for (int k = 1; k < n; k++)
-        mean += abs(res_ptr[k]);
-    mean /= n;
+    sum = 0;
+    for (i = 0; i < n; i++)
+        sum += abs(*res_ptr++);
 
-    if (mean <= MIN) { // SUM + FAC * log(mean) < 1
+    if (!sum) { // avoid log2(0)
         tmp = 0;
-    } else
-        tmp = (int)(SUM + FAC * log(mean));
+    } else {
+        tmp = (int)(16.0 * (log2(sum) - log2(n) + OFFSET));
+        tmp = FFMAX(tmp, 0);
+    }
 
     *sx = tmp & 0x0F;
     *s  = tmp >> 4;
