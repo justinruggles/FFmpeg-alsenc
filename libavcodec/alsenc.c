@@ -2049,6 +2049,13 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     ctx->max_rice_param = sconf->resolution > 1 ? 31 : 15;
 
 
+    // set default compression level and clip to allowed range
+    if (avctx->compression_level == FF_COMPRESSION_DEFAULT)
+        avctx->compression_level = 1;
+    else
+        avctx->compression_level = av_clip(avctx->compression_level, 0, 2);
+
+
     // determine frame length
     frame_partitioning(ctx);
 
@@ -2101,8 +2108,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 0; // set to 1 to test block-switching
-                                // with two blocks per frame
+    sconf->block_switching = avctx->compression_level > 1;
+
 
     // limit the block_switching depth based on whether the full frame length
     // is evenly divisible by the minimum block size.
@@ -2115,11 +2122,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if BGMC mode is used
     // should be user-defineable
-    sconf->bgmc = 0;
+    sconf->bgmc = avctx->compression_level > 1;
 
 
     // determine what sub-block partitioning is used
-    sconf->sb_part = 1;
+    sconf->sb_part = avctx->compression_level > 0;
 
 
     // determine if joint-stereo is used
@@ -2127,7 +2134,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // set = 1 if #channels > 1 (?)
     // should be set when implemented
     // turn off for fastest compression level
-    sconf->joint_stereo = 0;
+    sconf->joint_stereo = avctx->compression_level > 0;
 
 
     // determine if multi-channel coding is used
