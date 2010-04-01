@@ -1680,7 +1680,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // LPC / PARCOR coefficients to be stored in context
     // they depend on js_block and opt_order which may be changing later on
 
-    max_order = sconf->max_order;
+    max_order = ctx->cur_stage->max_order;
     if (sconf->max_order) {
         if (sconf->adapt_order) {
             int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
@@ -2364,15 +2364,26 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     // fill options stages
+    if (avctx->compression_level == 1) {
+        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = sconf->bgmc ?
+                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
+                                                          RICE_PARAM_ALGORITHM_ESTIMATE;
+        ctx->stages[STAGE_JOINT_STEREO].count_algorithm = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
+    } else {
     ctx->stages[STAGE_JOINT_STEREO].param_algorithm     = sconf->bgmc ?
                                                           BGMC_PARAM_ALGORITHM_ESTIMATE :
                                                           RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_JOINT_STEREO].count_algorithm     = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    }
     ctx->stages[STAGE_JOINT_STEREO].adapt_algorithm     = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_JOINT_STEREO].merge_algorithm     = BS_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_JOINT_STEREO].check_constant      = 1;
     ctx->stages[STAGE_JOINT_STEREO].adapt_order         = sconf->adapt_order;
+    if (avctx->compression_level == 1) {
+        ctx->stages[STAGE_JOINT_STEREO].max_order       = 4;
+    } else {
     ctx->stages[STAGE_JOINT_STEREO].max_order           = sconf->max_order;
+    }
     ctx->stages[STAGE_JOINT_STEREO].sb_part             = sconf->sb_part;
 
     ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = sconf->bgmc ?
