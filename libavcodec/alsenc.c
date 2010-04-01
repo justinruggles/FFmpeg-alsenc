@@ -259,7 +259,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     }
 
 
-    // set (the remaining) channels to dependent coding
+    // set (the remaining) channels to independent coding
     for (; c < avctx->channels; c++)
         ctx->independent_bs[c] = 1;
 
