@@ -2075,11 +2075,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->ra_flag = RA_FLAG_NONE;
 
 
-    // determine if adaptive prediction order is used
-    // always use adaptive order unless the fastest compression level
-    // has been selected.
-    //
-    // while not implemented just set to non-adaptive
+    // determine if adaptive prediction order is used.
+    // since the current implementation is excruciatingly slow, don't use it
     sconf->adapt_order = 0;
 
 
