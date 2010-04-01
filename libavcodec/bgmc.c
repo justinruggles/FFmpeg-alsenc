@@ -601,10 +601,15 @@ void ff_bgmc_decode(GetBitContext *gb, unsigned int num, int32_t *dst,
  */
 static void put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *follow)
 {
-    if (bit)
-        put_bits(pb, 1 + *follow,  1 << *follow     );
-    else
-        put_bits(pb, 1 + *follow, (1 << *follow) - 1);
+    if (!*follow) {
+        put_bits(pb, 1, bit);
+    } else if (*follow < 31) {
+        put_bits(pb, 1 + *follow, (1 << *follow) - !bit);
+    } else {
+        put_bits (pb, 1, bit);
+        for (unsigned int i = 0; i < *follow; i++)
+            put_bits(pb, 1, !bit);
+    }
 
     *follow = 0;
 }
