@@ -2003,15 +2003,6 @@ static void frame_partitioning(ALSEncContext *ctx)
     //       the decoder
     avctx->frame_size = av_clip(avctx->frame_size, 1024, 0xFFFF);
 
-    // enforce a frame length that is a power of 2?
-    // or discard block-switching if it is not?
-    // if block-switching is enabled by default
-    // then do check
-    // exceptions for last frame which might consist
-    // of an arbitrary number of samples
-    // do special block-switching in that case like the
-    // reference enc? (2-2-1-0, refer to decoder)
-
     sconf->frame_length = avctx->frame_size;
 }
 
