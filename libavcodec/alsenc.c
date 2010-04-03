@@ -1020,6 +1020,18 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 }
 
 
+static void set_overflow_fallback_coeffs(int order, int32_t *q_parcor,
+                                         int32_t *r_parcor)
+{
+    double parcor[order];
+
+    memset(parcor, 0, sizeof(parcor));
+    parcor[0] = -0.9;
+
+    quantize_parcor_coeffs(parcor, order, q_parcor, r_parcor);
+}
+
+
 static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
 {
@@ -1493,7 +1505,7 @@ static inline int estimate_best_order(int32_t *r_parcor, int order)
 }
 
 
-static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
+static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
@@ -1506,11 +1518,8 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 {\
     int64_t y = 1 << 19;\
     for (j = 1; j <= order; j++)\
-        y += (int64_t)lpc[j-1] * (smp_ptr)[-j];\
-    y = *(smp_ptr++) + (y >> 20);\
-    if (y < INT32_MIN || y > INT32_MAX)\
-        av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
-    *(res_ptr++) = y;\
+        y += MUL64(lpc[j-1], (smp_ptr)[-j]);\
+    *(res_ptr++) = *(smp_ptr++) + (int32_t)(y >> 20);\
 }
 
     i = 0;
@@ -1524,7 +1533,8 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
         ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
         for (i = 1; i < ra_order; i++) {
             LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
-            ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            if (ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff))
+                return -1;
         }
         // zero unused coeffs for small frames since they are all written
         // to the bitstream if adapt_order is not used.
@@ -1534,23 +1544,26 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
         }
     } else {
         for (j = 0; j < order; j++)
-            ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            if (ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff))
+                return -1;
     }
     // remaining residual samples
     for (; i < block->length; i++) {
         LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, order);
     }
+    return 0;
 }
 
 
-static uint32_t calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
-                                            int order)
+static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
+                                       int order)
 {
-    uint32_t count;
+    int32_t count;
     int32_t *save_ptr = block->cur_ptr;
 
     if (order) {
-        calc_short_term_prediction(ctx, block, order);
+        if (calc_short_term_prediction(ctx, block, order))
+            return -1;
         block->cur_ptr = block->res_ptr;
     }
     calc_parcor_coeff_bit_size(ctx, block, order);
@@ -1570,16 +1583,16 @@ static void find_block_adapt_order_full_search(ALSEncContext *ctx,
                                                ALSBlock *block, int max_order)
 {
     int i;
-    uint32_t count[max_order+1];
+    int32_t count[max_order+1];
     int best = 0;
 
-    memset(count, -1, sizeof(count));
+    count[0] = INT32_MAX;
 
     for (i = 0; i <= max_order; i++) {
 
         count[i] = calc_block_size_fixed_order(ctx, block, i);
 
-        if (count[i] < count[best])
+        if (count[i] >= 0 && count[i] < count[best])
             best = i;
     }
     block->opt_order = best;
@@ -1723,7 +1736,15 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // generate residuals using parameters:
 
     if (block->opt_order) {
-        calc_short_term_prediction(ctx, block, block->opt_order);
+        if (calc_short_term_prediction(ctx, block, block->opt_order)) {
+            if (ctx->cur_stage->adapt_order)
+                block->opt_order = 1;
+            set_overflow_fallback_coeffs(block->opt_order,
+                                         block->q_parcor_coeff,
+                                         ctx->r_parcor_coeff);
+            calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
+            calc_short_term_prediction(ctx, block, block->opt_order);
+        }
         block->cur_ptr = block->res_ptr;
     }
 
