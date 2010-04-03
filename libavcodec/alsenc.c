@@ -1020,18 +1020,6 @@ static void quantize_parcor_coeffs(const double *parcor, int order,
 }
 
 
-static void set_overflow_fallback_coeffs(int order, int32_t *q_parcor,
-                                         int32_t *r_parcor)
-{
-    double parcor[order];
-
-    memset(parcor, 0, sizeof(parcor));
-    parcor[0] = -0.9;
-
-    quantize_parcor_coeffs(parcor, order, q_parcor, r_parcor);
-}
-
-
 static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
 {
@@ -1737,11 +1725,18 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
     if (block->opt_order) {
         if (calc_short_term_prediction(ctx, block, block->opt_order)) {
+            // if PARCOR to LPC conversion has 32-bit integer overflow,
+            // fallback to using 1st order prediction
+            double parcor[block->opt_order];
+
             if (ctx->cur_stage->adapt_order)
                 block->opt_order = 1;
-            set_overflow_fallback_coeffs(block->opt_order,
-                                         block->q_parcor_coeff,
-                                         ctx->r_parcor_coeff);
+
+            memset(parcor, 0, sizeof(parcor));
+            parcor[0] = -0.9;
+            quantize_parcor_coeffs(parcor, block->opt_order,
+                                   block->q_parcor_coeff, ctx->r_parcor_coeff);
+
             calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
             calc_short_term_prediction(ctx, block, block->opt_order);
         }
