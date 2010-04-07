@@ -2312,29 +2312,48 @@ static av_cold int encode_end(AVCodecContext *avctx)
 }
 
 
-static void init_hanning_window(double *window, int len)
+static void init_rect_window(double *window, int len)
 {
-    int i, n2;
-    double w, c;
+    int i;
+    for (i = 0; i < len; i++)
+        window[i] = 1.0;
+}
 
-    /* use a rectangle window for 1 to 3 samples */
-    if (len < 3) {
-        window[0] = 1.0;
-        if (len > 1)
-            window[1] = 1.0;
-    }
 
-    n2 = len >> 1;
-    c = 2.0 * M_PI / (len - 1);
+static void init_hannrect_window(double *window, int len, double param)
+{
+    int i;
+    int side_len = lrint(len / (2 * param));
+    double phi   = param * 2.0 * M_PI / (len - 1);
 
-    for (i = 0; i < n2; i++) {
-        w = 0.5 - 0.5 * cos(c * i);
+    init_rect_window(window, len);
+
+    if (side_len < 4)
+        return;
+
+    for (i = 0; i < side_len; i++) {
+        double w = 0.5 - 0.5 * cos(phi * i);
         window[i]       = w;
         window[len-i-1] = w;
     }
-    if (len & 1) {
-        w = 0.5 - 0.5 * cos(c * i);
-        window[i] = w;
+}
+
+
+static void init_sinerect_window(double *window, int len, double param)
+{
+    int i;
+    int side_len = lrint(len / (2 * param));
+    double phi   = param * M_PI / (len - 1);
+
+    init_rect_window(window, len);
+
+    if (side_len < 4)
+        return;
+
+    for (i = 0; i < side_len; i++) {
+        double w = sin(phi * i);
+        window[i]       = w;
+        window[len-i-1] = w;
     }
 }
 
@@ -2532,7 +2551,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->acf_window[0] = ctx->acf_window_buffer;
     for (b = 0; b <= sconf->block_switching + 2; b++) {
         int block_length = sconf->frame_length / (1 << b);
-        init_hanning_window(ctx->acf_window[b], block_length);
+        if (avctx->sample_rate <= 48000)
+            init_sinerect_window(ctx->acf_window[b], block_length, 4);
+        else
+            init_hannrect_window(ctx->acf_window[b], block_length, 4);
         ctx->acf_window[b+1] = ctx->acf_window[b] + block_length;
         if (!sconf->block_switching)
             break;
