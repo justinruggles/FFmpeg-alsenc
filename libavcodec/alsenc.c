@@ -1769,7 +1769,7 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-#if 0
+#if 1
 /* Generate a weighted residual signal for autocorrelation detection
  * used in LTP mode
  */
@@ -1804,14 +1804,13 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
                                int lag_max, int start)
 {
     int i, i_max;
-    double normalizer = 0;
     double autoc_max;
     double autoc[lag_max];
     double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
 
     ff_lpc_compute_autocorr(block->cur_ptr, corr_ptr, block->length, lag_max, autoc);
 
-    autoc_max = autoc[start] /= normalizer;
+    autoc_max = autoc[start];
     i_max     = start;
     for (i = start + 1; i < lag_max; i++) {
         // find best positive autocorrelation
