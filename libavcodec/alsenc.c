@@ -1769,9 +1769,75 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
+#if 0
 /* Generate a weighted residual signal for autocorrelation detection
  * used in LTP mode
  */
+static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
+                                int lag_max)
+{
+    int len          = (int)block->length;
+    int32_t *cur_ptr = block->cur_ptr;
+    uint64_t sum      = 0;
+    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double mean_quot;
+    int i;
+
+    // determine absolute mean of residual signal,
+    // including previous samples
+    for (i = -lag_max; i < len; i++)
+        sum += abs(cur_ptr[i]);
+    mean_quot = (double)(sum) / (block->length + lag_max);
+
+    // apply weighting:
+    // x *= 1 / [ sqrt(abs(x)) / 5*sqrt(mean) + 1 ]  // XXX: what weighting function is this?
+    mean_quot = (sqrt(mean_quot) * 5);
+    for (i = -lag_max; i < len; i++)
+        corr_ptr[i] = 1 / (sqrt(abs(cur_ptr[i])) / mean_quot + 1);
+}
+
+
+/* Generate the autocorrelation function and find
+ * its positive maximum value to be used for LTP lag
+ */
+static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
+                               int lag_max, int start)
+{
+    int i, i_max;
+    double normalizer = 0;
+    double autoc_max;
+    double autoc[lag_max];
+    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+
+    ff_lpc_compute_autocorr(block->cur_ptr, corr_ptr, block->length, lag_max, autoc);
+
+    autoc_max = autoc[start] /= normalizer;
+    i_max     = start;
+    for (i = start + 1; i < lag_max; i++) {
+        // find best positive autocorrelation
+        if (autoc[i] > 0 && autoc[i] > autoc_max) {
+            autoc_max = autoc[i];
+            i_max     = i;
+        }
+    }
+
+    block->ltp_info[block->js_block].lag = i_max;
+}
+
+static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
+                                int lag_max)
+{
+    int *ltp_gain = block->ltp_info[block->js_block].gain;
+
+    ltp_gain[0] = 8;
+    ltp_gain[1] = 8;
+    ltp_gain[2] = 16;
+    ltp_gain[3] = 8;
+    ltp_gain[4] = 8;
+}
+
+#else
+
 static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
                                 int lag_max)
 {
@@ -1796,9 +1862,6 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-/* Generate the autocorrelation function and find
- * its positive maximum value to be used for LTP lag
- */
 static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
                                int lag_max, int start)
 {
@@ -1850,20 +1913,6 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     block->ltp_info[block->js_block].lag = lag_best;
 }
 
-
-#if 1
-static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
-                                int lag_max)
-{
-    int *ltp_gain = block->ltp_info[block->js_block].gain;
-
-    ltp_gain[0] = 8;
-    ltp_gain[1] = 8;
-    ltp_gain[2] = 16;
-    ltp_gain[3] = 8;
-    ltp_gain[4] = 8;
-}
-#else
 // XXX: replace me
 ///////////////////// begin of shameless adapted copy from reference
 static void	Cholesky( double* a, double* b, const double* c, int n )
