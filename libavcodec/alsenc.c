@@ -2528,7 +2528,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // determine if long-term prediction is used
     // should also be user-defineable
     // TODO: make this depend on compression level
-    sconf->long_term_prediction = 1;
+    sconf->long_term_prediction = 0;
 
 
     // determine a maximum prediction order
