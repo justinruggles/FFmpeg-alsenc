@@ -280,7 +280,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     }
 
 
-    // set (the remaining) channels to dependent coding
+    // set (the remaining) channels to independent coding
     for (; c < avctx->channels; c++)
         ctx->independent_bs[c] = 1;
 
@@ -721,24 +721,18 @@ void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
 {
     int lsb_mask       = (1 << k) - 1;
     int abs_max        = (max + 1) >> 1;
+    int high_offset = -(abs_max      << k);
+    int low_offset  =  (abs_max - 1) << k;
 
     for (; n > 0; n--) {
-        int32_t res = *symbols;
+        int32_t res = *symbols++;
 
-        res >>= k;
-
-        if        (res >=  abs_max) {
-            res = *symbols - (abs_max << k);
-            set_sr_golomb_als(pb, res, s);
-        } else if (res <= -abs_max) {
-            res = *symbols + ((abs_max - 1) << k);
+        if (res >> k >=  abs_max || res >> k <= -abs_max) {
+            res += res >> k >= abs_max ? high_offset : low_offset;
             set_sr_golomb_als(pb, res, s);
         } else if (k) {
-            res = *symbols & lsb_mask;
-            put_sbits(pb, k, res);
+            put_sbits(pb, k, res & lsb_mask);
         }
-
-        symbols++;
     }
 }
 
@@ -749,23 +743,18 @@ static void bgmc_encode_lsb_count(unsigned int *bits, const int32_t *symbols, un
                                   unsigned int k, unsigned int max, unsigned int s)
 {
     int abs_max        = (max + 1) >> 1;
+    int high_offset = -(abs_max      << k);
+    int low_offset  =  (abs_max - 1) << k;
 
     for (; n > 0; n--) {
-        int32_t res = *symbols;
+        int32_t res = *symbols++;
 
-        res >>= k;
-
-        if        (res >=  abs_max) {
-            res = *symbols - (abs_max << k);
-            *bits += rice_count(res, s);
-        } else if (res <= -abs_max) {
-            res = *symbols + ((abs_max - 1) << k);
+        if (res >> k <= -abs_max || res >> k >= abs_max) {
+            res += res >> k >= abs_max ? high_offset : low_offset;
             *bits += rice_count(res, s);
         } else if (k) {
             *bits += k;
         }
-
-        symbols++;
     }
 }
 
@@ -1295,21 +1284,20 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
  */
 static void find_subblock_bgmc_params_est(int32_t *res_ptr, unsigned int n, int *s, int *sx)
 {
-#define SUM 15.534836119602025
-#define FAC 23.083120654223415
-#define MIN  0.532862482278539
-    double mean;
-    int tmp;
+#define OFFSET 0.97092725747512664825  /* 0.5 + log2(1.386) */
+    uint64_t sum;
+    int tmp, i;
 
-    mean = abs(res_ptr[0]);
-    for (int k = 1; k < n; k++)
-        mean += abs(res_ptr[k]);
-    mean /= n;
+    sum = 0;
+    for (i = 0; i < n; i++)
+        sum += abs(*res_ptr++);
 
-    if (mean <= MIN) { // SUM + FAC * log(mean) < 1
+    if (!sum) { // avoid log2(0)
         tmp = 0;
-    } else
-        tmp = (int)(SUM + FAC * log(mean));
+    } else {
+        tmp = (int)(16.0 * (log2(sum) - log2(n) + OFFSET));
+        tmp = FFMAX(tmp, 0);
+    }
 
     *sx = tmp & 0x0F;
     *s  = tmp >> 4;
@@ -1416,15 +1404,19 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
     else
-        sb_max = 4;
+        sb_max = 3;
 
 
-    for (sb = 0; sb < sb_max; sb++) {
+    for (sb = 0; sb <= sb_max; sb++) {
         num_subblocks = 1 << sb;
         sb_length     = block->length / num_subblocks;
         count[sb]     = 0;
 
         for (b = 0; b < num_subblocks; b++) {
+            /* TODO: find_subblock_bgmc_params_est() uses sum of absolute
+                     residuals. we can start at lower levels and add each of
+                     the 2 sums for the next highest level to avoid calculating
+                     it again. See flacenc.c */
             find_subblock_bgmc_params_est(block->res_ptr + b * sb_length, sb_length, &s[sb][b], &sx[sb][b]);
 
             count[sb] += subblock_bgmc_count_exact(block->res_ptr + b * sb_length,
@@ -1598,7 +1590,7 @@ static inline int estimate_best_order(int32_t *r_parcor, int order)
 }
 
 
-static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
+static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
@@ -1611,11 +1603,8 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 {\
     int64_t y = 1 << 19;\
     for (j = 1; j <= order; j++)\
-        y += (int64_t)lpc[j-1] * (smp_ptr)[-j];\
-    y = *(smp_ptr++) + (y >> 20);\
-    if (y < INT32_MIN || y > INT32_MAX)\
-        av_log(ctx->avctx, AV_LOG_ERROR, "32-bit overflow in LPC prediction\n");\
-    *(res_ptr++) = y;\
+        y += MUL64(lpc[j-1], (smp_ptr)[-j]);\
+    *(res_ptr++) = *(smp_ptr++) + (int32_t)(y >> 20);\
 }
 
     i = 0;
@@ -1629,7 +1618,8 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
         ff_als_parcor_to_lpc(0, ctx->r_parcor_coeff, ctx->lpc_coeff);
         for (i = 1; i < ra_order; i++) {
             LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, i);
-            ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            if (ff_als_parcor_to_lpc(i, ctx->r_parcor_coeff, ctx->lpc_coeff))
+                return -1;
         }
         // zero unused coeffs for small frames since they are all written
         // to the bitstream if adapt_order is not used.
@@ -1639,12 +1629,14 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
         }
     } else {
         for (j = 0; j < order; j++)
-            ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff);
+            if (ff_als_parcor_to_lpc(j, ctx->r_parcor_coeff, ctx->lpc_coeff))
+                return -1;
     }
     // remaining residual samples
     for (; i < block->length; i++) {
         LPC_PREDICT_SAMPLE(ctx->lpc_coeff, smp_ptr, res_ptr, order);
     }
+    return 0;
 }
 
 
@@ -1692,16 +1684,17 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
 }
 
 
-static uint32_t calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
-                                            int order)
+static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
+                                       int order)
 {
-    uint32_t count;
+    int32_t count;
     int32_t *save_ptr = block->cur_ptr;
     ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     if (order) {
-        calc_short_term_prediction(ctx, block, order);
+        if (calc_short_term_prediction(ctx, block, order))
+            return -1;
         block->cur_ptr = block->res_ptr;
     }
     calc_parcor_coeff_bit_size(ctx, block, order);
@@ -1726,16 +1719,16 @@ static void find_block_adapt_order_full_search(ALSEncContext *ctx,
                                                ALSBlock *block, int max_order)
 {
     int i;
-    uint32_t count[max_order+1];
+    int32_t count[max_order+1];
     int best = 0;
 
-    memset(count, -1, sizeof(count));
+    count[0] = INT32_MAX;
 
     for (i = 0; i <= max_order; i++) {
 
         count[i] = calc_block_size_fixed_order(ctx, block, i);
 
-        if (count[i] < count[best])
+        if (count[i] >= 0 && count[i] < count[best])
             best = i;
     }
     block->opt_order = best;
@@ -2122,7 +2115,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // LPC / PARCOR coefficients to be stored in context
     // they depend on js_block and opt_order which may be changing later on
 
-    max_order = sconf->max_order;
+    max_order = ctx->cur_stage->max_order;
     if (sconf->max_order) {
         if (sconf->adapt_order) {
             int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
@@ -2165,7 +2158,22 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // generate residuals using parameters:
 
     if (block->opt_order) {
-        calc_short_term_prediction(ctx, block, block->opt_order);
+        if (calc_short_term_prediction(ctx, block, block->opt_order)) {
+            // if PARCOR to LPC conversion has 32-bit integer overflow,
+            // fallback to using 1st order prediction
+            double parcor[block->opt_order];
+
+            if (ctx->cur_stage->adapt_order)
+                block->opt_order = 1;
+
+            memset(parcor, 0, sizeof(parcor));
+            parcor[0] = -0.9;
+            quantize_parcor_coeffs(parcor, block->opt_order,
+                                   block->q_parcor_coeff, ctx->r_parcor_coeff);
+
+            calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
+            calc_short_term_prediction(ctx, block, block->opt_order);
+        }
         block->cur_ptr = block->res_ptr;
     }
 
@@ -2443,18 +2451,9 @@ static void frame_partitioning(ALSEncContext *ctx)
 
     // ensure a certain boundary for the frame size
     // maximum value is 0xFFFF using 16 bit in ALSSpecificConf
-    // TODO: find out why small frame sizes don't work and why they crash
-    //       the decoder
-    avctx->frame_size = av_clip(avctx->frame_size, 1024, 0xFFFF);
-
-    // enforce a frame length that is a power of 2?
-    // or discard block-switching if it is not?
-    // if block-switching is enabled by default
-    // then do check
-    // exceptions for last frame which might consist
-    // of an arbitrary number of samples
-    // do special block-switching in that case like the
-    // reference enc? (2-2-1-0, refer to decoder)
+    // TODO: find out why frame size == 2 generates invalid files when
+    //       sconf->adapt_order=0 and sconf->max_order > 2.
+    avctx->frame_size = av_clip(avctx->frame_size, 3, 65535);
 
     sconf->frame_length = avctx->frame_size;
 }
@@ -2493,6 +2492,13 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     ctx->max_rice_param = sconf->resolution > 1 ? 31 : 15;
 
 
+    // set default compression level and clip to allowed range
+    if (avctx->compression_level == FF_COMPRESSION_DEFAULT)
+        avctx->compression_level = 1;
+    else
+        avctx->compression_level = av_clip(avctx->compression_level, 0, 2);
+
+
     // determine frame length
     frame_partitioning(ctx);
 
@@ -2512,11 +2518,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->ra_flag = RA_FLAG_NONE;
 
 
-    // determine if adaptive prediction order is used
-    // always use adaptive order unless the fastest compression level
-    // has been selected.
-    //
-    // while not implemented just set to non-adaptive
+    // determine if adaptive prediction order is used.
+    // since the current implementation is excruciatingly slow, don't use it
     sconf->adapt_order = 0;
 
 
@@ -2545,8 +2548,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = 0; // set to 1 to test block-switching
-                                // with two blocks per frame
+    sconf->block_switching = avctx->compression_level > 1;
+
 
     // limit the block_switching depth based on whether the full frame length
     // is evenly divisible by the minimum block size.
@@ -2559,11 +2562,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if BGMC mode is used
     // should be user-defineable
-    sconf->bgmc = 0;
+    sconf->bgmc = avctx->compression_level > 1;
 
 
     // determine what sub-block partitioning is used
-    sconf->sb_part = 1;
+    sconf->sb_part = avctx->compression_level > 0;
 
 
     // determine if joint-stereo is used
@@ -2571,7 +2574,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // set = 1 if #channels > 1 (?)
     // should be set when implemented
     // turn off for fastest compression level
-    sconf->joint_stereo = 0;
+    sconf->joint_stereo = avctx->compression_level > 0;
 
 
     // determine if multi-channel coding is used
@@ -2747,29 +2750,48 @@ static av_cold int encode_end(AVCodecContext *avctx)
 }
 
 
-static void init_hanning_window(double *window, int len)
+static void init_rect_window(double *window, int len)
 {
-    int i, n2;
-    double w, c;
+    int i;
+    for (i = 0; i < len; i++)
+        window[i] = 1.0;
+}
 
-    /* use a rectangle window for 1 to 3 samples */
-    if (len < 3) {
-        window[0] = 1.0;
-        if (len > 1)
-            window[1] = 1.0;
-    }
 
-    n2 = len >> 1;
-    c = 2.0 * M_PI / (len - 1);
+static void init_hannrect_window(double *window, int len, double param)
+{
+    int i;
+    int side_len = lrint(len / (2 * param));
+    double phi   = param * 2.0 * M_PI / (len - 1);
 
-    for (i = 0; i < n2; i++) {
-        w = 0.5 - 0.5 * cos(c * i);
+    init_rect_window(window, len);
+
+    if (side_len < 4)
+        return;
+
+    for (i = 0; i < side_len; i++) {
+        double w = 0.5 - 0.5 * cos(phi * i);
         window[i]       = w;
         window[len-i-1] = w;
     }
-    if (len & 1) {
-        w = 0.5 - 0.5 * cos(c * i);
-        window[i] = w;
+}
+
+
+static void init_sinerect_window(double *window, int len, double param)
+{
+    int i;
+    int side_len = lrint(len / (2 * param));
+    double phi   = param * M_PI / (len - 1);
+
+    init_rect_window(window, len);
+
+    if (side_len < 4)
+        return;
+
+    for (i = 0; i < side_len; i++) {
+        double w = sin(phi * i);
+        window[i]       = w;
+        window[len-i-1] = w;
     }
 }
 
@@ -2815,15 +2837,26 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     // fill options stages
+    if (avctx->compression_level == 1) {
+        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = sconf->bgmc ?
+                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
+                                                          RICE_PARAM_ALGORITHM_ESTIMATE;
+        ctx->stages[STAGE_JOINT_STEREO].count_algorithm = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
+    } else {
     ctx->stages[STAGE_JOINT_STEREO].param_algorithm     = sconf->bgmc ?
                                                           BGMC_PARAM_ALGORITHM_ESTIMATE :
                                                           RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_JOINT_STEREO].count_algorithm     = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    }
     ctx->stages[STAGE_JOINT_STEREO].adapt_algorithm     = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_JOINT_STEREO].merge_algorithm     = BS_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_JOINT_STEREO].check_constant      = 1;
     ctx->stages[STAGE_JOINT_STEREO].adapt_order         = sconf->adapt_order;
+    if (avctx->compression_level == 1) {
+        ctx->stages[STAGE_JOINT_STEREO].max_order       = 4;
+    } else {
     ctx->stages[STAGE_JOINT_STEREO].max_order           = sconf->max_order;
+    }
     ctx->stages[STAGE_JOINT_STEREO].sb_part             = sconf->sb_part;
 
     ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = sconf->bgmc ?
@@ -2967,7 +3000,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->acf_window[0] = ctx->acf_window_buffer;
     for (b = 0; b <= sconf->block_switching + 2; b++) {
         int block_length = sconf->frame_length / (1 << b);
-        init_hanning_window(ctx->acf_window[b], block_length);
+        if (avctx->sample_rate <= 48000)
+            init_sinerect_window(ctx->acf_window[b], block_length, 4);
+        else
+            init_hannrect_window(ctx->acf_window[b], block_length, 4);
         ctx->acf_window[b+1] = ctx->acf_window[b] + block_length;
         if (!sconf->block_switching)
             break;

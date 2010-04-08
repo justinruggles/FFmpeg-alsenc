@@ -59,19 +59,31 @@ void ff_als_dprint_specific_config(AVCodecContext *avctx,
 }
 
 
-void ff_als_parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof)
+int ff_als_parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof)
 {
     int i, j;
 
     for (i = 0, j = k - 1; i < j; i++, j--) {
-        int tmp1 = ((MUL64(par[k], cof[j]) + (1 << 19)) >> 20);
-        cof[j]  += ((MUL64(par[k], cof[i]) + (1 << 19)) >> 20);
-        cof[i]  += tmp1;
+        int64_t tmp1, tmp2;
+        tmp1 = cof[i] + ((MUL64(par[k], cof[j]) + (1 << 19)) >> 20);
+        if (tmp1 > INT32_MAX || tmp1 < INT32_MIN)
+            return -1;
+        tmp2 = cof[j] + ((MUL64(par[k], cof[i]) + (1 << 19)) >> 20);
+        if (tmp2 > INT32_MAX || tmp2 < INT32_MIN)
+            return -1;
+        cof[j]  = tmp2;
+        cof[i]  = tmp1;
     }
-    if (i == j)
-        cof[i] += ((MUL64(par[k], cof[j]) + (1 << 19)) >> 20);
+    if (i == j) {
+        int64_t tmp1 = cof[i] + ((MUL64(par[k], cof[j]) + (1 << 19)) >> 20);
+        if (tmp1 > INT32_MAX || tmp1 < INT32_MIN)
+            return -1;
+        cof[i] = tmp1;
+    }
 
     cof[k] = par[k];
+
+    return 0;
 }
 
 void ff_als_parse_bs_info(const uint32_t bs_info, unsigned int n,

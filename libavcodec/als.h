@@ -76,7 +76,7 @@ void ff_als_dprint_specific_config(AVCodecContext *avctx,
 /**
  * Converts PARCOR coefficient k to direct filter coefficient.
  */
-void ff_als_parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof);
+int ff_als_parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof);
 
 
 /** Parses the bs_info field to extract the block partitioning used in
