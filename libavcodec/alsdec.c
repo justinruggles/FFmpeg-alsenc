@@ -40,18 +40,7 @@
 #include "bgmc.h"
 
 #include <stdint.h>
-
-
-/** Gain values of p(0) for long-term prediction.
- *  To be indexed by the Rice coded indices.
- */
-static const uint8_t ltp_gain_values [4][4] = {
-    { 0,  8, 16,  24},
-    {32, 40, 48,  56},
-    {64, 70, 76,  82},
-    {88, 92, 96, 100}
-};
-
+static unsigned long bits_total = 0;
 
 /** Inter-channel weighting factors for multi-channel correlation.
  *  To be indexed by the Rice coded indices.
@@ -530,13 +519,23 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 
             r                 = get_unary(gb, 0, 4);
             c                 = get_bits(gb, 2);
-            bd->ltp_gain[2]   = ltp_gain_values[r][c];
+            bd->ltp_gain[2]   = ff_als_ltp_gain_values[r][c];
 
             bd->ltp_gain[3]   = decode_rice(gb, 2) << 3;
             bd->ltp_gain[4]   = decode_rice(gb, 1) << 3;
 
             *bd->ltp_lag      = get_bits(gb, ctx->ltp_lag_length);
             *bd->ltp_lag     += FFMAX(4, opt_order + 1);
+dprintf(NULL, "reading lag = %i", *bd->ltp_lag);
+dprintf(NULL, "\n");
+dprintf(NULL, "reading gain: %i %i %i %i %i\n\n",
+        bd->ltp_gain[0],
+        bd->ltp_gain[1],
+        bd->ltp_gain[2],
+        bd->ltp_gain[3],
+        bd->ltp_gain[4]
+        );
+
         }
     }
 
@@ -666,11 +665,17 @@ static int decode_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
             int base;
 
             y = 1 << 6;
+//dprintf(NULL, "ltp_ptr[%i] = %i => ltp_ptr[%i] = %lli",
+//        ltp_smp, raw_samples[ltp_smp], ltp_smp, y);
 
-            for (base = begin; base < end; base++, tab++)
+            for (base = begin; base < end; base++, tab++) {
                 y += MUL64(bd->ltp_gain[tab], raw_samples[base]);
+//dprintf(NULL, " += %lli", MUL64(bd->ltp_gain[tab], raw_samples[base]));
+            }
 
+//dprintf(NULL, " = %lli: %i", y, raw_samples[ltp_smp]);
             raw_samples[ltp_smp] += y >> 7;
+//dprintf(NULL, " + %lli = %i\n", y >> 7, raw_samples[ltp_smp]);
         }
     }
 
@@ -1257,10 +1262,13 @@ static int decode_frame(AVCodecContext *avctx,
     } else {
         INTERLEAVE_OUTPUT(32)
     }
-
+dprintf(NULL, "--- END OF FRAME ---\n");
     bytes_read = invalid_frame ? buffer_size :
                                  (get_bits_count(&ctx->gb) + 7) >> 3;
+bits_total += bytes_read;
 
+if (ctx->cur_frame_length != sconf->frame_length)
+    dprintf(NULL, " +++ total bytes = %i\n", bits_total);
     return bytes_read;
 }
 

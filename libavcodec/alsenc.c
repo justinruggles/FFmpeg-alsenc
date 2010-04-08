@@ -51,6 +51,9 @@
 /** Maximum number of blocks in a frame */
 #define ALS_MAX_BLOCKS  32
 
+/** Maximum lag value for LTP */
+#define ALS_MAX_LTP_LAG 2048
+
 
 /** Total number of stages used for allocation */
 #define NUM_STAGES 3
@@ -112,6 +115,23 @@ typedef struct {
 } ALSEncStage;
 
 
+typedef struct {
+    int use_ltp;                    ///< ltp flag
+    int lag;                        ///< lag value for long-term prediction
+    int gain[5];                    ///< gain values for ltp 5-tap filter
+    int bits_ltp;                   ///< bit count for LTP lag, gain and use_ltp flag
+} ALSLTPInfo;
+
+
+typedef struct {
+    unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
+    unsigned int rice_param[8];     ///< rice parameters to encode the residuals
+                                    ///< of this block
+    unsigned int bgmc_param[8];     ///< LSB's of estimated Rice parameters in case of BGMC mode
+    int bits_ec_param_and_res;      ///< bit count for Rice/BGMC params and residuals
+} ALSEntropyInfo;
+
+
 // probably mergeable or the very same as ALSBlockData from the decoder
 typedef struct {
     int ra_block;                   ///< indicates if this is an RA block
@@ -119,21 +139,18 @@ typedef struct {
     int32_t constant_value;         ///< if constant, this is the value
     unsigned int length;            ///< length of the block in # of samples
     int div_block;                  ///< if > 0, this block length is 1/(1<<div_block) of a full frame
-    unsigned int sub_blocks;        ///< number of entropy coding sub-blocks in this block
-    unsigned int rice_param[8];     ///< rice parameters to encode the residuals
-                                    ///< of this block
-    unsigned int bgmc_param[8];     ///< LSB's of estimated Rice parameters in case of BGMC mode
     unsigned int opt_order;         ///< prediction order for this block
     int32_t *q_parcor_coeff;        ///< 7-bit quantized PARCOR coefficients
     unsigned int js_block;          ///< indicates actual usage of joint-stereo coding
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
+    ALSLTPInfo ltp_info[2];         ///< one set of LTPInfo for non-js- and js-residuals
+    ALSEntropyInfo ent_info[2];     ///< one set of EntropyInfo for non-LTP- and LTP-residuals
     int32_t *res_ptr;               ///< points to the first residual for this block
     int32_t *smp_ptr;               ///< points to the first raw sample for this block
     int32_t *dif_ptr;               ///< points to the first difference sample for this block
     int32_t *cur_ptr;               ///< points to the current sample buffer for this block
     int bits_const_block;           ///< bit count for const block params
     int bits_misc;                  ///< bit count for js_block and shift_lsbs
-    int bits_ec_param_and_res;      ///< bit count for Rice/BGMC params and residuals
     int bits_parcor_coeff;          ///< bit count for LPC order and PARCOR coeffs
 } ALSBlock;
 
@@ -172,6 +189,8 @@ typedef struct {
     unsigned int max_rice_param;    ///< maximum Rice param, depends on sample depth
     double *acf_window_buffer;      ///< buffer containing all pre-calculated autocorrelation windows
     double *acf_window[6];          ///< pre-calculated autocorrelation windows for each block switching depth
+    int32_t *ltp_buffer;            ///< temporary buffer to store long-term predicted samples
+    double *ltp_corr_buffer;        ///< temporary buffer to store the signal during LTP autocorrelation
 } ALSEncContext;
 
 
@@ -181,6 +200,8 @@ static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage);
 static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
 static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage);
 
+static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block);
+static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block);
 
 /** Converts an array of channel-interleaved samples into
  *  multiple arrays of samples per channel
@@ -627,10 +648,42 @@ static inline int rice_count(int v, int k)
 }
 
 
-static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
+static inline int urice_count(unsigned int v, int k)
+{
+    return (v >> k) + 1 + k;
+}
+
+
+static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
 {
     int q;
+
+    /* write quotient in zero-terminated unary */
+    q = (v >> k) + 1;
+
+    /* protect from buffer overwrite */
+    if (put_bits_count(pb) + q + k > pb->size_in_bits) {
+        return -1;
+    }
+
+    while (q > 31) {
+        put_bits(pb, 31, 0x7FFFFFFF);
+        q -= 31;
+    }
+    put_bits(pb, q, ((1<<q)-1)^1);
+
+    /* write remainder using k bits */
+    if (k)
+        put_bits(pb, k, v - ((q - 1) << k));
+
+    return 0;
+}
+
+
+static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
+{
     unsigned int v0;
+    int q;
 
     /* remap to unsigned */
     if (v < -INT16_MIN || v > INT16_MAX) {
@@ -717,6 +770,32 @@ static void bgmc_encode_lsb_count(unsigned int *bits, const int32_t *symbols, un
 }
 
 
+/** Map LTP gain value to nearest flattened array index
+ */
+static int map_to_index(int gain)
+{
+    int i, diff, min_diff, best_index;
+    const uint8_t *g_ptr = &ff_als_ltp_gain_values[0][0];
+
+    min_diff   = abs((int)(*g_ptr++) - gain);
+    best_index = 0;
+    for (i = 1; i < 16; i++) {
+        diff = abs((int)(*g_ptr++) - gain);
+
+        if (!diff) {
+            return i;
+        } else if (diff < min_diff) {
+            min_diff   = diff;
+            best_index = i;
+        } else {
+            return best_index;
+        }
+    }
+
+    return best_index;
+}
+
+
 /** Write a given block of a given channel
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block)
@@ -751,6 +830,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                 put_sbits(pb, const_val_bits, block->constant_value);
         }
     } else {
+        ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+        ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
         int32_t *res_ptr;
         int sb, sb_length;
         unsigned int high;
@@ -759,9 +840,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         unsigned int delta[8];
         unsigned int k    [8];
         unsigned int max  [8];
-        unsigned int *s  = block->rice_param;
-        unsigned int *sx = block->bgmc_param;
-
+        unsigned int *s  = ent->rice_param;
+        unsigned int *sx = ent->bgmc_param;
 
         // js_block
         put_bits(pb, 1, block->js_block);
@@ -770,9 +850,9 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         // ec_sub
         if (sconf->sb_part) {
             if (sconf->bgmc)
-                put_bits(pb, 2, av_log2(block->sub_blocks));
+                put_bits(pb, 2, av_log2(ent->sub_blocks));
             else
-                put_bits(pb, 1, block->sub_blocks > 1);
+                put_bits(pb, 1, ent->sub_blocks > 1);
         }
 
 
@@ -780,18 +860,18 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         if (sconf->bgmc) {
             unsigned int S[8];
 
-            for (sb = 0; sb < block->sub_blocks; sb++)
-                S[sb] = (block->rice_param[sb] << 4) | block->bgmc_param[sb];
+            for (sb = 0; sb < ent->sub_blocks; sb++)
+                S[sb] = (ent->rice_param[sb] << 4) | ent->bgmc_param[sb];
 
             put_bits(pb, 8 + (avctx->bits_per_raw_sample > 16), S[0]);
-            for (sb = 1; sb < block->sub_blocks; sb++)
+            for (sb = 1; sb < ent->sub_blocks; sb++)
                 if (set_sr_golomb_als(pb, S[sb] - S[sb-1], 2))
                     return -1;
         } else {
-            put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), block->rice_param[0]);
+            put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), ent->rice_param[0]);
 
-            for (sb = 1; sb < block->sub_blocks; sb++) {
-                if (set_sr_golomb_als(pb, block->rice_param[sb] - block->rice_param[sb-1], 0))
+            for (sb = 1; sb < ent->sub_blocks; sb++) {
+                if (set_sr_golomb_als(pb, ent->rice_param[sb] - ent->rice_param[sb-1], 0))
                     return -1;
             }
         }
@@ -844,13 +924,24 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         // LPTenable && LTPgain && LTPlag
         if (sconf->long_term_prediction) {
-            // to be implemented
-            //
-            // until then, disable it in the block
-            // TODO: add ltp-flag into block struct when
-            //       LTP becomes reality
+            put_bits(pb, 1, block->ltp_info[block->js_block].use_ltp);
 
-            put_bits(pb, 1, 0);
+            if (block->ltp_info[block->js_block].use_ltp) {
+                ALSLTPInfo *ltp    = &block->ltp_info[block->js_block];
+                int ltp_lag_length = 8 + (avctx->sample_rate >=  96000) +
+                                         (avctx->sample_rate >= 192000);
+
+                set_sr_golomb_als(pb, ltp->gain[0] >> 3,          1);
+                set_sr_golomb_als(pb, ltp->gain[1] >> 3,          2);
+                set_ur_golomb_als(pb, map_to_index(ltp->gain[2]), 2);
+                set_sr_golomb_als(pb, ltp->gain[3] >> 3,          2);
+                set_sr_golomb_als(pb, ltp->gain[4] >> 3,          1);
+
+                put_bits(pb, ltp_lag_length, ltp->lag - FFMAX(4, block->opt_order + 1));
+
+                gen_ltp_residuals(ctx, block);
+                block->cur_ptr = ctx->ltp_buffer;
+            }
         }
 
 
@@ -859,12 +950,12 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         // the first 3 residual samples, up to opt_order
 
         res_ptr = block->cur_ptr;
-        sb_length = block->length / block->sub_blocks;
+        sb_length = block->length / ent->sub_blocks;
 
         if (sconf->bgmc)
             ff_bgmc_encode_init(&high, &low, &follow);
 
-        for (sb = 0; sb < block->sub_blocks; sb++) {
+        for (sb = 0; sb < ent->sub_blocks; sb++) {
             i = 0;
             if (!sb && block->ra_block) {
                 int len = FFMIN(block->opt_order, sb_length);
@@ -873,11 +964,11 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                         return -1;
                     i++;
                     if (len > 1) {
-                        if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(block->rice_param[sb]+3, ctx->max_rice_param)))
+                        if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(ent->rice_param[sb]+3, ctx->max_rice_param)))
                             return -1;
                         i++;
                         if (len > 2) {
-                            if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(block->rice_param[sb]+1, ctx->max_rice_param)))
+                            if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(ent->rice_param[sb]+1, ctx->max_rice_param)))
                                 return -1;
                             i++;
                         }
@@ -899,7 +990,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                 res_ptr += sb_length - i;
             } else {
                 for (; i < sb_length; i++) {
-                    if (set_sr_golomb_als(pb, *res_ptr++, block->rice_param[sb]))
+                    if (set_sr_golomb_als(pb, *res_ptr++, ent->rice_param[sb]))
                         return -1;
                 }
             }
@@ -910,7 +1001,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
             res_ptr = block->res_ptr + start;
 
-            for (sb = 0; sb < block->sub_blocks; sb++, start = 0) {
+            for (sb = 0; sb < ent->sub_blocks; sb++, start = 0) {
                 bgmc_encode_lsb(pb, res_ptr, sb_length - start, k[sb], max[sb], s[sb]);
                 res_ptr += sb_length - start;
             }
@@ -1233,6 +1324,8 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     int param[5];
     unsigned int count1, count4;
     ALSEncStage *stage = ctx->cur_stage;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
@@ -1268,9 +1361,9 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
     if (sb_max == 1 || ((param[0] == param[1]) && (param[1] == param[2]) &&
         (param[2] == param[3]))) {
-        block->sub_blocks = 1;
-        block->rice_param[0] = param[4];
-        block->bits_ec_param_and_res = count1;
+        ent->sub_blocks = 1;
+        ent->rice_param[0] = param[4];
+        ent->bits_ec_param_and_res = count1;
     }
 
     if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
@@ -1288,21 +1381,21 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     }
 
     if (count1 <= count4) {
-        block->sub_blocks = 1;
-        block->rice_param[0] = param[4];
+        ent->sub_blocks = 1;
+        ent->rice_param[0] = param[4];
     } else {
-        block->sub_blocks = 4;
-        block->rice_param[0] = param[0];
-        block->rice_param[1] = param[1];
-        block->rice_param[2] = param[2];
-        block->rice_param[3] = param[3];
+        ent->sub_blocks = 4;
+        ent->rice_param[0] = param[0];
+        ent->rice_param[1] = param[1];
+        ent->rice_param[2] = param[2];
+        ent->rice_param[3] = param[3];
     }
 
     if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
-        block->bits_ec_param_and_res = block_rice_count_exact(ctx, block,
-                                      block->sub_blocks, block->rice_param,
+        ent->bits_ec_param_and_res = block_rice_count_exact(ctx, block,
+                                      ent->sub_blocks, ent->rice_param,
                                       order);
-    block->bits_ec_param_and_res = FFMIN(count1, count4);
+    ent->bits_ec_param_and_res = FFMIN(count1, count4);
 }
 
 
@@ -1317,6 +1410,8 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     int sb_max, sb_length;
     int sb_min = 0;
     unsigned int count_min = UINT_MAX;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
@@ -1354,12 +1449,12 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
         }
     }
 
-    block->sub_blocks            = 1 << sb_min;
-    block->bits_ec_param_and_res = count_min;
+    ent->sub_blocks            = 1 << sb_min;
+    ent->bits_ec_param_and_res = count_min;
 
-    for (b = 0; b < block->sub_blocks; b++) {
-        block->rice_param[b] = s [sb_min][b];
-        block->bgmc_param[b] = sx[sb_min][b];
+    for (b = 0; b < ent->sub_blocks; b++) {
+        ent->rice_param[b] = s [sb_min][b];
+        ent->bgmc_param[b] = sx[sb_min][b];
     }
 }
 
@@ -1373,6 +1468,8 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     int best_k;
     unsigned int count1, count4;
     ALSEncStage *stage = ctx->cur_stage;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
@@ -1417,9 +1514,9 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
     /* if sub-block partitioning is not used, stop here */
     if (sb_max == 1) {
-        block->sub_blocks = 1;
-        block->rice_param[0] = param[0];
-        block->bits_ec_param_and_res = block_rice_count_exact(ctx, block, 1,
+        ent->sub_blocks = 1;
+        ent->rice_param[0] = param[0];
+        ent->bits_ec_param_and_res = block_rice_count_exact(ctx, block, 1,
                                                               param, order);
     }
 
@@ -1454,16 +1551,16 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     count1  = count[4][param[4]];
     count4 = block_rice_count_exact(ctx, block, 4, param, order);
     if (count1 <= count4) {
-        block->sub_blocks = 1;
-        block->rice_param[0] = param[4];
-        block->bits_ec_param_and_res = count1;
+        ent->sub_blocks = 1;
+        ent->rice_param[0] = param[4];
+        ent->bits_ec_param_and_res = count1;
     } else {
-        block->sub_blocks = 4;
-        block->rice_param[0] = param[0];
-        block->rice_param[1] = param[1];
-        block->rice_param[2] = param[2];
-        block->rice_param[3] = param[3];
-        block->bits_ec_param_and_res = count4;
+        ent->sub_blocks = 4;
+        ent->rice_param[0] = param[0];
+        ent->rice_param[1] = param[1];
+        ent->rice_param[2] = param[2];
+        ent->rice_param[3] = param[3];
+        ent->bits_ec_param_and_res = count4;
     }
 }
 
@@ -1551,23 +1648,74 @@ static void calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
+{
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
+    int bit_count_ltp;
+    int32_t *save_ptr  = block->cur_ptr;
+    int ltp_lag_length = 8 + (ctx->avctx->sample_rate >=  96000) +
+                             (ctx->avctx->sample_rate >= 192000);
+
+    find_block_ltp_params(ctx, block);
+    gen_ltp_residuals(ctx, block);
+
+    // generate bit count for LTP signal
+    block->cur_ptr = ctx->ltp_buffer;
+    ltp->use_ltp = 1;
+    ent = &block->ent_info[ltp->use_ltp];
+    find_block_entropy_params(ctx, block, block->opt_order);
+
+    ltp->bits_ltp = 1 + ltp_lag_length +
+                    rice_count(ltp->gain[0],               1) +
+                    rice_count(ltp->gain[1],               2) +
+                   urice_count(map_to_index(ltp->gain[2]), 2) +
+                    rice_count(ltp->gain[3],               2) +
+                    rice_count(ltp->gain[4],               1);
+
+    // test if LTP pays off
+    bit_count_ltp = block->bits_misc +
+                    block->bits_parcor_coeff +
+                    ent->bits_ec_param_and_res +
+                    ltp->bits_ltp;
+    bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
+
+    if (bit_count_ltp < *bit_count) {
+        block->cur_ptr = save_ptr;
+        *bit_count     = bit_count_ltp;
+    } else {
+        ltp->use_ltp  = 0;
+        ent = &block->ent_info[ltp->use_ltp];
+        ltp->bits_ltp = 1;
+        block->cur_ptr = save_ptr;
+    }
+}
+
+
 static uint32_t calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
                                             int order)
 {
     uint32_t count;
     int32_t *save_ptr = block->cur_ptr;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     if (order) {
         calc_short_term_prediction(ctx, block, order);
         block->cur_ptr = block->res_ptr;
     }
     calc_parcor_coeff_bit_size(ctx, block, order);
+
+
     find_block_entropy_params (ctx, block, order);
 
     count  = block->bits_misc + block->bits_parcor_coeff +
-                    block->bits_ec_param_and_res;
+                    ent->bits_ec_param_and_res;
     count += (8 - (count & 7)) & 7; // byte align
-
+#if 0
+    if (ctx->sconf.long_term_prediction)
+        check_ltp(ctx, block, &count);
+#endif
     block->cur_ptr = save_ptr;
 
     return count;
@@ -1628,6 +1776,290 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
+/* Generate a weighted residual signal for autocorrelation detection
+ * used in LTP mode
+ */
+static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
+                                int lag_max)
+{
+    int len          = (int)block->length;
+    int32_t *cur_ptr = block->cur_ptr;
+    uint64_t sum      = 0;
+    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double mean_quot;
+    int i;
+
+    // determine absolute mean of residual signal,
+    // including previous samples
+    for (i = -lag_max; i < len; i++)
+        sum += abs(cur_ptr[i]);
+    mean_quot = (double)(sum) / (block->length + lag_max);
+
+    // apply weighting:
+    // x *= 1 / [ sqrt(abs(x)) / 5*sqrt(mean) + 1 ]  // XXX: what weighting function is this?
+    mean_quot = (sqrt(mean_quot) * 5);
+    for (i = -lag_max - 2; i < len; i++)
+        corr_ptr[i] = cur_ptr[i] / (sqrt(abs(cur_ptr[i])) / mean_quot + 1);
+}
+
+
+/* Generate the autocorrelation function and find
+ * its positive maximum value to be used for LTP lag
+ */
+static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
+                               int lag_max, int start)
+{
+    int smp, lag;
+    int begin        = 0;
+    int end          = block->length;
+    int lag_best     = 0;
+    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double sum_a     = 0;
+    double acorr_max = -1;
+
+
+    // XXX: sum_a can become zero if there is no check
+    // for constant zero signal prior to LTP!
+
+    // calculate autocorrelation coefficient of original signal
+    for (smp = begin - start; smp < end - start; smp++)
+        sum_a += corr_ptr[smp] * corr_ptr[smp];
+
+    // compute normalized autocorrelation for each possible lag
+    for (lag = start; lag < lag_max; lag++) {
+        double sum_b = 0;
+        double acorr;
+        int first = begin - lag - 1;
+        int last  = end   - lag - 1;
+
+        // calculate autocorrelation coefficient
+        for (smp = begin - lag; smp < end - lag; smp++)
+            sum_b += corr_ptr[smp + lag] * corr_ptr[smp];
+
+        // skip negative autocorrelation coefficients
+        if (sum_b >= 0) {
+            // normalize autocorrelation coefficient
+            acorr = sum_b * sum_b / sum_a;
+
+            // save maximum autocorrelation
+            if (acorr > acorr_max) {
+                lag_best   = lag;
+                acorr_max = acorr;
+            }
+        }
+
+        // update autocorrelation coefficient of
+        // original signal for next iteration
+        sum_a += corr_ptr[first] * corr_ptr[first] -
+                 corr_ptr[ last] * corr_ptr[ last];
+    }
+
+    block->ltp_info[block->js_block].lag = lag_best;
+}
+
+
+#if 1
+static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
+                                int lag_max)
+{
+    int *ltp_gain = block->ltp_info[block->js_block].gain;
+
+    ltp_gain[0] = 8;
+    ltp_gain[1] = 8;
+    ltp_gain[2] = 16;
+    ltp_gain[3] = 8;
+    ltp_gain[4] = 8;
+}
+#else
+// XXX: replace me
+///////////////////// begin of shameless adapted copy from reference
+static void	Cholesky( double* a, double* b, const double* c, int n )
+{
+	int		i, j, k, zeroflag = 0;
+	double	acc;
+    static	const double	eps = 1.e-16;
+
+	double t[ n*n ];
+	double invt[ n ];
+
+
+	t[0] = sqrt( a[0] + eps );
+	invt[0] = 1. / t[0];
+	for( k=1; k<n; k++ ) t[k*n] = a[k*n] * invt[0];
+	for( i=1; i<n; i++ ) {
+		acc = a[i*n+i] + eps;
+		for( k=0; k<i; k++ ) acc -= t[i*n+k] * t[i*n+k];
+		if(acc <= 0.0){ zeroflag=1; break;}
+		t[i*n+i] = sqrt( acc );
+		invt[i] = 1. / t[i*n+i];
+		for( j=i+1; j<n; j++ ) {
+			acc = a[j*n+i] + eps;
+			for( k=0; k<i; k++ ) acc -= t[j*n+k] * t[i*n+k];
+			t[j*n+i] = acc * invt[i];
+		}
+	}
+
+	if(zeroflag) {
+		for(i = 0; i < n; i++) b[i] = 0.0;
+		return;
+	}
+
+	for( i=0; i<n; i++ ) {
+		acc = c[i];
+		for( k=0; k<i; k++ ) acc -= t[i*n+k] * a[k];
+		a[i] = acc * invt[i];
+	}
+
+	for( i=n-1; i>=0; i-- ) {
+		acc = a[i];
+		for( k=i+1; k<n; k++ ) acc -= t[k*n+i] * b[k];
+		b[i] = acc * invt[i];
+	}
+}
+
+
+static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
+                                int lag_max)
+{
+    int flag = 0;
+    int icc;
+    int smp, i;
+    int taumax = block->ltp_info[block->js_block].lag;
+    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+
+    double ioa[25], ob[5], ic[5];
+    double powc0  = 0.0, powc1  = 0.0, powc2  = 0.0, powc3  = 0.0, powc4  = 0.0;
+    double pwm2m2 = 0.0, pwm2m1 = 0.0, pwm20  = 0.0, pwm2p1 = 0.0, pwm2p2 = 0.0;
+    double pwm1m1 = 0.0, pwm10  = 0.0, pwm1p1 = 0.0, pwm1p2 = 0.0;
+    double pw00   = 0.0, pw0p1  = 0.0, pw0p2  = 0.0;
+    double pwp1p1 = 0.0, pwp1p2 = 0.0;
+    double pwp2p2 = 0.0;
+
+    for( smp=-taumax; smp<(int)(block->length)-taumax-2; smp++ ) {
+        powc0 += corr_ptr[smp+taumax] * corr_ptr[smp-2];
+        powc1 += corr_ptr[smp+taumax] * corr_ptr[smp-1];
+        powc2 += corr_ptr[smp+taumax] * corr_ptr[smp];
+        powc3 += corr_ptr[smp+taumax] * corr_ptr[smp+1];
+        powc4 += corr_ptr[smp+taumax] * corr_ptr[smp+2];
+
+        pwm2m2 += corr_ptr[smp-2] * corr_ptr[smp-2];
+        pwm2m1 += corr_ptr[smp-2] * corr_ptr[smp-1];
+        pwm20  += corr_ptr[smp-2] * corr_ptr[smp];
+        pwm2p1 += corr_ptr[smp-2] * corr_ptr[smp+1];
+        pwm2p2 += corr_ptr[smp-2] * corr_ptr[smp+2];
+        pwm1m1 += corr_ptr[smp-1] * corr_ptr[smp-1];
+        pwm10  += corr_ptr[smp-1] * corr_ptr[smp];
+        pwm1p1 += corr_ptr[smp-1] * corr_ptr[smp+1];
+        pwm1p2 += corr_ptr[smp-1] * corr_ptr[smp+2];
+        pw00   += corr_ptr[smp]   * corr_ptr[smp];
+        pw0p1  += corr_ptr[smp]   * corr_ptr[smp+1];
+        pw0p2  += corr_ptr[smp]   * corr_ptr[smp+2];
+        pwp1p1 += corr_ptr[smp+1] * corr_ptr[smp+1];
+        pwp1p2 += corr_ptr[smp+1] * corr_ptr[smp+2];
+        pwp2p2 += corr_ptr[smp+2] * corr_ptr[smp+2];
+    }
+
+    ic[0] = powc0;
+    ic[1] = powc1;
+    ic[2] = powc2;
+    ic[3] = powc3;
+    ic[4] = powc4;
+    ioa[ 0] = pwm2m2;
+    ioa[ 1] = ioa[ 5] = pwm2m1;
+    ioa[ 2] = ioa[10] = pwm20;
+    ioa[ 3] = ioa[15] = pwm2p1;
+    ioa[ 4] = ioa[20] = pwm2p2;
+    ioa[ 6] = pwm1m1;
+    ioa[ 7] = ioa[11] = pwm10;
+    ioa[ 8] = ioa[16] = pwm1p1;
+    ioa[ 9] = ioa[21] = pwm1p2;
+    ioa[12] = pw00;
+    ioa[13] = ioa[17] = pw0p1;
+    ioa[14] = ioa[22] = pw0p2;
+    ioa[18] = pwp1p1;
+    ioa[19] = ioa[23] = pwp1p2;
+    ioa[24] = pwp2p2;
+
+    Cholesky(ioa, ob, ic, 5);
+
+
+    // calculate coefficients
+    {
+        // 0,1 and 3,4
+        int *ltp_gain = block->ltp_info[block->js_block].gain;
+        int quant     = ceil(ob[2] * 256 + 0.5);
+
+        for(icc=0; icc<5; icc++) {
+            if (icc == 2) continue;
+            ltp_gain[icc] = ob[icc] * 16 + ((ob[icc] > 0) ? 0.5 : -0.5);
+            ltp_gain[icc] = av_clip(ltp_gain[icc], -8, 8) << 3;
+        }
+
+        // 2
+        ltp_gain[2] = 0;
+        for(i = 15; i >= 1; i--) {
+            uint8_t cur = ff_als_ltp_gain_values[i >> 2][i & 3];
+
+            if (quant > cur + ff_als_ltp_gain_values[(i-1) >> 2][(i-1) & 3]) {
+                ltp_gain[2] = cur;
+                return;
+            }
+        }
+    }
+}
+///////////////////// end of shameless adapted copy from reference
+#endif
+
+
+
+/** Select the best set of LTP parameters based on maximum autocorrelation
+ *  value of the weighted residual signal
+ */
+static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
+{
+    AVCodecContext *avctx    = ctx->avctx;
+
+    int start   = FFMAX(4, block->opt_order + 1);
+    int lag     = 256 << (  (avctx->sample_rate >=  96000)
+                          + (avctx->sample_rate >= 192000));
+    int lag_max = FFMIN(lag + start, FFMIN(ALS_MAX_LTP_LAG, block->length));
+
+    get_weighted_signal(ctx, block, lag_max);
+    find_best_autocorr (ctx, block, lag_max, start);
+    get_ltp_coeffs     (ctx, block, lag_max);
+}
+
+
+/** Generate the long-term predicted residuals for a given block
+ *  using the current set of LTP parameters
+ */
+static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
+{
+    ALSLTPInfo *ltp  = &block->ltp_info[block->js_block];
+    int32_t *ltp_ptr = ctx->ltp_buffer;
+    int offset = FFMAX(ltp->lag - 2, 0);
+    unsigned int ltp_smp;
+    int64_t y;
+
+    memcpy(ltp_ptr, block->cur_ptr, sizeof(*ltp_ptr) * offset);
+
+    for (ltp_smp = offset; ltp_smp < block->length; ltp_smp++) {
+        int center = ltp_smp - ltp->lag;
+        int begin  = FFMAX(0, center - 2);
+        int end    = center + 3;
+        int tab    = 5 - (end - begin);
+        int base;
+
+        y = 1 << 6;
+
+        for (base = begin; base < end; base++, tab++)
+            y += MUL64(ltp->gain[tab], block->cur_ptr[base]);
+
+        ltp_ptr[ltp_smp] = block->cur_ptr[ltp_smp] - (y >> 7);
+    }
+}
+
+
 /** Encode a given block of a given channel
  * @return number of bits that will be used to encode the block using the
  *         determined parameters
@@ -1636,6 +2068,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
     int bit_count, max_order;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     block->cur_ptr = block->js_block ? block->dif_ptr : block->smp_ptr;
 
@@ -1736,13 +2170,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     }
 
 
-    // long-term prediction:
-    // to be implemented
-    //
-    // if enabled, search for ltp coefficients, lag, and whether ltp
-    // should be enabled in this block
-
-
     // final joint or multi channel coding:
     // to be implemented
     //
@@ -1750,11 +2177,20 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
 
     // search for rice parameter:
+    ltp->use_ltp = 0;
+    ent = &block->ent_info[ltp->use_ltp];
     find_block_entropy_params(ctx, block, block->opt_order);
 
     bit_count = block->bits_misc + block->bits_parcor_coeff +
-                block->bits_ec_param_and_res;
+                ent->bits_ec_param_and_res + ltp->bits_ltp;
     bit_count += (8 - (bit_count & 7)) & 7; // byte align
+
+
+    // determine lag and gain values for long-term prediction and
+    // check if long-term prediction pays off for this block
+    // and use LTP for this block if it does
+    if (sconf->long_term_prediction)
+        check_ltp(ctx, block, &bit_count);
 
     return bit_count;
 }
@@ -2092,7 +2528,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // determine if long-term prediction is used
     // should also be user-defineable
     // TODO: make this depend on compression level
-    sconf->long_term_prediction = 0;
+    sconf->long_term_prediction = 1;
 
 
     // determine a maximum prediction order
@@ -2300,6 +2736,8 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
     av_freep(&ctx->acf_window);
+    av_freep(&ctx->ltp_buffer);
+    av_freep(&ctx->ltp_corr_buffer);
 
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
@@ -2445,6 +2883,17 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
+    if (sconf->long_term_prediction) {
+        ctx->ltp_buffer = av_malloc(sizeof(*ctx->ltp_buffer) * sconf->frame_length);
+        ctx->ltp_corr_buffer = av_malloc (sizeof(*ctx->ltp_corr_buffer) * sconf->frame_length +
+                                          FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length));
+
+        if (!ctx->ltp_buffer || !ctx->ltp_corr_buffer) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            encode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
+    }
 
     // assign buffer pointers
     ctx->raw_samples    [0] = ctx->raw_buffer     + sconf->max_order;

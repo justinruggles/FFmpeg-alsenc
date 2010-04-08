@@ -87,3 +87,14 @@ const int8_t ff_als_parcor_rice_table[3][20][2] = {
       {-20, 3}, { 16, 3}, {-13, 3}, { 10, 3}, { -7, 3},
       {  3, 3}, {  0, 3}, { -1, 3}, {  2, 3}, { -1, 2} }
 };
+
+
+/** Gain values of p(0) for long-term prediction.
+ *  To be indexed by the Rice coded indices.
+ */
+const uint8_t ff_als_ltp_gain_values [4][4] = {
+    { 0,  8, 16,  24},
+    {32, 40, 48,  56},
+    {64, 70, 76,  82},
+    {88, 92, 96, 100}
+};

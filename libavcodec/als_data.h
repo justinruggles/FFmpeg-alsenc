@@ -27,5 +27,6 @@
 
 extern const int16_t ff_als_parcor_scaled_values[128];
 extern const int8_t  ff_als_parcor_rice_table[3][20][2];
+extern const uint8_t ff_als_ltp_gain_values[4][4];
 
 #endif /* AVCODEC_ALS_DATA_H */
