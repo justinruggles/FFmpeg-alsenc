@@ -1963,7 +1963,6 @@ static void	Cholesky( double* a, double* b, const double* c, int n )
 static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
                                 int lag_max)
 {
-    int flag = 0;
     int icc;
     int smp, i;
     int taumax = block->ltp_info[block->js_block].lag;
