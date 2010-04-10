@@ -1394,14 +1394,14 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
  */
 static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int order)
 {
-    ALSEncStage *stage = ctx->cur_stage;
+    ALSEncStage    *stage = ctx->cur_stage;
+    ALSLTPInfo     *ltp   = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent   = &block->ent_info[ltp->use_ltp];
     int s[4][8], sx[4][8];
     int sb, b;
     int sb_max;
-    int sb_min = 0;
-    unsigned int count_min = UINT_MAX;
-    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
-    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
+    int sb_best = 0;
+    unsigned int count_best = UINT_MAX;
 
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
@@ -1439,18 +1439,18 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
 
         count += 2 + ctx->sconf.sb_part; // ec_sub
 
-        if (count < count_min) {
-            count_min = count;
-            sb_min    = sb;
+        if (count < count_best) {
+            count_best = count;
+            sb_best    = sb;
         }
     }
 
-    ent->sub_blocks            = 1 << sb_min;
-    ent->bits_ec_param_and_res = count_min;
+    ent->sub_blocks            = 1 << sb_best;
+    ent->bits_ec_param_and_res = count_best;
 
     for (b = 0; b < ent->sub_blocks; b++) {
-        ent->rice_param[b] = s [sb_min][b];
-        ent->bgmc_param[b] = sx[sb_min][b];
+        ent->rice_param[b] = s [sb_best][b];
+        ent->bgmc_param[b] = sx[sb_best][b];
     }
 }
 
