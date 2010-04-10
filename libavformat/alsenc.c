@@ -52,7 +52,6 @@ static int als_write_header(struct AVFormatContext *s)
 static int als_write_trailer(struct AVFormatContext *s)
 {
     ByteIOContext *pb = s->pb;
-    AVCodecContext *avctx = s->streams[0]->codec;
     AlsEncContext *ctx = s->priv_data;
     int header_size;
 
