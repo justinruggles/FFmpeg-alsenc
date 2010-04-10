@@ -23,6 +23,7 @@ OBJS-$(CONFIG_ADTS_MUXER)                += adtsenc.o
 OBJS-$(CONFIG_AEA_DEMUXER)               += aea.o raw.o
 OBJS-$(CONFIG_AIFF_DEMUXER)              += aiffdec.o riff.o raw.o
 OBJS-$(CONFIG_AIFF_MUXER)                += aiffenc.o riff.o
+OBJS-$(CONFIG_ALS_MUXER)                 += alsenc.o
 OBJS-$(CONFIG_AMR_DEMUXER)               += amr.o
 OBJS-$(CONFIG_AMR_MUXER)                 += amr.o
 OBJS-$(CONFIG_ANM_DEMUXER)               += anm.o
