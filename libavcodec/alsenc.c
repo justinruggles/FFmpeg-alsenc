@@ -1285,20 +1285,19 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 /** Get an estimated Rice parameter and split it into its LSB and MSB
  *  for further processing in BGMC
  */
-static void find_subblock_bgmc_params_est(uint64_t sum, unsigned int n, int *s, int *sx)
+static inline void find_subblock_bgmc_params_est(uint64_t sum, unsigned int n,
+                                                 int *s, int *sx)
 {
 #define OFFSET 0.97092725747512664825  /* 0.5 + log2(1.386) */
-    int tmp;
 
     if (!sum) { // avoid log2(0)
-        tmp = 0;
+        *sx = *s = 0;
     } else {
-        tmp = (int)(16.0 * (log2(sum) - log2(n) + OFFSET));
+        int tmp = (int)(16.0 * (log2(sum) - log2(n) + OFFSET));
         tmp = FFMAX(tmp, 0);
+        *sx = tmp & 0x0F;
+        *s  = tmp >> 4;
     }
-
-    *sx = tmp & 0x0F;
-    *s  = tmp >> 4;
 }
 
 
