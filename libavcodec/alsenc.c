@@ -1414,7 +1414,7 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
         int num_subblocks  = 1 << sb;
         int sb_length      = block->length / num_subblocks;
         unsigned int count = 0;
-        int32_t *res_ptr   = block->res_ptr;
+        int32_t *res_ptr   = block->cur_ptr;
 
         for (b = 0; b < num_subblocks; b++) {
             /* TODO: find_subblock_bgmc_params_est() uses sum of absolute
