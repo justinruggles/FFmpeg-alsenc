@@ -1919,46 +1919,46 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
 ///////////////////// begin of shameless adapted copy from reference
 static void	Cholesky( double* a, double* b, const double* c, int n )
 {
-	int		i, j, k, zeroflag = 0;
-	double	acc;
-    static	const double	eps = 1.e-16;
+    int        i, j, k, zeroflag = 0;
+    double    acc;
+    static    const double    eps = 1.e-16;
 
-	double t[ n*n ];
-	double invt[ n ];
+    double t[ n*n ];
+    double invt[ n ];
 
 
-	t[0] = sqrt( a[0] + eps );
-	invt[0] = 1. / t[0];
-	for( k=1; k<n; k++ ) t[k*n] = a[k*n] * invt[0];
-	for( i=1; i<n; i++ ) {
-		acc = a[i*n+i] + eps;
-		for( k=0; k<i; k++ ) acc -= t[i*n+k] * t[i*n+k];
-		if(acc <= 0.0){ zeroflag=1; break;}
-		t[i*n+i] = sqrt( acc );
-		invt[i] = 1. / t[i*n+i];
-		for( j=i+1; j<n; j++ ) {
-			acc = a[j*n+i] + eps;
-			for( k=0; k<i; k++ ) acc -= t[j*n+k] * t[i*n+k];
-			t[j*n+i] = acc * invt[i];
-		}
-	}
+    t[0] = sqrt( a[0] + eps );
+    invt[0] = 1. / t[0];
+    for( k=1; k<n; k++ ) t[k*n] = a[k*n] * invt[0];
+    for( i=1; i<n; i++ ) {
+        acc = a[i*n+i] + eps;
+        for( k=0; k<i; k++ ) acc -= t[i*n+k] * t[i*n+k];
+        if(acc <= 0.0){ zeroflag=1; break;}
+        t[i*n+i] = sqrt( acc );
+        invt[i] = 1. / t[i*n+i];
+        for( j=i+1; j<n; j++ ) {
+            acc = a[j*n+i] + eps;
+            for( k=0; k<i; k++ ) acc -= t[j*n+k] * t[i*n+k];
+            t[j*n+i] = acc * invt[i];
+        }
+    }
 
-	if(zeroflag) {
-		for(i = 0; i < n; i++) b[i] = 0.0;
-		return;
-	}
+    if(zeroflag) {
+        for(i = 0; i < n; i++) b[i] = 0.0;
+        return;
+    }
 
-	for( i=0; i<n; i++ ) {
-		acc = c[i];
-		for( k=0; k<i; k++ ) acc -= t[i*n+k] * a[k];
-		a[i] = acc * invt[i];
-	}
+    for( i=0; i<n; i++ ) {
+        acc = c[i];
+        for( k=0; k<i; k++ ) acc -= t[i*n+k] * a[k];
+        a[i] = acc * invt[i];
+    }
 
-	for( i=n-1; i>=0; i-- ) {
-		acc = a[i];
-		for( k=i+1; k<n; k++ ) acc -= t[k*n+i] * b[k];
-		b[i] = acc * invt[i];
-	}
+    for( i=n-1; i>=0; i-- ) {
+        acc = a[i];
+        for( k=i+1; k<n; k++ ) acc -= t[k*n+i] * b[k];
+        b[i] = acc * invt[i];
+    }
 }
 
 
