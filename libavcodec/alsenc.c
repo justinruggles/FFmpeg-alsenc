@@ -1437,7 +1437,7 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
             }
         }
 
-        count += 1 + stage->sb_part; // ec_sub
+        count += 2 + ctx->sconf.sb_part; // ec_sub
 
         if (count < count_min) {
             count_min = count;
