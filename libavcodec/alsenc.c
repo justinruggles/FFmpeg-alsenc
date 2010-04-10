@@ -1262,7 +1262,7 @@ static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
 #define rice_encode_count(sum, n, k) (((n)*((k)+1))+((sum-(n>>1))>>(k)))
 
 
-static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
+static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
 {
     int k;
 
@@ -1285,8 +1285,8 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 /** Get an estimated Rice parameter and split it into its LSB and MSB
  *  for further processing in BGMC
  */
-static inline void find_subblock_bgmc_params_est(uint64_t sum, unsigned int n,
-                                                 int *s, int *sx)
+static inline void estimate_bgmc_params(uint64_t sum, unsigned int n, int *s,
+                                        int *sx)
 {
 #define OFFSET 0.97092725747512664825  /* 0.5 + log2(1.386) */
 
@@ -1332,10 +1332,10 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         }
         sum[4] += sum[sb];
 
-        param[sb] = optimal_rice_param(sum[sb], sb_length, ctx->max_rice_param);
+        param[sb] = estimate_rice_param(sum[sb], sb_length, ctx->max_rice_param);
     }
 
-    param[4] = optimal_rice_param(sum[4], block->length, ctx->max_rice_param);
+    param[4] = estimate_rice_param(sum[4], block->length, ctx->max_rice_param);
 
     if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
         count1 = block_rice_count_exact(ctx, block, 1, &param[4], order);
@@ -1421,7 +1421,7 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
             } else {
                 sum[sb][b] = sum[sb+1][b<<1] + sum[sb+1][(b<<1)+1];
             }
-            find_subblock_bgmc_params_est(sum[sb][b], sb_length, &s[sb][b], &sx[sb][b]);
+            estimate_bgmc_params(sum[sb][b], sb_length, &s[sb][b], &sx[sb][b]);
 
             count += subblock_bgmc_count_exact(res_ptr, block->length,
                                                sx[sb][b], sb_length, s[sb][b],
