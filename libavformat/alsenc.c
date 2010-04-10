@@ -37,6 +37,8 @@ static int als_write_header(struct AVFormatContext *s)
     /* get offset of ALSSpecificConfig in extradata */
     config_offset = ff_mpeg4audio_get_config(&m4ac, avctx->extradata,
                                              avctx->extradata_size);
+    if (config_offset < 0)
+        return -1;
 
     config_offset = (config_offset + 7) >> 3;
     ctx->header_size = avctx->extradata_size - config_offset;
