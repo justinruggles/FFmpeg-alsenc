@@ -1396,13 +1396,13 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
 {
     ALSEncStage *stage = ctx->cur_stage;
     int s[4][8], sx[4][8];
-    int sb, num_subblocks, b;
-    int count[4];
-    int sb_max, sb_length;
+    int sb, b;
+    int sb_max;
     int sb_min = 0;
     unsigned int count_min = UINT_MAX;
     ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
+
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 0;
@@ -1411,9 +1411,9 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
 
 
     for (sb = 0; sb <= sb_max; sb++) {
-        num_subblocks = 1 << sb;
-        sb_length     = block->length / num_subblocks;
-        count[sb]     = 0;
+        int num_subblocks  = 1 << sb;
+        int sb_length      = block->length / num_subblocks;
+        unsigned int count = 0;
 
         for (b = 0; b < num_subblocks; b++) {
             /* TODO: find_subblock_bgmc_params_est() uses sum of absolute
@@ -1422,24 +1422,25 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
                      it again. See flacenc.c */
             find_subblock_bgmc_params_est(block->res_ptr + b * sb_length, sb_length, &s[sb][b], &sx[sb][b]);
 
-            count[sb] += subblock_bgmc_count_exact(block->res_ptr + b * sb_length,
-                                                   block->length, sx[sb][b],
-                                                   sb_length, s[sb][b], ctx->max_rice_param,
-                                                   !b && block->ra_block, order);
+            count += subblock_bgmc_count_exact(block->res_ptr + b * sb_length,
+                                               block->length, sx[sb][b],
+                                               sb_length, s[sb][b],
+                                               ctx->max_rice_param,
+                                               !b && block->ra_block, order);
 
             if (!b) {
-                count[sb] += 8 + (ctx->max_rice_param > 15);    // S[0]
+                count += 8 + (ctx->max_rice_param > 15);    // S[0]
             } else {
                 int S = ((s[sb][b    ] << 4) | sx[sb][b    ])
                       - ((s[sb][b - 1] << 4) | sx[sb][b - 1]);
-                count[sb] += rice_count(S, 2);                  // S[i]
+                count += rice_count(S, 2);                  // S[i]
             }
         }
 
-        count[sb] += 1 + stage->sb_part; // ec_sub
+        count += 1 + stage->sb_part; // ec_sub
 
-        if (count[sb] < count_min) {
-            count_min = count[sb];
+        if (count < count_min) {
+            count_min = count;
             sb_min    = sb;
         }
     }
