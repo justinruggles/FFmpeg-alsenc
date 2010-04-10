@@ -1414,17 +1414,17 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
         int num_subblocks  = 1 << sb;
         int sb_length      = block->length / num_subblocks;
         unsigned int count = 0;
+        int32_t *res_ptr   = block->res_ptr;
 
         for (b = 0; b < num_subblocks; b++) {
             /* TODO: find_subblock_bgmc_params_est() uses sum of absolute
                      residuals. we can start at lower levels and add each of
                      the 2 sums for the next highest level to avoid calculating
                      it again. See flacenc.c */
-            find_subblock_bgmc_params_est(block->res_ptr + b * sb_length, sb_length, &s[sb][b], &sx[sb][b]);
+            find_subblock_bgmc_params_est(res_ptr, sb_length, &s[sb][b], &sx[sb][b]);
 
-            count += subblock_bgmc_count_exact(block->res_ptr + b * sb_length,
-                                               block->length, sx[sb][b],
-                                               sb_length, s[sb][b],
+            count += subblock_bgmc_count_exact(res_ptr, block->length,
+                                               sx[sb][b], sb_length, s[sb][b],
                                                ctx->max_rice_param,
                                                !b && block->ra_block, order);
 
@@ -1435,6 +1435,8 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
                       - ((s[sb][b - 1] << 4) | sx[sb][b - 1]);
                 count += rice_count(S, 2);                  // S[i]
             }
+
+            res_ptr += sb_length;
         }
 
         count += 2 + ctx->sconf.sb_part; // ec_sub
