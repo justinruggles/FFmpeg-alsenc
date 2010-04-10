@@ -2506,10 +2506,10 @@ static void frame_partitioning(ALSEncContext *ctx)
     }
 
     // ensure a certain boundary for the frame size
-    // maximum value is 0xFFFF using 16 bit in ALSSpecificConf
+    // frame length - 1 in ALSSpecificConfig is 16-bit, so max value is 65536
     // frame size == 1 is not allowed because it is used in ffmpeg as a
     // special-case value to indicate PCM audio
-    avctx->frame_size = av_clip(avctx->frame_size, 2, 65535);
+    avctx->frame_size = av_clip(avctx->frame_size, 2, 65536);
 
     sconf->frame_length = avctx->frame_size;
 }
