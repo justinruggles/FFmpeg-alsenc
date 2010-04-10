@@ -2500,7 +2500,7 @@ static void frame_partitioning(ALSEncContext *ctx)
         if (avctx->sample_rate <= 24000)
             avctx->frame_size = 1024;
         else if(avctx->sample_rate <= 48000)
-        avctx->frame_size = 2048;
+            avctx->frame_size = 2048;
         else if(avctx->sample_rate <= 96000)
             avctx->frame_size = 4096;
         else
