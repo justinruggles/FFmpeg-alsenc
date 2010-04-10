@@ -2496,8 +2496,16 @@ static void frame_partitioning(ALSEncContext *ctx)
     // choose standard value 2048 if not user-defined
     // maybe choose an appropriate size that depends on
     // the sample rate
-    if (avctx->frame_size <= 0)
+    if (avctx->frame_size <= 0) {
+        if (avctx->sample_rate <= 24000)
+            avctx->frame_size = 1024;
+        else if(avctx->sample_rate <= 48000)
         avctx->frame_size = 2048;
+        else if(avctx->sample_rate <= 96000)
+            avctx->frame_size = 4096;
+        else
+            avctx->frame_size = 8192;
+    }
 
     // ensure a certain boundary for the frame size
     // maximum value is 0xFFFF using 16 bit in ALSSpecificConf
