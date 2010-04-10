@@ -947,17 +947,20 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         for (sb = 0; sb < ent->sub_blocks; sb++) {
             i = 0;
             if (!sb && block->ra_block) {
-                int len = FFMIN(block->opt_order, sb_length);
+                int len = block->opt_order;
+                int32_t write;
                 if (len > 0) {
                     if (set_sr_golomb_als(pb, *res_ptr++, avctx->bits_per_raw_sample-4))
                         return -1;
                     i++;
                     if (len > 1) {
-                        if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(ent->rice_param[sb]+3, ctx->max_rice_param)))
+                        write = sb_length <= 1 ? 0 : *res_ptr++;
+                        if (set_sr_golomb_als(pb, write, FFMIN(ent->rice_param[sb]+3, ctx->max_rice_param)))
                             return -1;
                         i++;
                         if (len > 2) {
-                            if (set_sr_golomb_als(pb, *res_ptr++, FFMIN(ent->rice_param[sb]+1, ctx->max_rice_param)))
+                            write = sb_length <= 2 ? 0 : *res_ptr++;
+                            if (set_sr_golomb_als(pb, write, FFMIN(ent->rice_param[sb]+1, ctx->max_rice_param)))
                                 return -1;
                             i++;
                         }
