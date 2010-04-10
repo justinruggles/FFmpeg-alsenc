@@ -2857,7 +2857,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
 {
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
-    unsigned int channel_size;
+    unsigned int channel_size, channel_offset;
     int ret, b, c;
     int num_bs_sizes;
 
@@ -2882,7 +2882,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     sconf->samples = 0;
 
 
-    channel_size = sconf->frame_length + sconf->max_order;
+    channel_offset = sconf->long_term_prediction ? ALS_MAX_LTP_LAG : sconf->max_order;
+    channel_size = sconf->frame_length + channel_offset;
 
 
     // set up stage options
@@ -2949,7 +2950,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->raw_dif_buffer    = av_mallocz(sizeof(*ctx->raw_dif_buffer)  * (avctx->channels >> 1) * channel_size);
     ctx->raw_dif_samples   = av_malloc (sizeof(*ctx->raw_dif_samples) * (avctx->channels >> 1));
     ctx->res_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)     * avctx->channels * channel_size);
-    ctx->res_samples       = av_malloc (sizeof(*ctx->raw_samples)    * avctx->channels);
+    ctx->res_samples       = av_malloc (sizeof(*ctx->res_samples)    * avctx->channels);
     ctx->num_blocks        = av_malloc (sizeof(*ctx->num_blocks)     * avctx->channels);
     ctx->bs_info           = av_malloc (sizeof(*ctx->bs_info)        * avctx->channels);
     ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * ALS_MAX_BLOCKS);
@@ -2987,9 +2988,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     // assign buffer pointers
-    ctx->raw_samples    [0] = ctx->raw_buffer     + sconf->max_order;
-    ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + sconf->max_order;
-    ctx->res_samples    [0] = ctx->res_buffer     + sconf->max_order;
+    ctx->raw_samples    [0] = ctx->raw_buffer     + channel_offset;
+    ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + channel_offset;
+    ctx->res_samples    [0] = ctx->res_buffer     + channel_offset;
     ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
