@@ -1405,7 +1405,7 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
-        sb_max = 1;
+        sb_max = 0;
     else
         sb_max = 3;
 
