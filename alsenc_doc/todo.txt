@@ -1,4 +1,28 @@
 Simple To-Do list for the ALS encoder:
 
-- do more planning...
+- LTP coefficients via FFmpeg functions (LLS)
 
+- Shift LSBs
+
+- experiment with adaptive order search using Tilman's algorithm
+
+- setting parameters via fields other than compression_level
+
+- better BGMC param search
+
+- non-RA frames
+
+- Channel reordering
+
+- CRC32 calculation (see how it is done for MD5 in FLAC)
+
+- Code review & beautification
+
+
+Advanced feature TODO list:
+
+- RLS-LMS prediction
+
+- Multi-Channel Coding
+
+- Floating-point samples
