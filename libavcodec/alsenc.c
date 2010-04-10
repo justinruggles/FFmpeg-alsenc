@@ -1285,15 +1285,10 @@ static inline int optimal_rice_param(uint64_t sum, int length, int max_param)
 /** Get an estimated Rice parameter and split it into its LSB and MSB
  *  for further processing in BGMC
  */
-static void find_subblock_bgmc_params_est(int32_t *res_ptr, unsigned int n, int *s, int *sx)
+static void find_subblock_bgmc_params_est(uint64_t sum, unsigned int n, int *s, int *sx)
 {
 #define OFFSET 0.97092725747512664825  /* 0.5 + log2(1.386) */
-    uint64_t sum;
-    int tmp, i;
-
-    sum = 0;
-    for (i = 0; i < n; i++)
-        sum += abs(*res_ptr++);
+    int tmp;
 
     if (!sum) { // avoid log2(0)
         tmp = 0;
@@ -1398,10 +1393,11 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     ALSLTPInfo     *ltp   = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent   = &block->ent_info[ltp->use_ltp];
     int s[4][8], sx[4][8];
-    int sb, b;
+    int sb, b, i;
     int sb_max;
-    int sb_best = 0;
+    int sb_best;
     unsigned int count_best = UINT_MAX;
+    uint64_t sum[4][8];
 
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
@@ -1409,19 +1405,24 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     else
         sb_max = 3;
 
+    sb_best = sb_max;
 
-    for (sb = 0; sb <= sb_max; sb++) {
+    for (sb = sb_max; sb >= 0; sb--) {
         int num_subblocks  = 1 << sb;
         int sb_length      = block->length / num_subblocks;
         unsigned int count = 0;
         int32_t *res_ptr   = block->cur_ptr;
 
         for (b = 0; b < num_subblocks; b++) {
-            /* TODO: find_subblock_bgmc_params_est() uses sum of absolute
-                     residuals. we can start at lower levels and add each of
-                     the 2 sums for the next highest level to avoid calculating
-                     it again. See flacenc.c */
-            find_subblock_bgmc_params_est(res_ptr, sb_length, &s[sb][b], &sx[sb][b]);
+            if (sb == sb_max) {
+                int32_t *r_ptr = res_ptr;
+                sum[sb][b] = 0;
+                for (i = 0; i < sb_length; i++)
+                    sum[sb][b] += abs(*r_ptr++);
+            } else {
+                sum[sb][b] = sum[sb+1][b<<1] + sum[sb+1][(b<<1)+1];
+            }
+            find_subblock_bgmc_params_est(sum[sb][b], sb_length, &s[sb][b], &sx[sb][b]);
 
             count += subblock_bgmc_count_exact(res_ptr, block->length,
                                                sx[sb][b], sb_length, s[sb][b],
@@ -1441,7 +1442,7 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
 
         count += 2 + ctx->sconf.sb_part; // ec_sub
 
-        if (count < count_best) {
+        if (count <= count_best) {
             count_best = count;
             sb_best    = sb;
         }
