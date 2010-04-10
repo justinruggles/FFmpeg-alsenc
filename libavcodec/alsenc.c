@@ -2975,8 +2975,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     if (sconf->long_term_prediction) {
         ctx->ltp_buffer = av_malloc(sizeof(*ctx->ltp_buffer) * sconf->frame_length);
-        ctx->ltp_corr_buffer = av_malloc (sizeof(*ctx->ltp_corr_buffer) * sconf->frame_length +
-                                          FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length));
+        ctx->ltp_corr_buffer = av_malloc (sizeof(*ctx->ltp_corr_buffer) *
+                                          (sconf->frame_length +
+                                           FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length)));
 
         if (!ctx->ltp_buffer || !ctx->ltp_corr_buffer) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
