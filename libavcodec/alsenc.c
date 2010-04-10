@@ -2493,9 +2493,7 @@ static void frame_partitioning(ALSEncContext *ctx)
     AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
 
-    // choose standard value 2048 if not user-defined
-    // maybe choose an appropriate size that depends on
-    // the sample rate
+    // choose default frame size if not specified by the user
     if (avctx->frame_size <= 0) {
         if (avctx->sample_rate <= 24000)
             avctx->frame_size = 1024;
