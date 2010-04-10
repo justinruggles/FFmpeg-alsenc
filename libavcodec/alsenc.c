@@ -2516,8 +2516,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // total number of samples unknown
-    // TODO: keep track of actual number of samples written
-    //       and update after the last frame has been encoded
     sconf->samples = 0xFFFFFFFF;
 
 
