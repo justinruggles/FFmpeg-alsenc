@@ -2900,15 +2900,13 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     // fill options stages
     if (avctx->compression_level == 1) {
-        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = sconf->bgmc ?
-                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
-                                                          RICE_PARAM_ALGORITHM_ESTIMATE;
+        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = RICE_PARAM_ALGORITHM_ESTIMATE;
         ctx->stages[STAGE_JOINT_STEREO].count_algorithm = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
     } else {
-    ctx->stages[STAGE_JOINT_STEREO].param_algorithm     = sconf->bgmc ?
+        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = sconf->bgmc ?
                                                           BGMC_PARAM_ALGORITHM_ESTIMATE :
                                                           RICE_PARAM_ALGORITHM_EXACT;
-    ctx->stages[STAGE_JOINT_STEREO].count_algorithm     = RICE_BIT_COUNT_ALGORITHM_EXACT;
+        ctx->stages[STAGE_JOINT_STEREO].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
     }
     ctx->stages[STAGE_JOINT_STEREO].adapt_algorithm     = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_JOINT_STEREO].merge_algorithm     = BS_ALGORITHM_FULL_SEARCH;
@@ -2917,28 +2915,51 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (avctx->compression_level == 1) {
         ctx->stages[STAGE_JOINT_STEREO].max_order       = 4;
     } else {
-    ctx->stages[STAGE_JOINT_STEREO].max_order           = sconf->max_order;
+        ctx->stages[STAGE_JOINT_STEREO].max_order       = sconf->max_order;
     }
     ctx->stages[STAGE_JOINT_STEREO].sb_part             = sconf->sb_part;
 
+    if (avctx->compression_level == 0) {
+        ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_ESTIMATE;
+        ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
+    } else if (avctx->compression_level == 1) {
+        ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
+        ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    } else {
     ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = sconf->bgmc ?
                                                           BGMC_PARAM_ALGORITHM_ESTIMATE :
                                                           RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm  = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    }
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm  = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm  = BS_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_BLOCK_SWITCHING].check_constant   = 1;
+    if (avctx->compression_level == 0) {
+        ctx->stages[STAGE_BLOCK_SWITCHING].check_constant = 0;
+    } else {
+        ctx->stages[STAGE_BLOCK_SWITCHING].check_constant = 1;
+    }
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order      = sconf->adapt_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].max_order        = sconf->max_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part          = sconf->sb_part;
 
+    if (avctx->compression_level == 0) {
+        ctx->stages[STAGE_FINAL].param_algorithm        = sconf->bgmc ?
+                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
+                                                          RICE_PARAM_ALGORITHM_ESTIMATE;
+        ctx->stages[STAGE_FINAL].count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
+    } else {
     ctx->stages[STAGE_FINAL].param_algorithm            = sconf->bgmc ?
                                                           BGMC_PARAM_ALGORITHM_ESTIMATE :
                                                           RICE_PARAM_ALGORITHM_EXACT;
     ctx->stages[STAGE_FINAL].count_algorithm            = RICE_BIT_COUNT_ALGORITHM_EXACT;
+    }
     ctx->stages[STAGE_FINAL].adapt_algorithm            = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
     ctx->stages[STAGE_FINAL].merge_algorithm            = BS_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_FINAL].check_constant             = 1;
+    if (avctx->compression_level == 0) {
+        ctx->stages[STAGE_FINAL].check_constant         = 0;
+    } else {
+        ctx->stages[STAGE_FINAL].check_constant         = 1;
+    }
     ctx->stages[STAGE_FINAL].adapt_order                = sconf->adapt_order;
     ctx->stages[STAGE_FINAL].max_order                  = sconf->max_order;
     ctx->stages[STAGE_FINAL].sb_part                    = sconf->sb_part;
