@@ -2620,6 +2620,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // determine if BGMC mode is used
     // should be user-defineable
     sconf->bgmc = avctx->compression_level > 1;
+    if (avctx->coder_type == FF_CODER_TYPE_AC)
+        sconf->bgmc = 1;
 
 
     // determine what sub-block partitioning is used

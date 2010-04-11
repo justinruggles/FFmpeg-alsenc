@@ -287,7 +287,7 @@ static const AVOption options[]={
 {"color_table_id", NULL, OFFSET(color_table_id), FF_OPT_TYPE_INT, DEFAULT, INT_MIN, INT_MAX},
 {"internal_buffer_count", NULL, OFFSET(internal_buffer_count), FF_OPT_TYPE_INT, DEFAULT, INT_MIN, INT_MAX},
 {"global_quality", NULL, OFFSET(global_quality), FF_OPT_TYPE_INT, DEFAULT, INT_MIN, INT_MAX},
-{"coder", NULL, OFFSET(coder_type), FF_OPT_TYPE_INT, DEFAULT, INT_MIN, INT_MAX, V|E, "coder"},
+{"coder", NULL, OFFSET(coder_type), FF_OPT_TYPE_INT, DEFAULT, INT_MIN, INT_MAX, V|A|E, "coder"},
 {"vlc", "variable length coder / huffman coder", 0, FF_OPT_TYPE_CONST, FF_CODER_TYPE_VLC, INT_MIN, INT_MAX, V|E, "coder"},
 {"ac", "arithmetic coder", 0, FF_OPT_TYPE_CONST, FF_CODER_TYPE_AC, INT_MIN, INT_MAX, V|E, "coder"},
 {"raw", "raw (no encoding)", 0, FF_OPT_TYPE_CONST, FF_CODER_TYPE_RAW, INT_MIN, INT_MAX, V|E, "coder"},
