@@ -2597,6 +2597,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     //       if adapt_order is set and compression level is high,
     //       use maximum value to be able to find the best order
     sconf->max_order = 10;
+    if (avctx->max_prediction_order >= 0)
+        sconf->max_order = av_clip(avctx->max_prediction_order, 0, 1023);
 
 
     // determine if block-switching is used
