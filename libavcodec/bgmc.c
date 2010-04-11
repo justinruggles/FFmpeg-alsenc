@@ -679,6 +679,8 @@ void ff_bgmc_encode_msb(PutBitContext *pb, int32_t *symbols, unsigned int n,
                         unsigned int s, unsigned int sx,
                         unsigned int *h, unsigned int *l, unsigned int *f)
 {
+    int tail = ff_bgmc_tail_code[sx][delta];
+
     for (; n > 0; n--) {
         int32_t res = *symbols;
 
@@ -689,8 +691,8 @@ void ff_bgmc_encode_msb(PutBitContext *pb, int32_t *symbols, unsigned int n,
             res = -res - 1;
 
         if      (res >= max)
-            res = ff_bgmc_tail_code[sx][delta];
-        else if (res >= ff_bgmc_tail_code[sx][delta])
+            res = tail;
+        else if (res >= tail)
             res++;
 
         ff_bgmc_encode(pb, res, delta, sx, h, l, f);
@@ -754,6 +756,8 @@ void ff_bgmc_encode_msb_count(unsigned int *bits, const int32_t *symbols, unsign
                               unsigned int s, unsigned int sx,
                               unsigned int *h, unsigned int *l, unsigned int *f)
 {
+    int tail = ff_bgmc_tail_code[sx][delta];
+
     for (; n > 0; n--) {
         int32_t res = *symbols;
 
@@ -764,8 +768,8 @@ void ff_bgmc_encode_msb_count(unsigned int *bits, const int32_t *symbols, unsign
             res = -res - 1;
 
         if      (res >= max)
-            res = ff_bgmc_tail_code[sx][delta];
-        else if (res >= ff_bgmc_tail_code[sx][delta])
+            res = tail;
+        else if (res >= tail)
             res++;
 
         ff_bgmc_encode_count(bits, res, delta, sx, h, l, f);
