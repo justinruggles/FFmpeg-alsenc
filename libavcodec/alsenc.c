@@ -1339,16 +1339,15 @@ static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
     int i = 0;
 
     if (ra_subblock) {
-        int len = order;
-        if (len > 0) {
+        if (order > 0) {
             int32_t v = *res_ptr++;
             count += rice_count(v, max_param - 3);
             i++;
-            if (len > 1) {
+            if (order > 1) {
                 v = sb_length <= 1 ? 0 : *res_ptr++;
                 count += rice_count(v, FFMIN(rice_param+3, max_param));
                 i++;
-                if (len > 2) {
+                if (order > 2) {
                     v = sb_length <= 2 ? 0 : *res_ptr++;
                     count += rice_count(v, FFMIN(rice_param+1, max_param));
                     i++;
@@ -1357,7 +1356,7 @@ static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
         }
     }
     for (; i < sb_length; i++) {
-        int v = *res_ptr++;
+        int32_t v = *res_ptr++;
         count += rice_count(v, rice_param);
     }
 
@@ -1380,15 +1379,17 @@ static unsigned int subblock_bgmc_count_exact(const int32_t *res_ptr,
     unsigned int delta, k, max, b;
 
     if (ra_subblock) {
-        len = order;
-        if (len > 0) {
+        if (order > 0) {
             int32_t v = *res_ptr++;
+            len++;
             count += rice_count(v, max_param - 3);
-            if (len > 1) {
+            if (order > 1) {
                 v = sb_length <= 1 ? 0 : *res_ptr++;
+                len++;
                 count += rice_count(v, FFMIN(rice_param+3, max_param));
-                if (len > 2) {
+                if (order > 2) {
                     v = sb_length <= 2 ? 0 : *res_ptr++;
+                    len++;
                     count += rice_count(v, FFMIN(rice_param+1, max_param));
                 }
             }
