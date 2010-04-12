@@ -1090,7 +1090,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         put_bits(pb, 1, block->shift_lsbs > 0);
 
         if (block->shift_lsbs)
-            put_bits(pb, 4, block->shift_lsbs);
+            put_bits(pb, 4, block->shift_lsbs - 1);
 
 
         // opt_order && quant_cof
