@@ -1592,6 +1592,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         ent->sub_blocks = 1;
         ent->rice_param[0] = param[4];
         ent->bits_ec_param_and_res = count1;
+        return;
     }
 
     if (stage->count_algorithm == EC_BIT_COUNT_ALGORITHM_EXACT) {
