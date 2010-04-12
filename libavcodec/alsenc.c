@@ -72,17 +72,24 @@
 }
 
 
-/** Estimates Rice parameters using sum of unsigned residual samples */
-#define RICE_PARAM_ALGORITHM_ESTIMATE   0
-/** Calculates Rice parameters using a search algorithm based on exact bit count */
-#define RICE_PARAM_ALGORITHM_EXACT      1
-/** Estimates BGMC parameters using mean of unsigned residual samples */
-#define BGMC_PARAM_ALGORITHM_ESTIMATE   2
+/** Determines entropy coding partitioning level using estimated Rice coding bit counts */
+#define EC_SUB_ALGORITHM_RICE_ESTIMATE      0
+/** Determines entropy coding partitioning level using exact Rice coding bit counts */
+#define EC_SUB_ALGORITHM_RICE_EXACT         1
+/** Determines entropy coding partitioning using exact BGMC coding bit counts */
+#define EC_SUB_ALGORITHM_BGMC_EXACT         2
 
-/** Estimates Rice sub-block partitioning using sum of unsigned residual samples */
-#define RICE_BIT_COUNT_ALGORITHM_ESTIMATE   0
-/** Calculates Rice sub-block partitioning using an exact bit count */
-#define RICE_BIT_COUNT_ALGORITHM_EXACT      1
+/** Estimates Rice parameters using sum of unsigned residual samples */
+#define EC_PARAM_ALGORITHM_RICE_ESTIMATE    0
+/** Calculates Rice parameters using a search algorithm based on exact bit count */
+#define EC_PARAM_ALGORITHM_RICE_EXACT       1
+/** Estimates BGMC parameters using mean of unsigned residual samples */
+#define EC_PARAM_ALGORITHM_BGMC_ESTIMATE    2
+
+/** Uses estimate for returned entropy coding bit count */
+#define EC_BIT_COUNT_ALGORITHM_ESTIMATE     0
+/** Uses exact calculation for returned entropy coding bit count */
+#define EC_BIT_COUNT_ALGORITHM_EXACT        1
 
 /** Find adaptive LPC order using a PARCOR coeff threshold value */
 #define ADAPT_ORDER_ALGORITHM_THRESHOLD     0
@@ -108,6 +115,7 @@ typedef struct {
     int sb_part;                    ///< sb_part to use during this stage
 
     // encoding algorithms used during the processing of the stage
+    int ecsub_algorithm;            ///< algorithm to use to determine entropy coding sub-block partitioning
     int param_algorithm;            ///< algorithm to use to determine Rice parameters
     int count_algorithm;            ///< algorithm to use for residual + rice param bit count
     int adapt_algorithm;            ///< algorithm to use for adaptive LPC order
@@ -212,8 +220,9 @@ static const ALSSpecificConfig spc_config_c0 = {
 static const ALSEncStage stage_js_c0 = {
     .check_constant         = 0,
     .max_order              = 0,
-    .param_algorithm        = RICE_PARAM_ALGORITHM_ESTIMATE,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
+    .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
@@ -222,8 +231,9 @@ static const ALSEncStage stage_js_c0 = {
 static const ALSEncStage stage_bs_c0 = {
     .check_constant         = 0,
     .max_order              = 4,
-    .param_algorithm        = RICE_PARAM_ALGORITHM_ESTIMATE,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
+    .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
@@ -231,8 +241,9 @@ static const ALSEncStage stage_bs_c0 = {
 /** compression level 0 final stage options */
 static const ALSEncStage stage_final_c0 = {
     .check_constant         = 0,
-    .param_algorithm        = RICE_PARAM_ALGORITHM_ESTIMATE,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
+    .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
@@ -255,8 +266,9 @@ static const ALSSpecificConfig spc_config_c1 = {
 static const ALSEncStage stage_js_c1 = {
     .check_constant         = 1,
     .max_order              = 4,
-    .param_algorithm        = RICE_PARAM_ALGORITHM_EXACT,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
+    .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
@@ -264,8 +276,9 @@ static const ALSEncStage stage_js_c1 = {
 /** compression level 1 block switching stage options */
 static const ALSEncStage stage_bs_c1 = {
     .check_constant         = 1,
-    .param_algorithm        = RICE_PARAM_ALGORITHM_EXACT,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
+    .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
@@ -273,8 +286,9 @@ static const ALSEncStage stage_bs_c1 = {
 /** compression level 1 final stage options */
 static const ALSEncStage stage_final_c1 = {
     .check_constant         = 1,
-    .param_algorithm        = RICE_PARAM_ALGORITHM_EXACT,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
+    .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
@@ -296,8 +310,9 @@ static const ALSSpecificConfig spc_config_c2 = {
 /** compression level 2 joint-stereo stage options */
 static const ALSEncStage stage_js_c2 = {
     .check_constant         = 1,
-    .param_algorithm        = BGMC_PARAM_ALGORITHM_ESTIMATE,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
+    .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
@@ -305,8 +320,9 @@ static const ALSEncStage stage_js_c2 = {
 /** compression level 2 block switching stage options */
 static const ALSEncStage stage_bs_c2 = {
     .check_constant         = 1,
-    .param_algorithm        = BGMC_PARAM_ALGORITHM_ESTIMATE,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
+    .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
@@ -314,8 +330,9 @@ static const ALSEncStage stage_bs_c2 = {
 /** compression level 2 final stage options */
 static const ALSEncStage stage_final_c2 = {
     .check_constant         = 1,
-    .param_algorithm        = BGMC_PARAM_ALGORITHM_ESTIMATE,
-    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
+    .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
+    .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
@@ -357,15 +374,21 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
     dprintf(avctx, "max_order = %d\n", stage->max_order);
     dprintf(avctx, "sb_part = %d\n", stage->sb_part);
 
+    switch (stage->ecsub_algorithm) {
+    case EC_SUB_ALGORITHM_RICE_ESTIMATE: dprintf(avctx, "ecsub_algorithm = rice estimate\n"); break;
+    case EC_SUB_ALGORITHM_RICE_EXACT:    dprintf(avctx, "ecsub_algorithm = rice exact\n");    break;
+    case EC_SUB_ALGORITHM_BGMC_EXACT:    dprintf(avctx, "ecsub_algorithm = bgmc exact\n");    break;
+    }
+
     switch (stage->param_algorithm) {
-    case RICE_PARAM_ALGORITHM_ESTIMATE: dprintf(avctx, "param_algorithm = rice estimate\n"); break;
-    case RICE_PARAM_ALGORITHM_EXACT:    dprintf(avctx, "param_algorithm = rice exact\n");    break;
-    case BGMC_PARAM_ALGORITHM_ESTIMATE: dprintf(avctx, "param_algorithm = bgmc estimate\n"); break;
+    case EC_PARAM_ALGORITHM_RICE_ESTIMATE: dprintf(avctx, "param_algorithm = rice estimate\n"); break;
+    case EC_PARAM_ALGORITHM_RICE_EXACT:    dprintf(avctx, "param_algorithm = rice exact\n");    break;
+    case EC_PARAM_ALGORITHM_BGMC_ESTIMATE: dprintf(avctx, "param_algorithm = bgmc estimate\n"); break;
     }
 
     switch (stage->count_algorithm) {
-    case RICE_BIT_COUNT_ALGORITHM_ESTIMATE: dprintf(avctx, "count_algorithm = rice estimate\n"); break;
-    case RICE_BIT_COUNT_ALGORITHM_EXACT:    dprintf(avctx, "count_algorithm = rice exact\n");    break;
+    case EC_BIT_COUNT_ALGORITHM_ESTIMATE: dprintf(avctx, "count_algorithm = estimate\n"); break;
+    case EC_BIT_COUNT_ALGORITHM_EXACT:    dprintf(avctx, "count_algorithm = exact\n");    break;
     }
 
     switch (stage->adapt_algorithm) {
@@ -1368,8 +1391,8 @@ static unsigned int subblock_rice_count_exact(const int32_t *res_ptr,
  *  using given parameters
  */
 static unsigned int subblock_bgmc_count_exact(const int32_t *res_ptr,
-                                              int b_length, unsigned int sx,
-                                              int sb_length, int rice_param,
+                                              int b_length, int sb_length,
+                                              int rice_param, int sx,
                                               int max_param, int ra_subblock,
                                               int order)
 {
@@ -1441,6 +1464,39 @@ static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
     }
 
     count += !!ctx->sconf.sb_part;
+
+    return count;
+}
+
+
+static unsigned int block_bgmc_count_exact(ALSEncContext *ctx, ALSBlock *block,
+                                           int sub_blocks, int *s, int *sx,
+                                           int order)
+{
+    int32_t *res_ptr = block->cur_ptr;
+    unsigned int count = 0;
+    int sb_length, sb;
+
+    sb_length = block->length / sub_blocks;
+
+    for (sb = 0; sb < sub_blocks; sb++) {
+        count += subblock_bgmc_count_exact(res_ptr, block->length,
+                                           sb_length, s[sb], sx[sb],
+                                           ctx->max_rice_param,
+                                           !sb && block->ra_block, order);
+
+        if (!sb) {
+            count += 8 + (ctx->max_rice_param > 15);    // S[0]
+        } else {
+            int S = ((s[sb    ] << 4) | sx[sb    ]) -
+                    ((s[sb - 1] << 4) | sx[sb - 1]);
+            count += rice_count(S, 2);                  // S[i]
+        }
+
+        res_ptr += sb_length;
+    }
+
+    count += 2 * !!ctx->sconf.sb_part; // ec_sub
 
     return count;
 }
@@ -1524,7 +1580,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
     param[4] = estimate_rice_param(sum[4], block->length, ctx->max_rice_param);
 
-    if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
+    if (stage->count_algorithm == EC_BIT_COUNT_ALGORITHM_EXACT) {
         count1 = block_rice_count_exact(ctx, block, 1, &param[4], order);
     } else {
         count1 = rice_encode_count(sum[4], block->length, param[4]);
@@ -1538,7 +1594,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         ent->bits_ec_param_and_res = count1;
     }
 
-    if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_EXACT) {
+    if (stage->count_algorithm == EC_BIT_COUNT_ALGORITHM_EXACT) {
         count4 = block_rice_count_exact(ctx, block, 4, param, order);
     } else {
         count4 = 0;
@@ -1563,10 +1619,6 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         ent->rice_param[3] = param[3];
     }
 
-    if (stage->count_algorithm == RICE_BIT_COUNT_ALGORITHM_ESTIMATE)
-        ent->bits_ec_param_and_res = block_rice_count_exact(ctx, block,
-                                      ent->sub_blocks, ent->rice_param,
-                                      order);
     ent->bits_ec_param_and_res = FFMIN(count1, count4);
 }
 
@@ -1610,23 +1662,19 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
             }
             estimate_bgmc_params(sum[sb][b], sb_length, &s[sb][b], &sx[sb][b]);
 
-            count += subblock_bgmc_count_exact(res_ptr, block->length,
-                                               sx[sb][b], sb_length, s[sb][b],
-                                               ctx->max_rice_param,
-                                               !b && block->ra_block, order);
-
-            if (!b) {
-                count += 8 + (ctx->max_rice_param > 15);    // S[0]
-            } else {
-                int S = ((s[sb][b    ] << 4) | sx[sb][b    ])
-                      - ((s[sb][b - 1] << 4) | sx[sb][b - 1]);
-                count += rice_count(S, 2);                  // S[i]
+            if (stage->ecsub_algorithm == EC_SUB_ALGORITHM_RICE_ESTIMATE) {
+                int k = estimate_rice_param (sum[sb][b], sb_length,
+                                             ctx->max_rice_param);
+                count += rice_encode_count(sum[sb][b], sb_length, k);
             }
 
             res_ptr += sb_length;
         }
 
-        count += 2 + ctx->sconf.sb_part; // ec_sub
+        if (stage->ecsub_algorithm == EC_SUB_ALGORITHM_BGMC_EXACT) {
+            count = block_bgmc_count_exact(ctx, block, num_subblocks,
+                                           s[sb], sx[sb], order);
+        }
 
         if (count <= count_best) {
             count_best = count;
@@ -1634,12 +1682,21 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
         }
     }
 
-    ent->sub_blocks            = 1 << sb_best;
-    ent->bits_ec_param_and_res = count_best;
-
+    ent->sub_blocks = 1 << sb_best;
     for (b = 0; b < ent->sub_blocks; b++) {
         ent->rice_param[b] = s [sb_best][b];
         ent->bgmc_param[b] = sx[sb_best][b];
+    }
+
+    if (stage->ecsub_algorithm == EC_SUB_ALGORITHM_RICE_ESTIMATE &&
+        stage->count_algorithm == EC_BIT_COUNT_ALGORITHM_EXACT) {
+        ent->bits_ec_param_and_res = block_bgmc_count_exact(ctx, block,
+                                                            ent->sub_blocks,
+                                                            ent->rice_param,
+                                                            ent->bgmc_param,
+                                                            order);
+    } else {
+        ent->bits_ec_param_and_res = count_best;
     }
 }
 
@@ -1762,11 +1819,11 @@ static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
 {
     ALSEncStage *stage = ctx->cur_stage;
 
-    if        (stage->param_algorithm == BGMC_PARAM_ALGORITHM_ESTIMATE) {
+    if        (stage->param_algorithm == EC_PARAM_ALGORITHM_BGMC_ESTIMATE) {
         find_block_bgmc_params(ctx, block, order);
-    } else if (stage->param_algorithm == RICE_PARAM_ALGORITHM_ESTIMATE) {
+    } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_RICE_ESTIMATE) {
         find_block_rice_params_est(ctx, block, order);
-    } else if (stage->param_algorithm == RICE_PARAM_ALGORITHM_EXACT) {
+    } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_RICE_EXACT) {
         find_block_rice_params_exact(ctx, block, order);
     }
 }
@@ -3107,8 +3164,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_FINAL].adapt_order = sconf->adapt_order;
     ctx->stages[STAGE_FINAL].sb_part     = sconf->sb_part;
     ctx->stages[STAGE_FINAL].max_order   = sconf->max_order;
-    if (sconf->bgmc && avctx->compression_level < 2)
-        ctx->stages[STAGE_FINAL].param_algorithm = BGMC_PARAM_ALGORITHM_ESTIMATE;
+    if (sconf->bgmc && avctx->compression_level < 2) {
+        ctx->stages[STAGE_FINAL].ecsub_algorithm = EC_SUB_ALGORITHM_RICE_ESTIMATE;
+        ctx->stages[STAGE_FINAL].param_algorithm = EC_PARAM_ALGORITHM_BGMC_ESTIMATE;
+    }
 
     dprintf(avctx, "\n");
     dprintf(avctx, "Joint-Stereo:\n");
