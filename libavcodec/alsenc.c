@@ -110,6 +110,7 @@
 typedef struct {
     // encoding options used during the processing of the stage
     int check_constant;             ///< check for constant sample value during this stage
+    int check_lsbs;                 ///< check for zero LSB values during this stage
     int adapt_order;                ///< adaptive order to use during this stage
     int max_order;                  ///< max_oder to use during this stage
     int sb_part;                    ///< sb_part to use during this stage
@@ -219,6 +220,7 @@ static const ALSSpecificConfig spc_config_c0 = {
     note: compression level 0 does not use joint-stereo */
 static const ALSEncStage stage_js_c0 = {
     .check_constant         = 0,
+    .check_lsbs             = 0,
     .max_order              = 0,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
@@ -230,6 +232,7 @@ static const ALSEncStage stage_js_c0 = {
 /** compression level 0 block switching stage options */
 static const ALSEncStage stage_bs_c0 = {
     .check_constant         = 0,
+    .check_lsbs             = 0,
     .max_order              = 4,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
@@ -241,6 +244,7 @@ static const ALSEncStage stage_bs_c0 = {
 /** compression level 0 final stage options */
 static const ALSEncStage stage_final_c0 = {
     .check_constant         = 0,
+    .check_lsbs             = 0,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
@@ -265,6 +269,7 @@ static const ALSSpecificConfig spc_config_c1 = {
 /** compression level 1 joint-stereo stage options */
 static const ALSEncStage stage_js_c1 = {
     .check_constant         = 1,
+    .check_lsbs             = 1,
     .max_order              = 4,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
@@ -276,6 +281,7 @@ static const ALSEncStage stage_js_c1 = {
 /** compression level 1 block switching stage options */
 static const ALSEncStage stage_bs_c1 = {
     .check_constant         = 1,
+    .check_lsbs             = 1,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
@@ -286,6 +292,7 @@ static const ALSEncStage stage_bs_c1 = {
 /** compression level 1 final stage options */
 static const ALSEncStage stage_final_c1 = {
     .check_constant         = 1,
+    .check_lsbs             = 1,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
@@ -310,6 +317,7 @@ static const ALSSpecificConfig spc_config_c2 = {
 /** compression level 2 joint-stereo stage options */
 static const ALSEncStage stage_js_c2 = {
     .check_constant         = 1,
+    .check_lsbs             = 1,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
@@ -320,6 +328,7 @@ static const ALSEncStage stage_js_c2 = {
 /** compression level 2 block switching stage options */
 static const ALSEncStage stage_bs_c2 = {
     .check_constant         = 1,
+    .check_lsbs             = 1,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
@@ -330,6 +339,7 @@ static const ALSEncStage stage_bs_c2 = {
 /** compression level 2 final stage options */
 static const ALSEncStage stage_final_c2 = {
     .check_constant         = 1,
+    .check_lsbs             = 1,
     .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
@@ -370,6 +380,7 @@ static const ALSEncStage * const stage_final_settings[3] = {
 static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
 {
     dprintf(avctx, "check_constant = %d\n", stage->check_constant);
+    dprintf(avctx, "check_lsbs = %d\n", stage->check_lsbs);
     dprintf(avctx, "adapt_order = %d\n", stage->adapt_order);
     dprintf(avctx, "max_order = %d\n", stage->max_order);
     dprintf(avctx, "sb_part = %d\n", stage->sb_part);
