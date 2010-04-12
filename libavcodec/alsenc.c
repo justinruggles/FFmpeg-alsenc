@@ -157,6 +157,7 @@ typedef struct {
     int32_t *res_ptr;               ///< points to the first residual for this block
     int32_t *smp_ptr;               ///< points to the first raw sample for this block
     int32_t *dif_ptr;               ///< points to the first difference sample for this block
+    int32_t *lsb_ptr;               ///< points to the first LSB shifted sample for this block
     int32_t *cur_ptr;               ///< points to the current sample buffer for this block
     int bits_const_block;           ///< bit count for const block params
     int bits_misc;                  ///< bit count for js_block and shift_lsbs
@@ -178,6 +179,8 @@ typedef struct {
     int32_t **raw_samples;          ///< pointer to the beginning of the current frame's samples in the buffer for each channel
     int32_t *raw_dif_buffer;        ///< buffer containing all raw difference samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
     int32_t **raw_dif_samples;      ///< pointer to the beginning of the current frame's difference samples in the buffer for each channel
+    int32_t *raw_lsb_buffer;        ///< buffer containing all shifted raw samples of the frame plus max_order samples from the previous frame for all channels
+    int32_t **raw_lsb_samples;      ///< pointer to the beginning of the current frame's shifted samples in the buffer for each channel
     int32_t *res_buffer;            ///< buffer containing all residual samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
     int32_t **res_samples;          ///< pointer to the beginning of the current frame's samples in the buffer for each channel
     uint32_t *bs_info;              ///< block-partitioning used for the current frame
@@ -697,6 +700,7 @@ static void get_block_sizes(ALSEncContext *ctx,
     int32_t *res_ptr = ctx->res_samples[c1];
     int32_t *smp_ptr = ctx->raw_samples[c1];
     int32_t *dif_ptr = ctx->raw_dif_samples[c1 >> 1];
+    int32_t *lsb_ptr = ctx->raw_lsb_samples[c1];
 
     ALSBlock *block = ctx->blocks[c1];
 
@@ -726,9 +730,11 @@ static void get_block_sizes(ALSEncContext *ctx,
         block->res_ptr = res_ptr;
         block->smp_ptr = smp_ptr;
         block->dif_ptr = dif_ptr;
+        block->lsb_ptr = lsb_ptr;
         res_ptr       += block->length;
         smp_ptr       += block->length;
         dif_ptr       += block->length;
+        lsb_ptr       += block->length;
         block++;
     }
 
@@ -750,6 +756,7 @@ static void get_block_sizes(ALSEncContext *ctx,
         res_ptr             = ctx->res_samples[c2];
         smp_ptr             = ctx->raw_samples[c2];
         dif_ptr             = ctx->raw_dif_samples[c1 >> 1];
+        lsb_ptr             = ctx->raw_lsb_samples[c2];
         block               = ctx->blocks[c2];
         ctx->num_blocks[c2] = ctx->num_blocks[c1];
 
@@ -759,9 +766,11 @@ static void get_block_sizes(ALSEncContext *ctx,
             block->res_ptr = res_ptr;
             block->smp_ptr = smp_ptr;
             block->dif_ptr = dif_ptr;
+            block->lsb_ptr = lsb_ptr;
             res_ptr       += block->length;
             smp_ptr       += block->length;
             dif_ptr       += block->length;
+            lsb_ptr       += block->length;
             block++;
         }
     }
@@ -2031,6 +2040,41 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
+/** Tests given block samples to share common zero LSBs.
+ *  Sets block->shift_lsbs to the number common zero bits
+ */
+static void test_zero_lsb(ALSEncContext *ctx, ALSBlock *block)
+{
+    int i;
+    int32_t common = 0;
+
+    block->shift_lsbs = 0;
+
+    if (ctx->cur_stage->check_lsbs) {
+        // test for zero LSBs
+        for (i = 0; i < (int)block->length; i++) {
+            common |= block->cur_ptr[i];
+
+            if (common & 1)
+                return;
+        }
+
+        while (!(common & 1)) {
+            block->shift_lsbs++;
+            common >>= 1;
+        }
+
+        // generate shifted signal and point block->cur_ptr to the LSB buffer
+        if (block->shift_lsbs) {
+            for (i = -ctx->sconf.max_order; i < (int)block->length; i++)
+                block->lsb_ptr[i] = block->cur_ptr[i] >> block->shift_lsbs;
+
+            block->cur_ptr = block->lsb_ptr;
+        }
+    }
+}
+
+
 #if 1
 /* Generate a weighted residual signal for autocorrelation detection
  * used in LTP mode
@@ -2396,8 +2440,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // while not implemented, don't shift anyway
 
     if (!block->constant) {
-        block->shift_lsbs = 0;
-        block->bits_misc++;
+        test_zero_lsb(ctx, block);
+        block->bits_misc++;         // shift_lsbs
         if (block->shift_lsbs)
             block->bits_misc += 4;  // shift_pos
     }
@@ -3039,6 +3083,8 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->raw_samples);
     av_freep(&ctx->raw_dif_buffer);
     av_freep(&ctx->raw_dif_samples);
+    av_freep(&ctx->raw_lsb_buffer);
+    av_freep(&ctx->raw_lsb_samples);
     av_freep(&ctx->res_buffer);
     av_freep(&ctx->res_samples);
     av_freep(&ctx->block_buffer);
@@ -3203,6 +3249,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->raw_samples       = av_malloc (sizeof(*ctx->raw_samples)    * avctx->channels);
     ctx->raw_dif_buffer    = av_mallocz(sizeof(*ctx->raw_dif_buffer)  * (avctx->channels >> 1) * channel_size);
     ctx->raw_dif_samples   = av_malloc (sizeof(*ctx->raw_dif_samples) * (avctx->channels >> 1));
+    ctx->raw_lsb_buffer    = av_mallocz(sizeof(*ctx->raw_lsb_buffer)  * (avctx->channels) * channel_size);
+    ctx->raw_lsb_samples   = av_malloc (sizeof(*ctx->raw_lsb_samples) * (avctx->channels));
     ctx->res_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)     * avctx->channels * channel_size);
     ctx->res_samples       = av_malloc (sizeof(*ctx->res_samples)    * avctx->channels);
     ctx->num_blocks        = av_malloc (sizeof(*ctx->num_blocks)     * avctx->channels);
@@ -3220,6 +3268,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (!ctx->independent_bs    ||
         !ctx->raw_buffer        || !ctx->raw_samples     ||
         !ctx->raw_dif_buffer    || !ctx->raw_dif_samples ||
+        !ctx->raw_lsb_buffer    || !ctx->raw_lsb_samples ||
         !ctx->res_buffer        || !ctx->res_samples     ||
         !ctx->num_blocks        || !ctx->bs_info         ||
         !ctx->block_buffer      || !ctx->blocks) {
@@ -3244,12 +3293,14 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // assign buffer pointers
     ctx->raw_samples    [0] = ctx->raw_buffer     + channel_offset;
     ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + channel_offset;
+    ctx->raw_lsb_samples[0] = ctx->raw_lsb_buffer + channel_offset;
     ctx->res_samples    [0] = ctx->res_buffer     + channel_offset;
     ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
         ctx->res_samples[c] = ctx->res_samples[c - 1] + channel_size;
+        ctx->raw_lsb_samples[c] = ctx->raw_lsb_samples[c - 1] + channel_size;
         ctx->blocks     [c] = ctx->blocks     [c - 1] + 32;
     }
 
