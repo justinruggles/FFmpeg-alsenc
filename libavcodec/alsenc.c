@@ -1632,41 +1632,41 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
     ALSLTPInfo     *ltp   = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent   = &block->ent_info[ltp->use_ltp];
     int s[4][8], sx[4][8];
-    int sb, b, i;
-    int sb_max;
-    int sb_best;
+    int p, sb, i;
+    int p_max;
+    int p_best;
     unsigned int count_best = UINT_MAX;
     uint64_t sum[4][8];
 
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
-        sb_max = 0;
+        p_max = 0;
     else
-        sb_max = 3;
+        p_max = 3;
 
-    sb_best = sb_max;
+    p_best = p_max;
 
-    for (sb = sb_max; sb >= 0; sb--) {
-        int num_subblocks  = 1 << sb;
+    for (p = p_max; p >= 0; p--) {
+        int num_subblocks  = 1 << p;
         int sb_length      = block->length / num_subblocks;
         unsigned int count = 0;
         int32_t *res_ptr   = block->cur_ptr;
 
-        for (b = 0; b < num_subblocks; b++) {
-            if (sb == sb_max) {
+        for (sb = 0; sb < num_subblocks; sb++) {
+            if (p == p_max) {
                 int32_t *r_ptr = res_ptr;
-                sum[sb][b] = 0;
+                sum[p][sb] = 0;
                 for (i = 0; i < sb_length; i++)
-                    sum[sb][b] += abs(*r_ptr++);
+                    sum[p][sb] += abs(*r_ptr++);
             } else {
-                sum[sb][b] = sum[sb+1][b<<1] + sum[sb+1][(b<<1)+1];
+                sum[p][sb] = sum[p+1][sb<<1] + sum[p+1][(sb<<1)+1];
             }
-            estimate_bgmc_params(sum[sb][b], sb_length, &s[sb][b], &sx[sb][b]);
+            estimate_bgmc_params(sum[p][sb], sb_length, &s[p][sb], &sx[p][sb]);
 
             if (stage->ecsub_algorithm == EC_SUB_ALGORITHM_RICE_ESTIMATE) {
-                int k = estimate_rice_param (sum[sb][b], sb_length,
+                int k = estimate_rice_param (sum[p][sb], sb_length,
                                              ctx->max_rice_param);
-                count += rice_encode_count(sum[sb][b], sb_length, k);
+                count += rice_encode_count(sum[p][sb], sb_length, k);
             }
 
             res_ptr += sb_length;
@@ -1674,19 +1674,19 @@ static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int orde
 
         if (stage->ecsub_algorithm == EC_SUB_ALGORITHM_BGMC_EXACT) {
             count = block_bgmc_count_exact(ctx, block, num_subblocks,
-                                           s[sb], sx[sb], order);
+                                           s[p], sx[p], order);
         }
 
         if (count <= count_best) {
             count_best = count;
-            sb_best    = sb;
+            p_best     = p;
         }
     }
 
-    ent->sub_blocks = 1 << sb_best;
-    for (b = 0; b < ent->sub_blocks; b++) {
-        ent->rice_param[b] = s [sb_best][b];
-        ent->bgmc_param[b] = sx[sb_best][b];
+    ent->sub_blocks = 1 << p_best;
+    for (sb = 0; sb < ent->sub_blocks; sb++) {
+        ent->rice_param[sb] = s [p_best][sb];
+        ent->bgmc_param[sb] = sx[p_best][sb];
     }
 
     if (stage->ecsub_algorithm == EC_SUB_ALGORITHM_RICE_ESTIMATE &&
