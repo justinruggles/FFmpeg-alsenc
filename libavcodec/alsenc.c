@@ -194,6 +194,192 @@ typedef struct {
 } ALSEncContext;
 
 
+/** compression level 0 global options **/
+static const ALSSpecificConfig spc_config_c0 = {
+    .adapt_order            = 0,
+    .long_term_prediction   = 0,
+    .max_order              = 4,
+    .block_switching        = 0,
+    .bgmc                   = 0,
+    .sb_part                = 0,
+    .joint_stereo           = 0,
+    .mc_coding              = 0,
+    .rlslms                 = 0,
+};
+
+/** compression level 0 joint-stereo options
+    note: compression level 0 does not use joint-stereo */
+static const ALSEncStage stage_js_c0 = {
+    .check_constant         = 0,
+    .max_order              = 0,
+    .param_algorithm        = RICE_PARAM_ALGORITHM_ESTIMATE,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
+};
+
+/** compression level 0 block switching stage options */
+static const ALSEncStage stage_bs_c0 = {
+    .check_constant         = 0,
+    .max_order              = 4,
+    .param_algorithm        = RICE_PARAM_ALGORITHM_ESTIMATE,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
+};
+
+/** compression level 0 final stage options */
+static const ALSEncStage stage_final_c0 = {
+    .check_constant         = 0,
+    .param_algorithm        = RICE_PARAM_ALGORITHM_ESTIMATE,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
+};
+
+
+/** compression level 1 global options **/
+static const ALSSpecificConfig spc_config_c1 = {
+    .adapt_order            = 0,
+    .long_term_prediction   = 0,
+    .max_order              = 10,
+    .block_switching        = 0,
+    .bgmc                   = 0,
+    .sb_part                = 1,
+    .joint_stereo           = 1,
+    .mc_coding              = 0,
+    .rlslms                 = 0,
+};
+
+/** compression level 1 joint-stereo stage options */
+static const ALSEncStage stage_js_c1 = {
+    .check_constant         = 1,
+    .max_order              = 4,
+    .param_algorithm        = RICE_PARAM_ALGORITHM_EXACT,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
+};
+
+/** compression level 1 block switching stage options */
+static const ALSEncStage stage_bs_c1 = {
+    .check_constant         = 1,
+    .param_algorithm        = RICE_PARAM_ALGORITHM_EXACT,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
+};
+
+/** compression level 1 final stage options */
+static const ALSEncStage stage_final_c1 = {
+    .check_constant         = 1,
+    .param_algorithm        = RICE_PARAM_ALGORITHM_EXACT,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
+};
+
+
+/** compression level 2 global options **/
+static const ALSSpecificConfig spc_config_c2 = {
+    .adapt_order            = 0,
+    .long_term_prediction   = 1,
+    .max_order              = 10,
+    .block_switching        = 1,
+    .bgmc                   = 1,
+    .sb_part                = 1,
+    .joint_stereo           = 1,
+    .mc_coding              = 0,
+    .rlslms                 = 0,
+};
+
+/** compression level 2 joint-stereo stage options */
+static const ALSEncStage stage_js_c2 = {
+    .check_constant         = 1,
+    .param_algorithm        = BGMC_PARAM_ALGORITHM_ESTIMATE,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
+};
+
+/** compression level 2 block switching stage options */
+static const ALSEncStage stage_bs_c2 = {
+    .check_constant         = 1,
+    .param_algorithm        = BGMC_PARAM_ALGORITHM_ESTIMATE,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
+};
+
+/** compression level 2 final stage options */
+static const ALSEncStage stage_final_c2 = {
+    .check_constant         = 1,
+    .param_algorithm        = BGMC_PARAM_ALGORITHM_ESTIMATE,
+    .count_algorithm        = RICE_BIT_COUNT_ALGORITHM_EXACT,
+    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
+};
+
+
+/** global options for each compression level */
+static const ALSSpecificConfig * const spc_config_settings[3] = {
+    &spc_config_c0,
+    &spc_config_c1,
+    &spc_config_c2,
+};
+
+/** joint-stereo stage options for each compression level */
+static const ALSEncStage * const stage_js_settings[3] = {
+    &stage_js_c0,
+    &stage_js_c1,
+    &stage_js_c2,
+};
+
+/** block switching stage options for each compression level */
+static const ALSEncStage * const stage_bs_settings[3] = {
+    &stage_bs_c0,
+    &stage_bs_c1,
+    &stage_bs_c2,
+};
+
+/** final stage options for each compression level */
+static const ALSEncStage * const stage_final_settings[3] = {
+    &stage_final_c0,
+    &stage_final_c1,
+    &stage_final_c2,
+};
+
+
+static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
+{
+    dprintf(avctx, "check_constant = %d\n", stage->check_constant);
+    dprintf(avctx, "adapt_order = %d\n", stage->adapt_order);
+    dprintf(avctx, "max_order = %d\n", stage->max_order);
+    dprintf(avctx, "sb_part = %d\n", stage->sb_part);
+
+    switch (stage->param_algorithm) {
+    case RICE_PARAM_ALGORITHM_ESTIMATE: dprintf(avctx, "param_algorithm = rice estimate\n"); break;
+    case RICE_PARAM_ALGORITHM_EXACT:    dprintf(avctx, "param_algorithm = rice exact\n");    break;
+    case BGMC_PARAM_ALGORITHM_ESTIMATE: dprintf(avctx, "param_algorithm = bgmc estimate\n"); break;
+    }
+
+    switch (stage->count_algorithm) {
+    case RICE_BIT_COUNT_ALGORITHM_ESTIMATE: dprintf(avctx, "count_algorithm = rice estimate\n"); break;
+    case RICE_BIT_COUNT_ALGORITHM_EXACT:    dprintf(avctx, "count_algorithm = rice exact\n");    break;
+    }
+
+    switch (stage->adapt_algorithm) {
+    case ADAPT_ORDER_ALGORITHM_THRESHOLD:   dprintf(avctx, "adapt_algorithm = threshold\n");   break;
+    case ADAPT_ORDER_ALGORITHM_FULL_SEARCH: dprintf(avctx, "adapt_algorithm = full search\n"); break;
+    }
+
+    switch (stage->merge_algorithm) {
+    case BS_ALGORITHM_FULL_SEARCH: dprintf(avctx, "merge_algorithm = full search\n"); break;
+    case BS_ALGORITHM_BOTTOM_UP:   dprintf(avctx, "merge_algorithm = bottom-up\n");   break;
+    }
+}
+
+
 static int write_specific_config(AVCodecContext *avctx);
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
 static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage);
@@ -2522,6 +2708,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 {
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
+    const ALSSpecificConfig *compr;
 
 
     // total number of samples unknown
@@ -2554,6 +2741,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
         avctx->compression_level = 1;
     else
         avctx->compression_level = av_clip(avctx->compression_level, 0, 2);
+    compr = spc_config_settings[avctx->compression_level];
 
 
     // determine frame length
@@ -2577,7 +2765,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if adaptive prediction order is used.
     // since the current implementation is excruciatingly slow, don't use it
-    sconf->adapt_order = 0;
+    sconf->adapt_order = compr->adapt_order;
 
 
     // determine the coef_table to be used
@@ -2587,8 +2775,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if long-term prediction is used
     // should also be user-defineable
-    // TODO: make this depend on compression level
-    sconf->long_term_prediction = 0;
+    sconf->long_term_prediction = compr->long_term_prediction;
 
 
     // determine a maximum prediction order
@@ -2596,7 +2783,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // TODO: do evaluation to find a suitable standard value?
     //       if adapt_order is set and compression level is high,
     //       use maximum value to be able to find the best order
-    sconf->max_order = 10;
+    sconf->max_order = compr->max_order;
     if (avctx->max_prediction_order >= 0)
         sconf->max_order = av_clip(avctx->max_prediction_order, 0, 1023);
 
@@ -2607,7 +2794,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // simple profile supports up to 3 stages
     // disable for the fastest compression mode
     // should be set when implemented
-    sconf->block_switching = avctx->compression_level > 1;
+    sconf->block_switching = compr->block_switching;
 
 
     // limit the block_switching depth based on whether the full frame length
@@ -2621,13 +2808,13 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if BGMC mode is used
     // should be user-defineable
-    sconf->bgmc = avctx->compression_level > 1;
+    sconf->bgmc = compr->bgmc;
     if (avctx->coder_type == FF_CODER_TYPE_AC)
         sconf->bgmc = 1;
 
 
     // determine what sub-block partitioning is used
-    sconf->sb_part = avctx->compression_level > 0;
+    sconf->sb_part = compr->sb_part;
 
 
     // determine if joint-stereo is used
@@ -2635,7 +2822,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // set = 1 if #channels > 1 (?)
     // should be set when implemented
     // turn off for fastest compression level
-    sconf->joint_stereo = avctx->compression_level > 0;
+    sconf->joint_stereo = compr->joint_stereo;
 
 
     // determine if multi-channel coding is used
@@ -2643,7 +2830,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // may be sanity check: channels > 2
     // (although specs allow mc_coding for 2 channels...
     // maybe give a warning)
-    sconf->mc_coding = 0;
+    sconf->mc_coding = compr->mc_coding;
 
 
     // determine manual channel configuration
@@ -2662,7 +2849,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
     // determine if backward adaptive is used
     // user defined by explicit option and/or compression level
-    sconf->rlslms = 0;
+    sconf->rlslms = compr->rlslms;
 
 
     // determine if CRC checksums are used
@@ -2898,71 +3085,41 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
-    // fill options stages
-    if (avctx->compression_level == 1) {
-        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = RICE_PARAM_ALGORITHM_ESTIMATE;
-        ctx->stages[STAGE_JOINT_STEREO].count_algorithm = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
-    } else {
-        ctx->stages[STAGE_JOINT_STEREO].param_algorithm = sconf->bgmc ?
-                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
-                                                          RICE_PARAM_ALGORITHM_EXACT;
-        ctx->stages[STAGE_JOINT_STEREO].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
-    }
-    ctx->stages[STAGE_JOINT_STEREO].adapt_algorithm     = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_JOINT_STEREO].merge_algorithm     = BS_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_JOINT_STEREO].check_constant      = 1;
-    ctx->stages[STAGE_JOINT_STEREO].adapt_order         = sconf->adapt_order;
-    if (avctx->compression_level == 1) {
-        ctx->stages[STAGE_JOINT_STEREO].max_order       = 4;
-    } else {
-        ctx->stages[STAGE_JOINT_STEREO].max_order       = sconf->max_order;
-    }
-    ctx->stages[STAGE_JOINT_STEREO].sb_part             = sconf->sb_part;
+    /* fill stage options based on compression level */
+    ctx->stages[STAGE_JOINT_STEREO]     = *stage_js_settings[avctx->compression_level];
+    ctx->stages[STAGE_BLOCK_SWITCHING]  = *stage_bs_settings[avctx->compression_level];
+    ctx->stages[STAGE_FINAL]            = *stage_final_settings[avctx->compression_level];
 
-    if (avctx->compression_level == 0) {
-        ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_ESTIMATE;
-        ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
-    } else if (avctx->compression_level == 1) {
-        ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm = RICE_PARAM_ALGORITHM_EXACT;
-        ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm = RICE_BIT_COUNT_ALGORITHM_EXACT;
-    } else {
-    ctx->stages[STAGE_BLOCK_SWITCHING].param_algorithm  = sconf->bgmc ?
-                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
-                                                          RICE_PARAM_ALGORITHM_EXACT;
-    ctx->stages[STAGE_BLOCK_SWITCHING].count_algorithm  = RICE_BIT_COUNT_ALGORITHM_EXACT;
-    }
-    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_algorithm  = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_BLOCK_SWITCHING].merge_algorithm  = BS_ALGORITHM_FULL_SEARCH;
-    if (avctx->compression_level == 0) {
-        ctx->stages[STAGE_BLOCK_SWITCHING].check_constant = 0;
-    } else {
-        ctx->stages[STAGE_BLOCK_SWITCHING].check_constant = 1;
-    }
-    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order      = sconf->adapt_order;
-    ctx->stages[STAGE_BLOCK_SWITCHING].max_order        = sconf->max_order;
-    ctx->stages[STAGE_BLOCK_SWITCHING].sb_part          = sconf->sb_part;
+    /* joint-stereo stage sconf overrides */
+    ctx->stages[STAGE_JOINT_STEREO].adapt_order = sconf->adapt_order;
+    ctx->stages[STAGE_JOINT_STEREO].sb_part     = sconf->sb_part;
+    if (avctx->compression_level > 1)
+        ctx->stages[STAGE_JOINT_STEREO].max_order = sconf->max_order;
 
-    if (avctx->compression_level == 0) {
-        ctx->stages[STAGE_FINAL].param_algorithm        = sconf->bgmc ?
-                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
-                                                          RICE_PARAM_ALGORITHM_ESTIMATE;
-        ctx->stages[STAGE_FINAL].count_algorithm        = RICE_BIT_COUNT_ALGORITHM_ESTIMATE;
-    } else {
-    ctx->stages[STAGE_FINAL].param_algorithm            = sconf->bgmc ?
-                                                          BGMC_PARAM_ALGORITHM_ESTIMATE :
-                                                          RICE_PARAM_ALGORITHM_EXACT;
-    ctx->stages[STAGE_FINAL].count_algorithm            = RICE_BIT_COUNT_ALGORITHM_EXACT;
-    }
-    ctx->stages[STAGE_FINAL].adapt_algorithm            = ADAPT_ORDER_ALGORITHM_FULL_SEARCH;
-    ctx->stages[STAGE_FINAL].merge_algorithm            = BS_ALGORITHM_FULL_SEARCH;
-    if (avctx->compression_level == 0) {
-        ctx->stages[STAGE_FINAL].check_constant         = 0;
-    } else {
-        ctx->stages[STAGE_FINAL].check_constant         = 1;
-    }
-    ctx->stages[STAGE_FINAL].adapt_order                = sconf->adapt_order;
-    ctx->stages[STAGE_FINAL].max_order                  = sconf->max_order;
-    ctx->stages[STAGE_FINAL].sb_part                    = sconf->sb_part;
+    /* block switching stage sconf overrides */
+    ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order = sconf->adapt_order;
+    ctx->stages[STAGE_BLOCK_SWITCHING].sb_part     = sconf->sb_part;
+    if (avctx->compression_level > 0)
+        ctx->stages[STAGE_BLOCK_SWITCHING].max_order = sconf->max_order;
+
+    /* final stage sconf overrides */
+    ctx->stages[STAGE_FINAL].adapt_order = sconf->adapt_order;
+    ctx->stages[STAGE_FINAL].sb_part     = sconf->sb_part;
+    ctx->stages[STAGE_FINAL].max_order   = sconf->max_order;
+    if (sconf->bgmc && avctx->compression_level < 2)
+        ctx->stages[STAGE_FINAL].param_algorithm = BGMC_PARAM_ALGORITHM_ESTIMATE;
+
+    dprintf(avctx, "\n");
+    dprintf(avctx, "Joint-Stereo:\n");
+    dprint_stage_options(avctx, &ctx->stages[STAGE_JOINT_STEREO]);
+    dprintf(avctx, "\n");
+    dprintf(avctx, "Block-Switching:\n");
+    dprint_stage_options(avctx, &ctx->stages[STAGE_BLOCK_SWITCHING]);
+    dprintf(avctx, "\n");
+    dprintf(avctx, "Final:\n");
+    dprint_stage_options(avctx, &ctx->stages[STAGE_FINAL]);
+    dprintf(avctx, "\n");
+
 
     // set cur_stage pointer to the first stage
     ctx->cur_stage = ctx->stages;
