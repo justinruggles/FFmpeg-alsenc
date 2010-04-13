@@ -2986,6 +2986,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // should be enabled by default, not to use
     // in the fastest mode
     sconf->crc_enabled = compr->crc_enabled;
+#if HAVE_BIGENDIAN
+    sconf->msb_first = 1;
+#else
+    sconf->msb_first = 0;
+#endif
 
 
     // print ALSSpecificConfig info
@@ -3052,7 +3057,7 @@ static int write_specific_config(AVCodecContext *avctx)
     put_bits  (&pb,  3, 0);                      // original file_type (0 = unknown, 1 = wav, ...)
     put_bits  (&pb,  3, sconf->resolution);
     put_bits  (&pb,  1, sconf->floating);
-    put_bits  (&pb,  1, 0);                      // msb first (0 = LSB, 1 = MSB)
+    put_bits  (&pb,  1, sconf->msb_first);       // msb first (0 = LSB, 1 = MSB)
     put_bits  (&pb, 16, sconf->frame_length - 1);
     put_bits  (&pb,  8, sconf->ra_distance);
     put_bits  (&pb,  2, sconf->ra_flag);
