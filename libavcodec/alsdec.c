@@ -93,6 +93,7 @@ typedef struct {
     int32_t *prev_raw_samples;      ///< contains unshifted raw samples from the previous block
     int32_t **raw_samples;          ///< decoded raw samples for each channel
     int32_t *raw_buffer;            ///< contains all decoded raw samples including carryover samples
+    uint8_t *crc_buffer;            ///< buffer of byte order corrected samples used for CRC check
 } ALSDecContext;
 
 
@@ -151,7 +152,7 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
     skip_bits(&gb, 3);       // skip file_type
     sconf->resolution           = get_bits(&gb, 3);
     sconf->floating             = get_bits1(&gb);
-    skip_bits1(&gb);         // skip msb_first
+    sconf->msb_first            = get_bits1(&gb);
     sconf->frame_length         = get_bits(&gb, 16) + 1;
     sconf->ra_distance          = get_bits(&gb, 8);
     sconf->ra_flag              = get_bits(&gb, 2);
@@ -234,9 +235,12 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
         if (get_bits_left(&gb) < 32)
             return -1;
 
-        ctx->crc_table = av_crc_get_table(AV_CRC_32_IEEE_LE);
-        ctx->crc       = 0xFFFFFFFFL;
-        ctx->crc_org   = get_bits_long(&gb, 32);
+        if (avctx->error_recognition >= FF_ER_CAREFUL) {
+            ctx->crc_table = av_crc_get_table(AV_CRC_32_IEEE_LE);
+            ctx->crc       = 0xFFFFFFFF;
+            ctx->crc_org   = ~get_bits_long(&gb, 32);
+        } else
+            skip_bits_long(&gb, 32);
     }
 
 
@@ -1254,10 +1258,30 @@ static int decode_frame(AVCodecContext *avctx,
     }
 
     // update CRC
-    if (sconf->crc_enabled) {
-        size     = (ctx->avctx->bits_per_raw_sample > 16) ? 4 : 2;
-        ctx->crc = av_crc(ctx->crc_table, ctx->crc, data,
-                          ctx->cur_frame_length * avctx->channels * size);
+    if (sconf->crc_enabled && avctx->error_recognition >= FF_ER_CAREFUL) {
+        uint8_t *crc_source;
+
+        if (sconf->msb_first) {
+            #define CONVERT_OUTPUT(bps)                                 \
+            {                                                           \
+                int##bps##_t *src  = (int##bps##_t*) data;              \
+                int##bps##_t *dest = (int##bps##_t*) ctx->crc_buffer;   \
+                for (sample = 0;                                        \
+                     sample < ctx->cur_frame_length * avctx->channels;  \
+                     sample++)                                          \
+                        *dest++ = bswap_##bps (src[sample]);            \
+            }
+            if (ctx->avctx->bits_per_raw_sample <= 16) {
+                CONVERT_OUTPUT(16)
+            } else {
+                CONVERT_OUTPUT(32)
+            }
+
+            crc_source = ctx->crc_buffer;
+        } else
+            crc_source = data;
+
+        ctx->crc = av_crc(ctx->crc_table, ctx->crc, crc_source, size);
 
         // check CRC sums if this is the last frame
         if (ctx->cur_frame_length != sconf->frame_length &&
@@ -1435,6 +1459,18 @@ static av_cold int decode_init(AVCodecContext *avctx)
     ctx->raw_samples[0] = ctx->raw_buffer + sconf->max_order;
     for (c = 1; c < avctx->channels; c++)
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
+
+    // allocate crc buffer
+    if (sconf->crc_enabled && avctx->error_recognition >= FF_ER_CAREFUL) {
+        ctx->crc_buffer = av_malloc(sizeof(*ctx->crc_buffer) * ctx->cur_frame_length * avctx->channels *
+                                    (av_get_bits_per_sample_format(avctx->sample_fmt) >> 3));;
+
+        if (!ctx->crc_buffer) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            decode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
+    }
 
     return 0;
 }

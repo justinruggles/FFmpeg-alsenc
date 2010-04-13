@@ -39,6 +39,7 @@ void ff_als_dprint_specific_config(AVCodecContext *avctx,
     dprintf(avctx, "samples = %i\n",              sconf->samples);
     dprintf(avctx, "resolution = %i\n",           sconf->resolution);
     dprintf(avctx, "floating = %i\n",             sconf->floating);
+    dprintf(avctx, "msb_first = %i\n",            sconf->msb_first);
     dprintf(avctx, "frame_length = %i\n",         sconf->frame_length);
     dprintf(avctx, "ra_distance = %i\n",          sconf->ra_distance);
     dprintf(avctx, "ra_flag = %i\n",              sconf->ra_flag);

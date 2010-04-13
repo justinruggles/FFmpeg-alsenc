@@ -3077,7 +3077,8 @@ static int write_specific_config(AVCodecContext *avctx)
 
     put_bits32(&pb, 0);                         // original header size
     put_bits32(&pb, 0);                         // original trailer size
-    put_bits32(&pb, ctx->crc);                  // CRC
+    if (sconf->crc_enabled)
+        put_bits32(&pb, ~ctx->crc);             // CRC
 
 
     // writing in local header finished,
@@ -3391,7 +3392,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // initialize CRC calculation
     if (sconf->crc_enabled) {
         ctx->crc_table = av_crc_get_table(AV_CRC_32_IEEE_LE);
-        ctx->crc       = 0xFFFFFFFFL;
+        ctx->crc       = 0xFFFFFFFF;
     }
 
     return 0;

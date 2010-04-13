@@ -46,6 +46,7 @@ typedef struct {
     uint32_t samples;         ///< number of samples, 0xFFFFFFFF if unknown
     int resolution;           ///< 000 = 8-bit; 001 = 16-bit; 010 = 24-bit; 011 = 32-bit
     int floating;             ///< 1 = IEEE 32-bit floating-point, 0 = integer
+    int msb_first;            ///< 1 = original CRC calculated on big-endian system, 0 = little-endian
     int frame_length;         ///< frame length for each frame (last frame may differ)
     int ra_distance;          ///< distance between RA frames (in frames, 0...255)
     enum RA_Flag ra_flag;     ///< indicates where the size of ra units is stored
