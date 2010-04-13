@@ -1261,25 +1261,34 @@ static int decode_frame(AVCodecContext *avctx,
     if (sconf->crc_enabled && avctx->error_recognition >= FF_ER_CAREFUL) {
         uint8_t *crc_source;
 
-        if (sconf->msb_first) {
-            #define CONVERT_OUTPUT(bps)                                 \
-            {                                                           \
-                int##bps##_t *src  = (int##bps##_t*) data;              \
-                int##bps##_t *dest = (int##bps##_t*) ctx->crc_buffer;   \
-                for (sample = 0;                                        \
-                     sample < ctx->cur_frame_length * avctx->channels;  \
-                     sample++)                                          \
-                        *dest++ = bswap_##bps (src[sample]);            \
-            }
-            if (ctx->avctx->bits_per_raw_sample <= 16) {
-                CONVERT_OUTPUT(16)
-            } else {
-                CONVERT_OUTPUT(32)
-            }
+        #define CONVERT_OUTPUT(bps, fun)                            \
+        {                                                           \
+            int##bps##_t *src  = (int##bps##_t*) data;              \
+            int##bps##_t *dest = (int##bps##_t*) ctx->crc_buffer;   \
+            for (sample = 0;                                        \
+                 sample < ctx->cur_frame_length * avctx->channels;  \
+                 sample++)                                          \
+                    *dest++ = fun##_##bps (src[sample]);            \
+        }
 
-            crc_source = ctx->crc_buffer;
-        } else
-            crc_source = data;
+        #define COND_CONVERT(cond, func)                   \
+        {                                                  \
+            if (cond) {                                    \
+                if (ctx->avctx->bits_per_raw_sample <= 16) \
+                    CONVERT_OUTPUT(16, func)               \
+                else                                       \
+                    CONVERT_OUTPUT(32, func)               \
+                crc_source = ctx->crc_buffer;              \
+            } else {                                       \
+                crc_source = data;                         \
+            }                                              \
+        }
+
+#if HAVE_BIGENDIAN
+        COND_CONVERT(!sconf->msb_first, le2me);
+#else
+        COND_CONVERT( sconf->msb_first, be2me);
+#endif
 
         ctx->crc = av_crc(ctx->crc_table, ctx->crc, crc_source, size);
 
@@ -1461,16 +1470,27 @@ static av_cold int decode_init(AVCodecContext *avctx)
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
 
     // allocate crc buffer
-    if (sconf->crc_enabled && avctx->error_recognition >= FF_ER_CAREFUL) {
-        ctx->crc_buffer = av_malloc(sizeof(*ctx->crc_buffer) * ctx->cur_frame_length * avctx->channels *
-                                    (av_get_bits_per_sample_format(avctx->sample_fmt) >> 3));;
-
-        if (!ctx->crc_buffer) {
-            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
-            decode_end(avctx);
-            return AVERROR(ENOMEM);
-        }
+    #define COND_MALLOC(cond)                                       \
+    {                                                               \
+        if ((cond) &&  sconf->crc_enabled &&                        \
+            avctx->error_recognition >= FF_ER_CAREFUL) {            \
+            ctx->crc_buffer = av_malloc(sizeof(*ctx->crc_buffer) *  \
+                                        ctx->cur_frame_length *     \
+                                        avctx->channels *           \
+                                        (av_get_bits_per_sample_format(avctx->sample_fmt) >> 3)); \
+            if (!ctx->crc_buffer) {                                 \
+                av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n"); \
+                decode_end(avctx);                                  \
+                return AVERROR(ENOMEM);                             \
+            }                                                       \
+        }                                                           \
     }
+
+#if HAVE_BIGENDIAN
+    COND_MALLOC(!sconf->msb_first);
+#else
+    COND_MALLOC( sconf->msb_first);
+#endif
 
     return 0;
 }
