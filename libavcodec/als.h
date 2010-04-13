@@ -63,6 +63,7 @@ typedef struct {
     int rlslms;               ///< use "Recursive Least Square-Least Mean Square" predictor: 1 = on, 0 = off
     int chan_config_info;     ///< mapping of channels to loudspeaker locations. Unused until setting channel configuration is implemented.
     int *chan_pos;            ///< original channel positions
+    int crc_enabled;          ///< enable Cyclic Redundancy Checksum
 } ALSSpecificConfig;
 
 

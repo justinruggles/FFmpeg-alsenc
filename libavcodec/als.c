@@ -55,6 +55,7 @@ void ff_als_dprint_specific_config(AVCodecContext *avctx,
     dprintf(avctx, "chan_sort = %i\n",            sconf->chan_sort);
     dprintf(avctx, "RLSLMS = %i\n",               sconf->rlslms);
     dprintf(avctx, "chan_config_info = %i\n",     sconf->chan_config_info);
+    dprintf(avctx, "crc_enabled = %i\n",          sconf->crc_enabled);
 #endif
 }
 

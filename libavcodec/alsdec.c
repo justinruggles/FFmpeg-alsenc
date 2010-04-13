@@ -38,6 +38,7 @@
 #include "mpeg4audio.h"
 #include "bytestream.h"
 #include "bgmc.h"
+#include "libavutil/crc.h"
 
 #include <stdint.h>
 
@@ -66,6 +67,9 @@ typedef struct {
     AVCodecContext *avctx;
     ALSSpecificConfig sconf;
     GetBitContext gb;
+    const AVCRC *crc_table;
+    uint32_t crc_org;               ///< CRC value of the original input data
+    uint32_t crc;                   ///< CRC value calculated from decoded data
     unsigned int cur_frame_length;  ///< length of the current frame to decode
     unsigned int frame_id;          ///< the frame ID / number of the current frame
     unsigned int js_switch;         ///< if true, joint-stereo decoding is enforced
@@ -118,7 +122,7 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
 {
     GetBitContext gb;
     uint64_t ht_size;
-    int i, config_offset, crc_enabled;
+    int i, config_offset;
     MPEG4AudioConfig m4ac;
     ALSSpecificConfig *sconf = &ctx->sconf;
     AVCodecContext *avctx    = ctx->avctx;
@@ -162,7 +166,7 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
     sconf->mc_coding            = get_bits1(&gb);
     sconf->chan_config          = get_bits1(&gb);
     sconf->chan_sort            = get_bits1(&gb);
-    crc_enabled                 = get_bits1(&gb);
+    sconf->crc_enabled          = get_bits1(&gb);
     sconf->rlslms               = get_bits1(&gb);
     skip_bits(&gb, 5);       // skip 5 reserved bits
     skip_bits1(&gb);         // skip aux_data_enabled
@@ -225,12 +229,14 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
     skip_bits_long(&gb, ht_size);
 
 
-    // skip the crc data
-    if (crc_enabled) {
+    // initialize CRC calculation
+    if (sconf->crc_enabled) {
         if (get_bits_left(&gb) < 32)
             return -1;
 
-        skip_bits_long(&gb, 32);
+        ctx->crc_table = av_crc_get_table(AV_CRC_32_IEEE_LE);
+        ctx->crc       = 0xFFFFFFFFL;
+        ctx->crc_org   = get_bits_long(&gb, 32);
     }
 
 
@@ -1246,6 +1252,20 @@ static int decode_frame(AVCodecContext *avctx,
     } else {
         INTERLEAVE_OUTPUT(32)
     }
+
+    // update CRC
+    if (sconf->crc_enabled) {
+        size     = (ctx->avctx->bits_per_raw_sample > 16) ? 4 : 2;
+        ctx->crc = av_crc(ctx->crc_table, ctx->crc, data,
+                          ctx->cur_frame_length * avctx->channels * size);
+
+        // check CRC sums if this is the last frame
+        if (ctx->cur_frame_length != sconf->frame_length &&
+            ctx->crc_org != ctx->crc) {
+            av_log(avctx, AV_LOG_ERROR, "CRC error.\n");
+        }
+    }
+
 
     bytes_read = invalid_frame ? buffer_size :
                                  (get_bits_count(&ctx->gb) + 7) >> 3;

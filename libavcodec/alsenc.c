@@ -42,6 +42,7 @@
 #include "mpeg4audio.h"
 #include "audioconvert.h"
 #include "bgmc.h"
+#include "libavutil/crc.h"
 
 
 /** Total size of fixed-size fields in ALSSpecificConfig */
@@ -170,6 +171,8 @@ typedef struct {
     ALSSpecificConfig sconf;
     PutBitContext pb;
     DSPContext dsp;
+    const AVCRC *crc_table;
+    uint32_t crc;                   ///< CRC value calculated from decoded data
     ALSEncStage *stages;            ///< array containing all grouped encoding and algorithm options for each possible stage
     ALSEncStage *cur_stage;         ///< points to the currently used encoding stage
     unsigned int cur_frame_length;  ///< length of the current frame, in samples
@@ -217,6 +220,7 @@ static const ALSSpecificConfig spc_config_c0 = {
     .joint_stereo           = 0,
     .mc_coding              = 0,
     .rlslms                 = 0,
+    .crc_enabled            = 0,
 };
 
 /** compression level 0 joint-stereo options
@@ -267,6 +271,7 @@ static const ALSSpecificConfig spc_config_c1 = {
     .joint_stereo           = 1,
     .mc_coding              = 0,
     .rlslms                 = 0,
+    .crc_enabled            = 1,
 };
 
 /** compression level 1 joint-stereo stage options */
@@ -315,6 +320,7 @@ static const ALSSpecificConfig spc_config_c2 = {
     .joint_stereo           = 1,
     .mc_coding              = 0,
     .rlslms                 = 0,
+    .crc_enabled            = 1,
 };
 
 /** compression level 2 joint-stereo stage options */
@@ -2727,6 +2733,15 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     }
 
 
+    // update CRC
+    if (sconf->crc_enabled) {
+        frame_data_size = (ctx->avctx->bits_per_raw_sample > 16) ? 4 : 2;
+        ctx->crc        = av_crc(ctx->crc_table, ctx->crc, data,
+                                 ctx->cur_frame_length * avctx->channels *
+                                 frame_data_size);
+    }
+
+
     // preprocessing
     deinterleave_raw_samples(ctx, data);
 
@@ -2970,8 +2985,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // depends on compression level
     // should be enabled by default, not to use
     // in the fastest mode
-    //
-    // to be implemented and added to ALSSpecificConfig
+    sconf->crc_enabled = compr->crc_enabled;
 
 
     // print ALSSpecificConfig info
@@ -2997,7 +3011,7 @@ static int write_specific_config(AVCodecContext *avctx)
     header_size += ALS_SPECIFIC_CFG_SIZE;
     header_size += (sconf->chan_config > 0) << 1;                       // chan_config_info
     header_size += avctx->channels          << 1;                       // chan_pos[c]
-//    header_size += (sconf->crc_enabled > 0) << 2;                     // crc TODO: include CRC computation
+    header_size += (sconf->crc_enabled > 0) << 2;                       // crc
     if (sconf->ra_flag == RA_FLAG_HEADER && sconf->ra_distance > 0)     // ra_unit_size
         header_size += (sconf->samples / sconf->frame_length + 1) << 2;
 
@@ -3053,7 +3067,7 @@ static int write_specific_config(AVCodecContext *avctx)
     put_bits  (&pb,  1, sconf->mc_coding);
     put_bits  (&pb,  1, sconf->chan_config);
     put_bits  (&pb,  1, sconf->chan_sort);
-    put_bits  (&pb,  1, 0);                     // crc_enabled (0 = none, TODO! add to sconf!)
+    put_bits  (&pb,  1, sconf->crc_enabled);    // crc_enabled
     put_bits  (&pb,  1, sconf->rlslms);
     put_bits  (&pb,  5, 0);                     // reserved bits
     put_bits  (&pb,  1, 0);                     // aux_data_enabled (0 = false)
@@ -3063,6 +3077,7 @@ static int write_specific_config(AVCodecContext *avctx)
 
     put_bits32(&pb, 0);                         // original header size
     put_bits32(&pb, 0);                         // original trailer size
+    put_bits32(&pb, ctx->crc);                  // CRC
 
 
     // writing in local header finished,
@@ -3371,6 +3386,12 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->acf_window[b+1] = ctx->acf_window[b] + block_length;
         if (!sconf->block_switching)
             break;
+    }
+
+    // initialize CRC calculation
+    if (sconf->crc_enabled) {
+        ctx->crc_table = av_crc_get_table(AV_CRC_32_IEEE_LE);
+        ctx->crc       = 0xFFFFFFFFL;
     }
 
     return 0;
