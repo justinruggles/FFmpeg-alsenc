@@ -1467,6 +1467,24 @@ static unsigned int subblock_bgmc_count_exact(const int32_t *res_ptr,
 }
 
 
+static unsigned int block_rice_param_count(ALSEncContext *ctx, ALSBlock *block,
+                                           int sub_blocks, int *rice_param)
+{
+    unsigned int count = 0;
+    int sb;
+
+    count += 4 + (ctx->max_rice_param > 15);
+    if (sub_blocks) {
+        for (sb = 1; sb < sub_blocks; sb++)
+            count += rice_count(rice_param[sb]-rice_param[sb-1], 0);
+    }
+
+    count += !!ctx->sconf.sb_part;
+
+    return count;
+}
+
+
 static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
                                            int sub_blocks, int *rice_param,
                                            int order)
@@ -1481,15 +1499,10 @@ static unsigned int block_rice_count_exact(ALSEncContext *ctx, ALSBlock *block,
         count += subblock_rice_count_exact(res_ptr, sb_length, rice_param[sb],
                                            ctx->max_rice_param,
                                            !sb && block->ra_block, order);
-        if (!sb)
-            count += 4 + (ctx->max_rice_param > 15);
-        else
-            count += rice_count(rice_param[sb]-rice_param[sb-1], 0);
-
         res_ptr += sb_length;
     }
 
-    count += !!ctx->sconf.sb_part;
+    count += block_rice_param_count(ctx, block, sub_blocks, rice_param);
 
     return count;
 }
@@ -1821,7 +1834,8 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
 
     count1  = count[4][param[4]];
-    count4 = block_rice_count_exact(ctx, block, 4, param, order);
+    count4 = count[0][param[0]] + count[1][param[1]] + count[2][param[2]] +
+             count[3][param[3]] + block_rice_param_count(ctx, block, 4, param);
     if (count1 <= count4) {
         ent->sub_blocks = 1;
         ent->rice_param[0] = param[4];
