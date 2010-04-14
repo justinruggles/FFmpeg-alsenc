@@ -1782,11 +1782,13 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
 
     /* if sub-block partitioning is not used, stop here */
-    if (sb_max == 1) {
+    if (sb_max == 1 || (param[0] == param[1] && param[1] == param[2] &&
+        param[2] == param[3])) {
         ent->sub_blocks = 1;
         ent->rice_param[0] = param[0];
         ent->bits_ec_param_and_res = block_rice_count_exact(ctx, block, 1,
                                                               param, order);
+        return;
     }
 
 
