@@ -1746,9 +1746,10 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         sb_max = 4;
     sb_length = block->length / sb_max;
 
+    best_k = ctx->max_rice_param / 3;
+
     for (sb = 0; sb < sb_max; sb++) {
-        /* start 1/3 distance between 0 and max_param */
-        k = ctx->max_rice_param / 3;
+        k = FFMIN(best_k, ctx->max_rice_param-1);
         count[sb][k] = subblock_rice_count_exact(block->cur_ptr + (sb * sb_length),
                                                  sb_length, k, ctx->max_rice_param,
                                                  !sb && block->ra_block, order);
@@ -1793,7 +1794,7 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 
 
     /* start 1/3 distance between 0 and max_param */
-    k = ctx->max_rice_param / 3;
+    k = FFMIN(param[0], ctx->max_rice_param-1);
     count[4][k] = block_rice_count_exact(ctx, block, 1, &k, order);
     k++;
     count[4][k] = block_rice_count_exact(ctx, block, 1, &k, order);
