@@ -1225,7 +1225,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         if (sconf->bgmc) {
             ff_bgmc_encode_end(pb, &low, &follow);
 
-            res_ptr = block->res_ptr + start;
+            res_ptr = block->cur_ptr + start;
 
             for (sb = 0; sb < ent->sub_blocks; sb++, start = 0) {
                 bgmc_encode_lsb(pb, res_ptr, sb_length - start, k[sb], max[sb], s[sb]);
