@@ -1072,8 +1072,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
 
         // ec_sub
-        if (sconf->sb_part) {
-            if (sconf->bgmc)
+        if (sconf->sb_part || sconf->bgmc) {
+            if (sconf->sb_part && sconf->bgmc)
                 put_bits(pb, 2, av_log2(ent->sub_blocks));
             else
                 put_bits(pb, 1, ent->sub_blocks > 1);
