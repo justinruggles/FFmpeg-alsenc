@@ -1148,10 +1148,9 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         // LPTenable && LTPgain && LTPlag
         if (sconf->long_term_prediction) {
-            put_bits(pb, 1, block->ltp_info[block->js_block].use_ltp);
+            put_bits(pb, 1, ltp->use_ltp);
 
-            if (block->ltp_info[block->js_block].use_ltp) {
-                ALSLTPInfo *ltp    = &block->ltp_info[block->js_block];
+            if (ltp->use_ltp) {
                 int ltp_lag_length = 8 + (avctx->sample_rate >=  96000) +
                                          (avctx->sample_rate >= 192000);
 
@@ -1937,7 +1936,6 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
 {
     ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
-    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
     int bit_count_ltp;
     int32_t *save_ptr  = block->cur_ptr;
     int ltp_lag_length = 8 + (ctx->avctx->sample_rate >=  96000) +
@@ -1949,7 +1947,6 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
     // generate bit count for LTP signal
     block->cur_ptr = ctx->ltp_buffer;
     ltp->use_ltp = 1;
-    ent = &block->ent_info[ltp->use_ltp];
     find_block_entropy_params(ctx, block, block->opt_order);
 
     ltp->bits_ltp = 1 + ltp_lag_length +
@@ -1962,7 +1959,7 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
     // test if LTP pays off
     bit_count_ltp = block->bits_misc +
                     block->bits_parcor_coeff +
-                    ent->bits_ec_param_and_res +
+                    block->ent_info[ltp->use_ltp].bits_ec_param_and_res +
                     ltp->bits_ltp;
     bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
 
@@ -1971,7 +1968,6 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
         *bit_count     = bit_count_ltp;
     } else {
         ltp->use_ltp  = 0;
-        ent = &block->ent_info[ltp->use_ltp];
         ltp->bits_ltp = 1;
         block->cur_ptr = save_ptr;
     }
@@ -2739,7 +2735,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
     ctx->cur_frame_length = avctx->frame_size;
-
 
     // determine if this is an RA frame
     if (sconf->ra_distance) {
