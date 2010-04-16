@@ -176,6 +176,7 @@ typedef struct {
     ALSEncStage *stages;            ///< array containing all grouped encoding and algorithm options for each possible stage
     ALSEncStage *cur_stage;         ///< points to the currently used encoding stage
     unsigned int cur_frame_length;  ///< length of the current frame, in samples
+    int ra_counter;                 ///< counts from zero to ra_distance, equals zero for ra-frames
     int js_switch;                  ///< force joint-stereo in case of MCC
     int *independent_bs;            ///< array containing independent_bs flag for each channel
     int32_t *raw_buffer;            ///< buffer containing all raw samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
@@ -462,11 +463,13 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
 {
     unsigned int n;
-    int32_t *c1 = ctx->raw_samples    [channel     ];
-    int32_t *c2 = ctx->raw_samples    [channel  + 1];
-    int32_t *d  = ctx->raw_dif_samples[channel >> 1];
+    unsigned int max_order = (ctx->ra_counter != 1) ? ctx->sconf.max_order : 0;
 
-    for (n = 0; n < ctx->cur_frame_length; n++) {
+    int32_t *c1 = ctx->raw_samples    [channel     ] - max_order;
+    int32_t *c2 = ctx->raw_samples    [channel  + 1] - max_order;
+    int32_t *d  = ctx->raw_dif_samples[channel >> 1] - max_order;
+
+    for (n = 0; n < ctx->cur_frame_length + max_order; n++) {
         *d++ = *c2 - *c1;
         c1++;
         c2++;
@@ -2738,10 +2741,13 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     // determine if this is an RA frame
     if (sconf->ra_distance) {
-        // TODO: should be based on frame_id and ra_distance
-        int ra_frame = 1;
         for (c = 0; c < avctx->channels; c++)
-            ctx->blocks[c][0].ra_block = ra_frame;
+            ctx->blocks[c][0].ra_block = !ctx->ra_counter;
+
+        ctx->ra_counter++;
+
+        if (sconf->ra_distance == ctx->ra_counter)
+            ctx->ra_counter = 0;
     }
 
 
@@ -2798,7 +2804,14 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     if (frame_data_size >= 0)
         sconf->samples += ctx->cur_frame_length;
 
-    //memset(frame, 0, buf_size);
+    // store previous samples
+    if (ctx->ra_counter || !sconf->ra_distance) {
+        for (c = 0; c < avctx->channels; c++) {
+            memcpy(ctx->raw_samples[c] - sconf->max_order,
+                   ctx->raw_samples[c] + ctx->cur_frame_length - sconf->max_order,
+                   sizeof(*ctx->raw_samples[c]) * sconf->max_order);
+        }
+    }
 
     return frame_data_size;
 }
@@ -2894,7 +2907,9 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // maybe use AVCodecContext.gop_size. it is user-configurable, and its
     // default value is 12, which is every 1/2 sec. for 2048 frame size and
     // 44100 Hz sample rate.
+    // TODO: set ra_distance based on compression level and/or user options enabled for audio (gop size?)
     sconf->ra_distance = 1;
+    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
 
     // determine where to store ra_flag (01: beginning of frame_data)
