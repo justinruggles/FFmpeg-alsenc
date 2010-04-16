@@ -8,8 +8,6 @@ Simple To-Do list for the ALS encoder:
 
 - better BGMC param search
 
-- non-RA frames
-
 - Channel reordering
 
 - Code review & beautification
