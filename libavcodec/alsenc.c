@@ -2908,7 +2908,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // default value is 12, which is every 1/2 sec. for 2048 frame size and
     // 44100 Hz sample rate.
     // TODO: set ra_distance based on compression level and/or user options enabled for audio (gop size?)
-    sconf->ra_distance = 1;
+    sconf->ra_distance = 12;
     sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
 
