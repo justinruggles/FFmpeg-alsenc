@@ -2553,12 +2553,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     }
 
 
-    // final joint or multi channel coding:
-    // to be implemented
-    //
-    // up to now only independent coding...
-
-
     // search for rice parameter:
     ltp->use_ltp = 0;
     ent = &block->ent_info[ltp->use_ltp];
