@@ -2444,22 +2444,13 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     block->bits_misc = 1;   // block_type
 
     // check for constant block
-    //
-    // Read 1st sample, then check remaining samples.  Benchmark
-    // with and w/o the check.  Maybe can be skipped for only the fastest mode.
 
     test_const_value(ctx, block);
 
 
     // shifting samples:
-    // to be implemented
-    //
-    // Again, maybe skip in fastest mode.  The flags
-    // to indicate use of these sorts of searches should be in the context and
-    // set during init based on compression_level.
-    //
-    // determine if the samples can be shifted
-    // while not implemented, don't shift anyway
+    // determine if all the samples in this block can be right-shifted without
+    // any information loss
 
     if (!block->constant) {
         test_zero_lsb(ctx, block);
@@ -2468,13 +2459,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
             block->bits_misc += 4;  // shift_pos
     }
 
-
-    // difference coding(?):
-    // to be implemented
-    //
-    // choose if this block can be difference coded if joint-stereo is enabled
-    // (and the block can be encoded in a channel pair)
-    // while not implemented, don't indicate js
 
     block->bits_misc++; // add one bit for block->js_block
 
@@ -2553,7 +2537,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     }
 
 
-    // search for rice parameter:
+    // search for entropy coding (Rice/BGMC) parameters
     ltp->use_ltp = 0;
     ent = &block->ent_info[ltp->use_ltp];
     find_block_entropy_params(ctx, block, block->opt_order);
