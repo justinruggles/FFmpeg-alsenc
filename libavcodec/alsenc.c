@@ -229,6 +229,7 @@ static const ALSSpecificConfig spc_config_c0 = {
     .mc_coding              = 0,
     .rlslms                 = 0,
     .crc_enabled            = 0,
+    .ra_distance            = 1,
 };
 
 /** compression level 0 joint-stereo options
@@ -283,6 +284,7 @@ static const ALSSpecificConfig spc_config_c1 = {
     .mc_coding              = 0,
     .rlslms                 = 0,
     .crc_enabled            = 1,
+    .ra_distance            = 12,
 };
 
 /** compression level 1 joint-stereo stage options */
@@ -335,6 +337,7 @@ static const ALSSpecificConfig spc_config_c2 = {
     .mc_coding              = 0,
     .rlslms                 = 0,
     .crc_enabled            = 1,
+    .ra_distance            = 0,
 };
 
 /** compression level 2 joint-stereo stage options */
@@ -2908,8 +2911,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // maybe use AVCodecContext.gop_size. it is user-configurable, and its
     // default value is 12, which is every 1/2 sec. for 2048 frame size and
     // 44100 Hz sample rate.
-    // TODO: set ra_distance based on compression level and/or user options enabled for audio (gop size?)
-    sconf->ra_distance = 12;
+    // TODO: alloow user to override ra_distance
+    sconf->ra_distance = compr->ra_distance;
     sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
 
