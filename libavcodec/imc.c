@@ -38,6 +38,7 @@
 #include "avcodec.h"
 #include "get_bits.h"
 #include "dsputil.h"
+#include "fft.h"
 
 #include "imcdata.h"
 
@@ -84,8 +85,8 @@ typedef struct {
 
     DSPContext dsp;
     FFTContext fft;
-    DECLARE_ALIGNED_16(FFTComplex, samples)[COEFFS/2];
-    DECLARE_ALIGNED_16(float, out_samples)[COEFFS];
+    DECLARE_ALIGNED(16, FFTComplex, samples)[COEFFS/2];
+    DECLARE_ALIGNED(16, float, out_samples)[COEFFS];
 } IMCContext;
 
 static VLC huffman_vlc[4][4];
@@ -822,7 +823,7 @@ static av_cold int imc_decode_close(AVCodecContext * avctx)
 
 AVCodec imc_decoder = {
     .name = "imc",
-    .type = CODEC_TYPE_AUDIO,
+    .type = AVMEDIA_TYPE_AUDIO,
     .id = CODEC_ID_IMC,
     .priv_data_size = sizeof(IMCContext),
     .init = imc_decode_init,

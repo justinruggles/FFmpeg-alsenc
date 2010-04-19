@@ -29,6 +29,7 @@
 #include "dsputil.h"
 #include "avcodec.h"
 #include "mpegvideo.h"
+#include "h263.h"
 #include "vc1.h"
 #include "vc1data.h"
 #include "vc1acdata.h"
@@ -2993,11 +2994,9 @@ static av_cold int vc1_decode_init(AVCodecContext *avctx)
         avctx->idct_algo=FF_IDCT_WMV2;
     }
 
-    if(ff_h263_decode_init(avctx) < 0)
+    if(ff_msmpeg4_decode_init(avctx) < 0)
         return -1;
     if (vc1_init_common(v) < 0) return -1;
-    // only for ff_msmp4_mb_i_table
-    if (ff_msmpeg4_decode_init(avctx) < 0) return -1;
 
     avctx->coded_width = avctx->width;
     avctx->coded_height = avctx->height;
@@ -3320,7 +3319,7 @@ static av_cold int vc1_decode_end(AVCodecContext *avctx)
 
 AVCodec vc1_decoder = {
     "vc1",
-    CODEC_TYPE_VIDEO,
+    AVMEDIA_TYPE_VIDEO,
     CODEC_ID_VC1,
     sizeof(VC1Context),
     vc1_decode_init,
@@ -3336,7 +3335,7 @@ AVCodec vc1_decoder = {
 #if CONFIG_WMV3_DECODER
 AVCodec wmv3_decoder = {
     "wmv3",
-    CODEC_TYPE_VIDEO,
+    AVMEDIA_TYPE_VIDEO,
     CODEC_ID_WMV3,
     sizeof(VC1Context),
     vc1_decode_init,
@@ -3353,7 +3352,7 @@ AVCodec wmv3_decoder = {
 #if CONFIG_WMV3_VDPAU_DECODER
 AVCodec wmv3_vdpau_decoder = {
     "wmv3_vdpau",
-    CODEC_TYPE_VIDEO,
+    AVMEDIA_TYPE_VIDEO,
     CODEC_ID_WMV3,
     sizeof(VC1Context),
     vc1_decode_init,
@@ -3370,7 +3369,7 @@ AVCodec wmv3_vdpau_decoder = {
 #if CONFIG_VC1_VDPAU_DECODER
 AVCodec vc1_vdpau_decoder = {
     "vc1_vdpau",
-    CODEC_TYPE_VIDEO,
+    AVMEDIA_TYPE_VIDEO,
     CODEC_ID_VC1,
     sizeof(VC1Context),
     vc1_decode_init,

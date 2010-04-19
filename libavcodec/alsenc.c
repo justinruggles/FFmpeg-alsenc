@@ -978,8 +978,8 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 
 /** Encode the LSB part of the given symbols
  */
-void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
-                     unsigned int k, unsigned int max, unsigned int s)
+static void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
+                            unsigned int k, unsigned int max, unsigned int s)
 {
     int lsb_mask       = (1 << k) - 1;
     int abs_max        = (max + 1) >> 1;

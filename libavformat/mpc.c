@@ -104,7 +104,7 @@ static int mpc_read_header(AVFormatContext *s, AVFormatParameters *ap)
     st = av_new_stream(s, 0);
     if (!st)
         return AVERROR(ENOMEM);
-    st->codec->codec_type = CODEC_TYPE_AUDIO;
+    st->codec->codec_type = AVMEDIA_TYPE_AUDIO;
     st->codec->codec_id = CODEC_ID_MUSEPACK7;
     st->codec->channels = 2;
     st->codec->bits_per_coded_sample = 16;
@@ -170,6 +170,8 @@ static int mpc_read_packet(AVFormatContext *s, AVPacket *pkt)
 
     pkt->data[0] = curbits;
     pkt->data[1] = (c->curframe > c->fcount);
+    pkt->data[2] = 0;
+    pkt->data[3] = 0;
 
     pkt->stream_index = 0;
     pkt->pts = cur;

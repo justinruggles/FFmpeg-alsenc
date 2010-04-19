@@ -27,6 +27,7 @@
 #include <float.h>
 #include "avcodec.h"
 #include "dsputil.h"
+#include "fft.h"
 #include "vorbis.h"
 #include "vorbis_enc_data.h"
 
@@ -1092,7 +1093,7 @@ static av_cold int vorbis_encode_close(AVCodecContext *avccontext)
 
 AVCodec vorbis_encoder = {
     "vorbis",
-    CODEC_TYPE_AUDIO,
+    AVMEDIA_TYPE_AUDIO,
     CODEC_ID_VORBIS,
     sizeof(vorbis_enc_context),
     vorbis_encode_init,

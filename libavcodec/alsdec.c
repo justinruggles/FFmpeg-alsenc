@@ -337,7 +337,7 @@ static void get_block_sizes(ALSDecContext *ctx, unsigned int *div_blocks,
         unsigned int remaining = ctx->cur_frame_length;
 
         for (b = 0; b < ctx->num_blocks; b++) {
-            if (remaining < div_blocks[b]) {
+            if (remaining <= div_blocks[b]) {
                 div_blocks[b] = remaining;
                 ctx->num_blocks = b + 1;
                 break;
@@ -1508,7 +1508,7 @@ static av_cold void flush(AVCodecContext *avctx)
 
 AVCodec als_decoder = {
     "als",
-    CODEC_TYPE_AUDIO,
+    AVMEDIA_TYPE_AUDIO,
     CODEC_ID_MP4ALS,
     sizeof(ALSDecContext),
     decode_init,

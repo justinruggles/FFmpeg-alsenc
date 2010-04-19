@@ -60,7 +60,7 @@ static av_cold int mm_decode_init(AVCodecContext *avctx)
 
     s->frame.reference = 1;
     if (avctx->get_buffer(avctx, &s->frame)) {
-        av_log(s->avctx, AV_LOG_ERROR, "mmvideo: get_buffer() failed\n");
+        av_log(s->avctx, AV_LOG_ERROR, "get_buffer() failed\n");
         return -1;
     }
 
@@ -200,7 +200,7 @@ static av_cold int mm_decode_end(AVCodecContext *avctx)
 
 AVCodec mmvideo_decoder = {
     "mmvideo",
-    CODEC_TYPE_VIDEO,
+    AVMEDIA_TYPE_VIDEO,
     CODEC_ID_MMVIDEO,
     sizeof(MmContext),
     mm_decode_init,

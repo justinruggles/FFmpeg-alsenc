@@ -194,7 +194,7 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #elif HAVE_FAST_UNALIGNED
 
 #   define AV_RN(s, p) (((const av_alias##s*)(p))->u##s)
-#   define AV_WN(s, p, v) (((uint##s##_t*)(p))->u##s = (v))
+#   define AV_WN(s, p, v) (((av_alias##s*)(p))->u##s = (v))
 
 #else
 
@@ -465,6 +465,10 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #define AV_COPY(n, d, s) \
     (((av_alias##n*)(d))->u##n = ((const av_alias##n*)(s))->u##n)
 
+#ifndef AV_COPY16
+#   define AV_COPY16(d, s) AV_COPY(16, d, s)
+#endif
+
 #ifndef AV_COPY32
 #   define AV_COPY32(d, s) AV_COPY(32, d, s)
 #endif
@@ -488,6 +492,10 @@ union unaligned_16 { uint16_t l; } __attribute__((packed)) av_alias;
 #endif
 
 #define AV_ZERO(n, d) (((av_alias##n*)(d))->u##n = 0)
+
+#ifndef AV_ZERO16
+#   define AV_ZERO16(d) AV_ZERO(16, d)
+#endif
 
 #ifndef AV_ZERO32
 #   define AV_ZERO32(d) AV_ZERO(32, d)

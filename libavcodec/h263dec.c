@@ -618,12 +618,12 @@ retry:
         return -1;
 
     if (CONFIG_MPEG4_VDPAU_DECODER && (s->avctx->codec->capabilities & CODEC_CAP_HWACCEL_VDPAU)) {
-        ff_vdpau_mpeg4_decode_picture(s, buf, buf_size);
+        ff_vdpau_mpeg4_decode_picture(s, s->gb.buffer, s->gb.buffer_end - s->gb.buffer);
         goto frame_end;
     }
 
     if (avctx->hwaccel) {
-        if (avctx->hwaccel->start_frame(avctx, buf, buf_size) < 0)
+        if (avctx->hwaccel->start_frame(avctx, s->gb.buffer, s->gb.buffer_end - s->gb.buffer) < 0)
             return -1;
     }
 
@@ -663,6 +663,7 @@ retry:
         }
 
     assert(s->bitstream_buffer_size==0);
+frame_end:
     /* divx 5.01+ bistream reorder stuff */
     if(s->codec_id==CODEC_ID_MPEG4 && s->divx_packed){
         int current_pos= get_bits_count(&s->gb)>>3;
@@ -697,7 +698,6 @@ retry:
 intrax8_decoded:
     ff_er_frame_end(s);
 
-frame_end:
     if (avctx->hwaccel) {
         if (avctx->hwaccel->end_frame(avctx) < 0)
             return -1;
@@ -727,7 +727,7 @@ av_log(avctx, AV_LOG_DEBUG, "%"PRId64"\n", rdtsc()-time);
 
 AVCodec h263_decoder = {
     "h263",
-    CODEC_TYPE_VIDEO,
+    AVMEDIA_TYPE_VIDEO,
     CODEC_ID_H263,
     sizeof(MpegEncContext),
     ff_h263_decode_init,

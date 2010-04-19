@@ -46,11 +46,9 @@
 #include <sys/resource.h>
 #endif
 
-#undef exit
-
 const char **opt_names;
 static int opt_name_count;
-AVCodecContext *avcodec_opts[CODEC_TYPE_NB];
+AVCodecContext *avcodec_opts[AVMEDIA_TYPE_NB];
 AVFormatContext *avformat_opts;
 struct SwsContext *sws_opts;
 
@@ -172,7 +170,7 @@ unknown_opt:
                 *po->u.float_arg = parse_number_or_die(opt, arg, OPT_FLOAT, -1.0/0.0, 1.0/0.0);
             } else if (po->flags & OPT_FUNC2) {
                 if (po->u.func2_arg(opt, arg) < 0) {
-                    fprintf(stderr, "%s: invalid value '%s' for option '%s'\n", argv[0], arg, opt);
+                    fprintf(stderr, "%s: failed to set value '%s' for option '%s'\n", argv[0], arg, opt);
                     exit(1);
                 }
             } else {
@@ -193,29 +191,31 @@ int opt_default(const char *opt, const char *arg){
     const AVOption *o= NULL;
     int opt_types[]={AV_OPT_FLAG_VIDEO_PARAM, AV_OPT_FLAG_AUDIO_PARAM, 0, AV_OPT_FLAG_SUBTITLE_PARAM, 0};
 
-    for(type=0; type<CODEC_TYPE_NB && ret>= 0; type++){
+    for(type=0; type<AVMEDIA_TYPE_NB && ret>= 0; type++){
         const AVOption *o2 = av_find_opt(avcodec_opts[0], opt, NULL, opt_types[type], opt_types[type]);
         if(o2)
             ret = av_set_string3(avcodec_opts[type], opt, arg, 1, &o);
     }
     if(!o)
         ret = av_set_string3(avformat_opts, opt, arg, 1, &o);
-    if(!o)
+    if(!o && sws_opts)
         ret = av_set_string3(sws_opts, opt, arg, 1, &o);
     if(!o){
         if(opt[0] == 'a')
-            ret = av_set_string3(avcodec_opts[CODEC_TYPE_AUDIO], opt+1, arg, 1, &o);
+            ret = av_set_string3(avcodec_opts[AVMEDIA_TYPE_AUDIO], opt+1, arg, 1, &o);
         else if(opt[0] == 'v')
-            ret = av_set_string3(avcodec_opts[CODEC_TYPE_VIDEO], opt+1, arg, 1, &o);
+            ret = av_set_string3(avcodec_opts[AVMEDIA_TYPE_VIDEO], opt+1, arg, 1, &o);
         else if(opt[0] == 's')
-            ret = av_set_string3(avcodec_opts[CODEC_TYPE_SUBTITLE], opt+1, arg, 1, &o);
+            ret = av_set_string3(avcodec_opts[AVMEDIA_TYPE_SUBTITLE], opt+1, arg, 1, &o);
     }
     if (o && ret < 0) {
         fprintf(stderr, "Invalid value '%s' for option '%s'\n", arg, opt);
         exit(1);
     }
-    if(!o)
-        return -1;
+    if (!o) {
+        fprintf(stderr, "Unrecognized option '%s'\n", opt);
+        exit(1);
+    }
 
 //    av_log(NULL, AV_LOG_ERROR, "%s:%s: %f 0x%0X\n", opt, arg, av_get_double(avcodec_opts, opt, NULL), (int)av_get_int(avcodec_opts, opt, NULL));
 
@@ -291,39 +291,17 @@ void set_context_opts(void *ctx, void *opts_ctx, int flags)
 
 void print_error(const char *filename, int err)
 {
+    char errbuf[128];
+
     switch(err) {
-    case AVERROR_NUMEXPECTED:
-        fprintf(stderr, "%s: Incorrect image filename syntax.\n"
-                "Use '%%d' to specify the image number:\n"
-                "  for img1.jpg, img2.jpg, ..., use 'img%%d.jpg';\n"
-                "  for img001.jpg, img002.jpg, ..., use 'img%%03d.jpg'.\n",
-                filename);
-        break;
-    case AVERROR_INVALIDDATA:
-        fprintf(stderr, "%s: Error while parsing header\n", filename);
-        break;
-    case AVERROR_NOFMT:
-        fprintf(stderr, "%s: Unknown format\n", filename);
-        break;
-    case AVERROR(EIO):
-        fprintf(stderr, "%s: I/O error occurred\n"
-                "Usually that means that input file is truncated and/or corrupted.\n",
-                filename);
-        break;
-    case AVERROR(ENOMEM):
-        fprintf(stderr, "%s: memory allocation error occurred\n", filename);
-        break;
-    case AVERROR(ENOENT):
-        fprintf(stderr, "%s: no such file or directory\n", filename);
-        break;
 #if CONFIG_NETWORK
-    case AVERROR(FF_NETERROR(EPROTONOSUPPORT)):
+    case FF_NETERROR(EPROTONOSUPPORT):
         fprintf(stderr, "%s: Unsupported network protocol\n", filename);
         break;
 #endif
     default:
-        fprintf(stderr, "%s: Error while opening file\n", filename);
-        break;
+        av_strerror(err, errbuf, sizeof(errbuf));
+        fprintf(stderr, "%s: %s\n", filename, errbuf);
     }
 }
 
@@ -557,13 +535,13 @@ void show_codecs(void)
         last_name= p2->name;
 
         switch(p2->type) {
-        case CODEC_TYPE_VIDEO:
+        case AVMEDIA_TYPE_VIDEO:
             type_str = "V";
             break;
-        case CODEC_TYPE_AUDIO:
+        case AVMEDIA_TYPE_AUDIO:
             type_str = "A";
             break;
-        case CODEC_TYPE_SUBTITLE:
+        case AVMEDIA_TYPE_SUBTITLE:
             type_str = "S";
             break;
         default:
@@ -610,9 +588,6 @@ void show_protocols(void)
     printf("Supported file protocols:\n");
     while((up = av_protocol_next(up)))
         printf("%s\n", up->name);
-    printf("\n");
-
-    printf("Frame size, frame rate abbreviations:\n ntsc pal qntsc qpal sntsc spal film ntsc-film sqcif qcif cif 4cif\n");
 }
 
 void show_filters(void)
@@ -663,4 +638,28 @@ int read_yesno(void)
         c = getchar();
 
     return yesno;
+}
+
+int read_file(const char *filename, char **bufptr, size_t *size)
+{
+    FILE *f = fopen(filename, "r");
+
+    if (!f) {
+        fprintf(stderr, "Cannot read file '%s': %s\n", filename, strerror(errno));
+        return AVERROR(errno);
+    }
+    fseek(f, 0, SEEK_END);
+    *size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    *bufptr = av_malloc(*size + 1);
+    if (!*bufptr) {
+        fprintf(stderr, "Could not allocate file buffer\n");
+        fclose(f);
+        return AVERROR(ENOMEM);
+    }
+    fread(*bufptr, 1, *size, f);
+    (*bufptr)[*size++] = '\0';
+
+    fclose(f);
+    return 0;
 }

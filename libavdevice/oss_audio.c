@@ -232,7 +232,7 @@ static int audio_read_header(AVFormatContext *s1, AVFormatParameters *ap)
     }
 
     /* take real parameters */
-    st->codec->codec_type = CODEC_TYPE_AUDIO;
+    st->codec->codec_type = AVMEDIA_TYPE_AUDIO;
     st->codec->codec_id = s->codec_id;
     st->codec->sample_rate = s->sample_rate;
     st->codec->channels = s->channels;
@@ -251,12 +251,12 @@ static int audio_read_packet(AVFormatContext *s1, AVPacket *pkt)
     if ((ret=av_new_packet(pkt, s->frame_size)) < 0)
         return ret;
 
-        ret = read(s->fd, pkt->data, pkt->size);
+    ret = read(s->fd, pkt->data, pkt->size);
     if (ret <= 0){
         av_free_packet(pkt);
         pkt->size = 0;
         if (ret<0)  return AVERROR(errno);
-        else        return AVERROR(EOF);
+        else        return AVERROR_EOF;
     }
     pkt->size = ret;
 

@@ -40,7 +40,7 @@ extern const int program_birth_year;
 extern const int this_year;
 
 extern const char **opt_names;
-extern AVCodecContext *avcodec_opts[CODEC_TYPE_NB];
+extern AVCodecContext *avcodec_opts[AVMEDIA_TYPE_NB];
 extern AVFormatContext *avformat_opts;
 extern struct SwsContext *sws_opts;
 
@@ -199,5 +199,16 @@ void show_pix_fmts(void);
  * starting with [yY], otherwise returns 0.
  */
 int read_yesno(void);
+
+/**
+ * Reads the file with name filename, and puts its content in a newly
+ * allocated 0-terminated buffer.
+ *
+ * @param bufptr puts here the pointer to the newly allocated buffer
+ * @param size puts here the size of the newly allocated buffer
+ * @return 0 in case of success, a negative value corresponding to an
+ * AVERROR error code in case of failure.
+ */
+int read_file(const char *filename, char **bufptr, size_t *size);
 
 #endif /* FFMPEG_CMDUTILS_H */

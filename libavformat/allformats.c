@@ -173,7 +173,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX (ROQ, roq);
     REGISTER_DEMUXER  (RPL, rpl);
     REGISTER_MUXER    (RTP, rtp);
-    REGISTER_DEMUXER  (RTSP, rtsp);
+    REGISTER_MUXDEMUX (RTSP, rtsp);
     REGISTER_DEMUXER  (SDP, sdp);
 #if CONFIG_SDP_DEMUXER
     av_register_rtp_dynamic_payload_handlers();
@@ -208,6 +208,7 @@ void av_register_all(void)
     REGISTER_DEMUXER  (WSVQA, wsvqa);
     REGISTER_DEMUXER  (WV, wv);
     REGISTER_DEMUXER  (XA, xa);
+    REGISTER_DEMUXER  (YOP, yop);
     REGISTER_MUXDEMUX (YUV4MPEGPIPE, yuv4mpegpipe);
 
     /* external libraries */
@@ -219,6 +220,12 @@ void av_register_all(void)
     REGISTER_PROTOCOL (HTTP, http);
     REGISTER_PROTOCOL (PIPE, pipe);
     REGISTER_PROTOCOL (RTMP, rtmp);
+#if CONFIG_LIBRTMP
+    REGISTER_PROTOCOL (RTMP, rtmpt);
+    REGISTER_PROTOCOL (RTMP, rtmpe);
+    REGISTER_PROTOCOL (RTMP, rtmpte);
+    REGISTER_PROTOCOL (RTMP, rtmps);
+#endif
     REGISTER_PROTOCOL (RTP, rtp);
     REGISTER_PROTOCOL (TCP, tcp);
     REGISTER_PROTOCOL (UDP, udp);

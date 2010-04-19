@@ -166,10 +166,10 @@ for examples see get_bits, show_bits, skip_bits, get_vlc
 
 # ifdef ALT_BITSTREAM_READER_LE
 #   define SHOW_UBITS(name, gb, num)\
-        ((name##_cache) & (NEG_USR32(0xffffffff,num)))
+        zero_extend(name##_cache, num)
 
 #   define SHOW_SBITS(name, gb, num)\
-        NEG_SSR32((name##_cache)<<(32-(num)), num)
+        sign_extend(name##_cache, num)
 # else
 #   define SHOW_UBITS(name, gb, num)\
         NEG_USR32(name##_cache, num)
@@ -422,7 +422,7 @@ static inline void skip_bits1(GetBitContext *s){
  * reads 0-32 bits.
  */
 static inline unsigned int get_bits_long(GetBitContext *s, int n){
-    if(n<=17) return get_bits(s, n);
+    if(n<=MIN_CACHE_BITS) return get_bits(s, n);
     else{
 #ifdef ALT_BITSTREAM_READER_LE
         int ret= get_bits(s, 16);
@@ -445,7 +445,7 @@ static inline int get_sbits_long(GetBitContext *s, int n) {
  * shows 0-32 bits.
  */
 static inline unsigned int show_bits_long(GetBitContext *s, int n){
-    if(n<=17) return show_bits(s, n);
+    if(n<=MIN_CACHE_BITS) return show_bits(s, n);
     else{
         GetBitContext gb= *s;
         return get_bits_long(&gb, n);
