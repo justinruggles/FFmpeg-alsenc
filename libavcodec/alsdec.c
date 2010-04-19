@@ -447,8 +447,8 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
         }
     } else {
         s[0] = get_bits(gb, 4 + (sconf->resolution > 1));
-        for (k = 1; k < sub_blocks; k++) {
-            s[k] = s[k - 1] + decode_rice(gb, 0);}
+        for (k = 1; k < sub_blocks; k++)
+            s[k] = s[k - 1] + decode_rice(gb, 0);
     }
 
     if (get_bits1(gb))
@@ -623,9 +623,9 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
     } else {
         current_res = bd->raw_samples + start;
 
-        for (sb = 0; sb < sub_blocks; sb++, start = 0) {
+        for (sb = 0; sb < sub_blocks; sb++, start = 0)
             for (; start < sb_length; start++)
-                *current_res++ = decode_rice(gb, s[sb]);}
+                *current_res++ = decode_rice(gb, s[sb]);
      }
 
     if (!sconf->mc_coding || ctx->js_switch)
@@ -665,9 +665,8 @@ static int decode_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 
             y = 1 << 6;
 
-            for (base = begin; base < end; base++, tab++) {
+            for (base = begin; base < end; base++, tab++)
                 y += MUL64(bd->ltp_gain[tab], raw_samples[base]);
-            }
 
             raw_samples[ltp_smp] += y >> 7;
         }
@@ -772,9 +771,8 @@ static int decode_block(ALSDecContext *ctx, ALSBlockData *bd)
     // read block type flag and read the samples accordingly
     if (bd->const_block)
         decode_const_block_data(ctx, bd);
-    else  if (decode_var_block_data(ctx, bd))
+    else if (decode_var_block_data(ctx, bd))
         return -1;
-
 
     // TODO: read RLSLMS extension data
 
