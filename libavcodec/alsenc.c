@@ -92,10 +92,15 @@
 /** Uses exact calculation for returned entropy coding bit count */
 #define EC_BIT_COUNT_ALGORITHM_EXACT        1
 
-/** Find adaptive LPC order using a PARCOR coeff threshold value */
-#define ADAPT_ORDER_ALGORITHM_THRESHOLD     0
-/** Find adaptive LPC order by doing a full bit count for each possible order */
-#define ADAPT_ORDER_ALGORITHM_FULL_SEARCH   1
+/** Find adaptive LPC order by doing a bit count for each order until a probable low point is detected */
+#define ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT    0
+/** Find adaptive LPC order by doing a bit count for each possible order */
+#define ADAPT_SEARCH_ALGORITHM_FULL             1
+
+/**  Estimate bit count during adaptive LPC order search using error from the PARCOR coeff calculations */
+#define ADAPT_COUNT_ALGORITHM_ESTIMATE      0
+/**  Do an exact bit count during adaptive LPC order search */
+#define ADAPT_COUNT_ALGORITHM_EXACT         1
 
 /** Find optimal block partitioning using Full-Search */
 #define BS_ALGORITHM_FULL_SEARCH    1
@@ -112,7 +117,7 @@ typedef struct {
     // encoding options used during the processing of the stage
     int check_constant;             ///< check for constant sample value during this stage
     int check_lsbs;                 ///< check for zero LSB values during this stage
-    int adapt_order;                ///< adaptive order to use during this stage
+    int adapt_order;                ///< use adaptive order search during this stage
     int max_order;                  ///< max_oder to use during this stage
     int sb_part;                    ///< sb_part to use during this stage
 
@@ -120,7 +125,8 @@ typedef struct {
     int ecsub_algorithm;            ///< algorithm to use to determine entropy coding sub-block partitioning
     int param_algorithm;            ///< algorithm to use to determine Rice parameters
     int count_algorithm;            ///< algorithm to use for residual + rice param bit count
-    int adapt_algorithm;            ///< algorithm to use for adaptive LPC order
+    int adapt_search_algorithm;     ///< algorithm to use for adaptive LPC order search
+    int adapt_count_algorithm;      ///< algorithm to use for adaptive LPC order bit count
     int merge_algorithm;            ///< algorithm to use to determine final block partitioning
 } ALSEncStage;
 
@@ -202,6 +208,7 @@ typedef struct {
     double *parcor_coeff;           ///< double-precision PARCOR coefficients for the current block
     int32_t *r_parcor_coeff;        ///< scaled 21-bit quantized PARCOR coefficients for the current block
     int32_t *lpc_coeff;             ///< LPC coefficients for the current block
+    double *parcor_error;           ///< error for each order during PARCOR coeff calculation
     unsigned int max_rice_param;    ///< maximum Rice param, depends on sample depth
     double *acf_window_buffer;      ///< buffer containing all pre-calculated autocorrelation windows
     double *acf_window[6];          ///< pre-calculated autocorrelation windows for each block switching depth
@@ -233,7 +240,8 @@ static const ALSEncStage stage_js_c0 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
@@ -245,7 +253,8 @@ static const ALSEncStage stage_bs_c0 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
@@ -256,7 +265,8 @@ static const ALSEncStage stage_final_c0 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_ESTIMATE,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
@@ -283,7 +293,8 @@ static const ALSEncStage stage_js_c1 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -294,7 +305,8 @@ static const ALSEncStage stage_bs_c1 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -305,16 +317,17 @@ static const ALSEncStage stage_final_c1 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_RICE_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_RICE_EXACT,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
 
 /** compression level 2 global options **/
 static const ALSSpecificConfig spc_config_c2 = {
-    .adapt_order            = 0,
+    .adapt_order            = 1,
     .long_term_prediction   = 1,
-    .max_order              = 10,
+    .max_order              = 32,
     .block_switching        = 1,
     .bgmc                   = 1,
     .sb_part                = 1,
@@ -331,7 +344,8 @@ static const ALSEncStage stage_js_c2 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -342,7 +356,8 @@ static const ALSEncStage stage_bs_c2 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -353,7 +368,8 @@ static const ALSEncStage stage_final_c2 = {
     .ecsub_algorithm        = EC_SUB_ALGORITHM_BGMC_EXACT,
     .param_algorithm        = EC_PARAM_ALGORITHM_BGMC_ESTIMATE,
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
-    .adapt_algorithm        = ADAPT_ORDER_ALGORITHM_FULL_SEARCH,
+    .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
+    .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -412,9 +428,14 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
     case EC_BIT_COUNT_ALGORITHM_EXACT:    dprintf(avctx, "count_algorithm = exact\n");    break;
     }
 
-    switch (stage->adapt_algorithm) {
-    case ADAPT_ORDER_ALGORITHM_THRESHOLD:   dprintf(avctx, "adapt_algorithm = threshold\n");   break;
-    case ADAPT_ORDER_ALGORITHM_FULL_SEARCH: dprintf(avctx, "adapt_algorithm = full search\n"); break;
+    switch (stage->adapt_search_algorithm) {
+    case ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT: dprintf(avctx, "adapt_search_algorithm = valley detect\n"); break;
+    case ADAPT_SEARCH_ALGORITHM_FULL:          dprintf(avctx, "adapt_search_algorithm = full\n");          break;
+    }
+
+    switch (stage->adapt_count_algorithm) {
+    case ADAPT_COUNT_ALGORITHM_ESTIMATE: dprintf(avctx, "adapt_count_algorithm = estimate\n"); break;
+    case ADAPT_COUNT_ALGORITHM_EXACT:    dprintf(avctx, "adapt_count_algorithm = exact\n");    break;
     }
 
     switch (stage->merge_algorithm) {
@@ -1875,17 +1896,6 @@ static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-static inline int estimate_best_order(int32_t *r_parcor, int order)
-{
-    int i;
-    for (i = order-1; i > 0; i--) {
-        if (abs(r_parcor[i]) > 104858) // 104858 = 0.10 * (1 << 20)
-            break;
-    }
-    return i+1;
-}
-
-
 static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
 {
@@ -2008,21 +2018,37 @@ static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-static void find_block_adapt_order_full_search(ALSEncContext *ctx,
-                                               ALSBlock *block, int max_order)
+static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
+                                   int max_order)
 {
     int i;
     int32_t count[max_order+1];
     int best = 0;
+    int valley_detect = (ctx->cur_stage->adapt_search_algorithm ==
+                         ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT);
+    int valley_threshold = FFMAX(2, max_order/6);
+    int exact_count = (ctx->cur_stage->adapt_count_algorithm ==
+                       ADAPT_COUNT_ALGORITHM_EXACT);
 
     count[0] = INT32_MAX;
 
     for (i = 0; i <= max_order; i++) {
-
-        count[i] = calc_block_size_fixed_order(ctx, block, i);
+        if (exact_count) {
+            count[i] = calc_block_size_fixed_order(ctx, block, i);
+        } else {
+            if (i && ctx->parcor_error[i-1] >= 1.0) {
+                calc_parcor_coeff_bit_size(ctx, block, i);
+                count[i] = block->bits_misc + block->bits_parcor_coeff;
+                count[i] += 0.5 * log2(ctx->parcor_error[i-1]) * block->length;
+            } else {
+                count[i] = INT32_MAX;
+            }
+        }
 
         if (count[i] >= 0 && count[i] < count[best])
             best = i;
+        else if (valley_detect && (i - best) > valley_threshold)
+            break;
     }
     block->opt_order = best;
 }
@@ -2490,7 +2516,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
         else
             ctx->dsp.lpc_compute_autocorr(block->cur_ptr, NULL, block->length,
                                           max_order, ctx->acf_coeff);
-        compute_ref_coefs(ctx->acf_coeff, max_order, ctx->parcor_coeff);
+        compute_ref_coefs(ctx->acf_coeff, max_order, ctx->parcor_coeff,
+                          ctx->parcor_error);
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
         quantize_parcor_coeffs(ctx->parcor_coeff, max_order,
@@ -2503,11 +2530,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // quick estimate for LPC order. better searches will give better
     // significantly better results.
     if (sconf->max_order && sconf->adapt_order && ctx->cur_stage->adapt_order) {
-        if (ctx->cur_stage->adapt_algorithm == ADAPT_ORDER_ALGORITHM_THRESHOLD) {
-            block->opt_order = estimate_best_order(ctx->r_parcor_coeff, max_order);
-        } else if (ctx->cur_stage->adapt_algorithm == ADAPT_ORDER_ALGORITHM_FULL_SEARCH) {
-            find_block_adapt_order_full_search(ctx, block, max_order);
-        }
+        find_block_adapt_order(ctx, block, max_order);
     } else {
         block->opt_order = max_order;
     }
@@ -3128,6 +3151,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->parcor_coeff);
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
+    av_freep(&ctx->parcor_error);
     av_freep(&ctx->acf_window);
     av_freep(&ctx->ltp_buffer);
     av_freep(&ctx->ltp_corr_buffer);
@@ -3287,6 +3311,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->acf_coeff         = av_malloc (sizeof(*ctx->acf_coeff)      *(sconf->max_order + 1));
     ctx->parcor_coeff      = av_malloc (sizeof(*ctx->parcor_coeff)   * sconf->max_order);
     ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
+    ctx->parcor_error      = av_malloc (sizeof(*ctx->parcor_error)   * sconf->max_order);
     ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
     ctx->acf_window_buffer = av_malloc (sizeof(*ctx->acf_window_buffer) * sconf->frame_length * 2);
 

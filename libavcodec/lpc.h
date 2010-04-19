@@ -82,8 +82,8 @@ void ff_lpc_calc_coefs_cholesky(const int32_t *samples, int blocksize,
  * Schur recursion.
  * Produces reflection coefficients from autocorrelation data.
  */
-static inline LPC_TYPE compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
-                                         LPC_TYPE *ref)
+static inline void compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
+                                     LPC_TYPE *ref, LPC_TYPE *error)
 {
     int i, j;
     LPC_TYPE err;
@@ -97,6 +97,8 @@ static inline LPC_TYPE compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
     err = autoc[0];
     ref[0] = -gen1[0] / err;
     err += gen1[0] * ref[0];
+    if (error)
+        error[0] = err;
     for (i = 1; i < max_order; i++) {
         for (j = 0; j < max_order-i; j++) {
             gen1[j] = gen1[j+1] + ref[i-1] * gen0[j];
@@ -104,10 +106,11 @@ static inline LPC_TYPE compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
         }
         ref[i] = -gen1[0] / err;
         err += gen1[0] * ref[i];
+        if (error)
+            error[i] = err;
     }
 
     av_freep(&gen0);
-    return err;
 }
 
 /**

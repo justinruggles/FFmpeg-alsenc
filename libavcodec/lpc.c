@@ -234,7 +234,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
         s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
 
         if (omethod == ORDER_METHOD_EST) {
-            compute_ref_coefs(autoc, max_order, ref);
+            compute_ref_coefs(autoc, max_order, ref, NULL);
             opt_order = estimate_best_order(ref, min_order, max_order);
             compute_lpc_coefs( NULL,  ref, opt_order, NULL, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
         } else {
