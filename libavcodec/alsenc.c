@@ -1424,22 +1424,22 @@ static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
         unsigned int high, low, follow;
         unsigned int delta, k, max, b;
 
-    // count msb's
-    ff_bgmc_encode_init(&high, &low, &follow);
+        // count msb's
+        ff_bgmc_encode_init(&high, &low, &follow);
 
-    b     = av_clip((av_ceil_log2(b_length) - 3) >> 1, 0, 5);
-    k     = s > b ? s - b : 0;
-    delta = 5 - s + k;
-    max = ff_bgmc_max[sx] >> delta;
+        b     = av_clip((av_ceil_log2(b_length) - 3) >> 1, 0, 5);
+        k     = s > b ? s - b : 0;
+        delta = 5 - s + k;
+        max = ff_bgmc_max[sx] >> delta;
 
-    count += ff_bgmc_encode_msb(NULL, res_ptr, sb_length - len,
-                                k, delta, max, s, sx,
-                                &high, &low, &follow);
+        count += ff_bgmc_encode_msb(NULL, res_ptr, sb_length - len,
+                                    k, delta, max, s, sx,
+                                    &high, &low, &follow);
 
-    count += ff_bgmc_encode_end(NULL, &low, &follow);
+        count += ff_bgmc_encode_end(NULL, &low, &follow);
 
-    // count lsb's
-    count += bgmc_encode_lsb(NULL, res_ptr, sb_length - len, k, max, s);
+        // count lsb's
+        count += bgmc_encode_lsb(NULL, res_ptr, sb_length - len, k, max, s);
     } else {
         int i;
         for (i = len; i < sb_length; i++) {
