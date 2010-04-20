@@ -978,9 +978,10 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 
 /** Encode the LSB part of the given symbols
  */
-static void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
+static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
                             unsigned int k, unsigned int max, unsigned int s)
 {
+    int count          = 0;
     int lsb_mask       = (1 << k) - 1;
     int abs_max        = (max + 1) >> 1;
     int high_offset = -(abs_max      << k);
@@ -991,33 +992,17 @@ static void bgmc_encode_lsb(PutBitContext *pb, int32_t *symbols, unsigned int n,
 
         if (res >> k >=  abs_max || res >> k <= -abs_max) {
             res += res >> k >= abs_max ? high_offset : low_offset;
-            set_sr_golomb_als(pb, res, s);
+            if (pb)
+                set_sr_golomb_als(pb, res, s);
+            count += rice_count(res, s);
         } else if (k) {
-            put_sbits(pb, k, res & lsb_mask);
+            if (pb)
+                put_sbits(pb, k, res & lsb_mask);
+            count += k;
         }
     }
-}
 
-
-/** Count bits needed to encode the LSB part of the given symbols
- */
-static void bgmc_encode_lsb_count(unsigned int *bits, const int32_t *symbols, unsigned int n,
-                                  unsigned int k, unsigned int max, unsigned int s)
-{
-    int abs_max        = (max + 1) >> 1;
-    int high_offset = -(abs_max      << k);
-    int low_offset  =  (abs_max - 1) << k;
-
-    for (; n > 0; n--) {
-        int32_t res = *symbols++;
-
-        if (res >> k <= -abs_max || res >> k >= abs_max) {
-            res += res >> k >= abs_max ? high_offset : low_offset;
-            *bits += rice_count(res, s);
-        } else if (k) {
-            *bits += k;
-        }
-    }
+    return k;
 }
 
 
@@ -1479,15 +1464,15 @@ static unsigned int subblock_bgmc_count_exact(const int32_t *res_ptr,
     delta = 5 - rice_param + k;
     max = ff_bgmc_max[sx] >> delta;
 
-    ff_bgmc_encode_msb_count(&count, res_ptr, sb_length - len,
-                             k, delta, max, rice_param, sx,
-                             &high, &low, &follow);
+    count += ff_bgmc_encode_msb(NULL, res_ptr, sb_length - len,
+                                k, delta, max, rice_param, sx,
+                                &high, &low, &follow);
 
-    ff_bgmc_encode_end_count(&count, &follow);
+    count += ff_bgmc_encode_end(NULL, &low, &follow);
 
     // count lsb's
-    bgmc_encode_lsb_count(&count, res_ptr, sb_length - len,
-                          k, max, rice_param);
+    count += bgmc_encode_lsb(NULL, res_ptr, sb_length - len,
+                             k, max, rice_param);
 
     return count;
 }

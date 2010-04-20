@@ -46,48 +46,34 @@ void ff_bgmc_end(uint8_t **cf_lut, unsigned int **cf_lut_status);
 
 
 void ff_bgmc_decode_init(GetBitContext *gb,
-                      unsigned int *h, unsigned int *l, unsigned int *v);
+                         unsigned int *h, unsigned int *l, unsigned int *v);
 
 
 void ff_bgmc_decode_end(GetBitContext *gb);
 
 
 void ff_bgmc_decode(GetBitContext *gb, unsigned int num, int32_t *dst,
-                 unsigned int delta, unsigned int sx,
-                 unsigned int *h, unsigned int *l, unsigned int *v,
-                 uint8_t *cf_lut, unsigned int *cf_lut_status);
+                    unsigned int delta, unsigned int sx,
+                    unsigned int *h, unsigned int *l, unsigned int *v,
+                    uint8_t *cf_lut, unsigned int *cf_lut_status);
 
 
 /* arithmetic encoding of MSB parts */
 void ff_bgmc_encode_init(unsigned int *h, unsigned int *l, unsigned int *f);
 
 
-void ff_bgmc_encode_msb(PutBitContext *pb, int32_t *symbols, unsigned int n,
-                        unsigned int k, unsigned int delta, unsigned int max,
-                        unsigned int s, unsigned int sx,
-                        unsigned int *h, unsigned int *l, unsigned int *f);
+int ff_bgmc_encode_msb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
+                       unsigned int k, unsigned int delta, unsigned int max,
+                       unsigned int s, unsigned int sx,
+                       unsigned int *h, unsigned int *l, unsigned int *f);
 
 
-void ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
-                    unsigned int delta, unsigned int sx,
-                    unsigned int *h, unsigned int *l, unsigned int *f);
+int ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
+                   unsigned int delta, unsigned int sx,
+                   unsigned int *h, unsigned int *l, unsigned int *f);
 
 
-void ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f);
+int ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f);
 
-
-/* bit count of arithmetic encoded MSB parts */
-void ff_bgmc_encode_msb_count(unsigned int *bits, const int32_t *symbols, unsigned int n,
-                              unsigned int k, unsigned int delta, unsigned int max,
-                              unsigned int s, unsigned int sx,
-                              unsigned int *h, unsigned int *l, unsigned int *f);
-
-
-void ff_bgmc_encode_count(unsigned int *bits, const int32_t symbol,
-                          unsigned int delta, unsigned int sx,
-                          unsigned int *h, unsigned int *l, unsigned int *f);
-
-
-void ff_bgmc_encode_end_count(unsigned int *bits, unsigned int *f);
 
 #endif /* AVCODEC_BGMC_H */
