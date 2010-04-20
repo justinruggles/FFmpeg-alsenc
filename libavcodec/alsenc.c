@@ -2437,15 +2437,15 @@ static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
     int offset = FFMAX(ltp->lag - 2, 0);
     unsigned int ltp_smp;
     int64_t y;
+    int center, end, base;
 
     memcpy(ltp_ptr, block->cur_ptr, sizeof(*ltp_ptr) * offset);
 
-    for (ltp_smp = offset; ltp_smp < block->length; ltp_smp++) {
-        int center = ltp_smp - ltp->lag;
+    center = offset - ltp->lag;
+    end    = center + 3;
+    for (ltp_smp = offset; ltp_smp < block->length; ltp_smp++,center++,end++) {
         int begin  = FFMAX(0, center - 2);
-        int end    = center + 3;
         int tab    = 5 - (end - begin);
-        int base;
 
         y = 1 << 6;
 
