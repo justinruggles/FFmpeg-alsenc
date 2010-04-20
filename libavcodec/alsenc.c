@@ -1002,7 +1002,7 @@ static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned i
         }
     }
 
-    return k;
+    return count;
 }
 
 
