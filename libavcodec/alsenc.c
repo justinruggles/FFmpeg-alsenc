@@ -448,15 +448,6 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
 }
 
 
-static int write_specific_config(AVCodecContext *avctx);
-static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
-static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage);
-static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage);
-static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage);
-
-static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block);
-static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block);
-
 /** Converts an array of channel-interleaved samples into
  *  multiple arrays of samples per channel
  */
@@ -478,88 +469,6 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
         DEINTERLEAVE_INPUT(16)
     } else {
         DEINTERLEAVE_INPUT(32)
-    }
-}
-
-
-/** Generates the difference signals for each channel pair channel & channel+1
- */
-static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
-{
-    unsigned int n;
-    unsigned int max_order = (ctx->ra_counter != 1) ? ctx->sconf.max_order : 0;
-
-    int32_t *c1 = ctx->raw_samples    [channel     ] - max_order;
-    int32_t *c2 = ctx->raw_samples    [channel  + 1] - max_order;
-    int32_t *d  = ctx->raw_dif_samples[channel >> 1] - max_order;
-
-    for (n = 0; n < ctx->cur_frame_length + max_order; n++) {
-        *d++ = *c2 - *c1;
-        c1++;
-        c2++;
-    }
-}
-
-
-/** Chooses the appropriate method for difference channel coding
- *  for the current frame
- */
-static void select_difference_coding_mode(ALSEncContext *ctx)
-{
-    AVCodecContext *avctx    = ctx->avctx;
-    ALSSpecificConfig *sconf = &ctx->sconf;
-    unsigned int c;
-
-    // to be implemented
-    // depends on sconf->joint_stereo and sconf->mc_coding
-    // selects either joint_stereo or mcc mode
-    // sets js_switch (js && mcc) and/or independent_bs
-    // both parameters to be added to the context...
-    // until mcc mode is implemented, syntax could be tested
-    // by using js_switch all the time if mcc is enabled globally
-    //
-    // while not implemented, output most simple mode:
-    //  -> 0 if !mcc and while js is not implemented
-    //  -> 1 if  mcc (would require js to be implemented and
-    //                correct output of mcc frames/block)
-
-    ctx->js_switch = sconf->mc_coding;
-    c              = 0;
-
-
-    // if joint-stereo is enabled, dependently code each channel pair
-    if (sconf->joint_stereo) {
-        for (; c < avctx->channels - 1; c += 2) {
-            ctx->independent_bs[c    ] = 0;
-            ctx->independent_bs[c + 1] = 0;
-        }
-    }
-
-
-    // set (the remaining) channels to independent coding
-    for (; c < avctx->channels; c++)
-        ctx->independent_bs[c] = 1;
-
-
-    // generate difference signal if needed
-    if (sconf->joint_stereo) {
-        for (c = 0; c < avctx->channels - 1; c+=2) {
-            gen_dif_signal(ctx, c);
-        }
-    }
-
-
-    // generate all block sizes for this frame
-    for (c = 0; c < avctx->channels; c++) {
-        gen_sizes(ctx, c, 0);
-    }
-
-
-    // select difference signals wherever suitable
-    if (sconf->joint_stereo) {
-        for (c = 0; c < avctx->channels - 1; c+=2) {
-            gen_js_infos(ctx, c, 0);
-        }
     }
 }
 
@@ -621,6 +530,66 @@ static void parse_bs_js(const uint32_t bs_info, unsigned int n,
         (*block_c1)++;
         (*block_c2)++;
     }
+}
+
+
+/** Use all suitable difference coding infos for all possible block-switching stages
+ */
+static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
+    unsigned int b;
+
+    for (b = 0; b < num_blocks; b++) {
+        unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
+        unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
+        unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
+        uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
+
+        // replace normal signal size with
+        // difference signal size if suitable
+        if        (js_info[b] == 1) {
+            FFSWAP(unsigned int, block_size[b], js_size[b]);
+        } else if (js_info[b] == 2)
+            FFSWAP(unsigned int, buddy_size[b], js_size[b]);
+    }
+
+    if (sconf->block_switching && stage < sconf->block_switching + 2)
+        use_js_sizes(ctx, channel, stage + 1);
+}
+
+
+/** Reset all difference coding infos for all possible block-switching stages
+ */
+static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
+{
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
+    unsigned int b;
+
+    for (b = 0; b < num_blocks; b++) {
+        ALSBlock     *blocks     = ctx->blocks  [channel     ] + num_blocks - 1;
+        ALSBlock     *buddys     = ctx->blocks  [channel +  1] + num_blocks - 1;
+        unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
+        unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
+        unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
+        uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
+
+        // replace normal signal size with
+        // difference signal size if suitable
+        if        (js_info[b] == 1) {
+            FFSWAP(unsigned int, block_size[b], js_size[b]);
+        } else if (js_info[b] == 2)
+            FFSWAP(unsigned int, buddy_size[b], js_size[b]);
+
+        js_info[b] = 0;
+        blocks [b].js_block = 0;
+        buddys [b].js_block = 0;
+    }
+
+    if (sconf->block_switching && stage < sconf->block_switching + 2)
+        reset_js(ctx, channel, stage + 1);
 }
 
 
@@ -1029,6 +998,36 @@ static int map_to_index(int gain)
     }
 
     return best_index;
+}
+
+
+/** Generate the long-term predicted residuals for a given block
+ *  using the current set of LTP parameters
+ */
+static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
+{
+    ALSLTPInfo *ltp  = &block->ltp_info[block->js_block];
+    int32_t *ltp_ptr = ctx->ltp_buffer;
+    int offset = FFMAX(ltp->lag - 2, 0);
+    unsigned int ltp_smp;
+    int64_t y;
+    int center, end, base;
+
+    memcpy(ltp_ptr, block->cur_ptr, sizeof(*ltp_ptr) * offset);
+
+    center = offset - ltp->lag;
+    end    = center + 3;
+    for (ltp_smp = offset; ltp_smp < block->length; ltp_smp++,center++,end++) {
+        int begin  = FFMAX(0, center - 2);
+        int tab    = 5 - (end - begin);
+
+        y = 1 << 6;
+
+        for (base = begin; base < end; base++, tab++)
+            y += MUL64(ltp->gain[tab], block->cur_ptr[base]);
+
+        ltp_ptr[ltp_smp] = block->cur_ptr[ltp_smp] - (y >> 7);
+    }
 }
 
 
@@ -1886,114 +1885,6 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
-{
-    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
-    int bit_count_ltp;
-    int32_t *save_ptr  = block->cur_ptr;
-    int ltp_lag_length = 8 + (ctx->avctx->sample_rate >=  96000) +
-                             (ctx->avctx->sample_rate >= 192000);
-
-    find_block_ltp_params(ctx, block);
-    gen_ltp_residuals(ctx, block);
-
-    // generate bit count for LTP signal
-    block->cur_ptr = ctx->ltp_buffer;
-    ltp->use_ltp = 1;
-    find_block_entropy_params(ctx, block, block->opt_order);
-
-    ltp->bits_ltp = 1 + ltp_lag_length +
-                    rice_count(ltp->gain[0],               1) +
-                    rice_count(ltp->gain[1],               2) +
-                   urice_count(map_to_index(ltp->gain[2]), 2) +
-                    rice_count(ltp->gain[3],               2) +
-                    rice_count(ltp->gain[4],               1);
-
-    // test if LTP pays off
-    bit_count_ltp = block->bits_misc +
-                    block->bits_parcor_coeff +
-                    block->ent_info[ltp->use_ltp].bits_ec_param_and_res +
-                    ltp->bits_ltp;
-    bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
-
-    if (bit_count_ltp < *bit_count) {
-        block->cur_ptr = save_ptr;
-        *bit_count     = bit_count_ltp;
-    } else {
-        ltp->use_ltp  = 0;
-        ltp->bits_ltp = 1;
-        block->cur_ptr = save_ptr;
-    }
-}
-
-
-static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
-                                       int order)
-{
-    int32_t count;
-    int32_t *save_ptr = block->cur_ptr;
-    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
-    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
-
-    if (order) {
-        if (calc_short_term_prediction(ctx, block, order))
-            return -1;
-        block->cur_ptr = block->res_ptr;
-    }
-    calc_parcor_coeff_bit_size(ctx, block, order);
-
-
-    find_block_entropy_params (ctx, block, order);
-
-    count  = block->bits_misc + block->bits_parcor_coeff +
-                    ent->bits_ec_param_and_res;
-    count += (8 - (count & 7)) & 7; // byte align
-#if 0
-    if (ctx->sconf.long_term_prediction)
-        check_ltp(ctx, block, &count);
-#endif
-    block->cur_ptr = save_ptr;
-
-    return count;
-}
-
-
-static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
-                                   int max_order)
-{
-    int i;
-    int32_t count[max_order+1];
-    int best = 0;
-    int valley_detect = (ctx->cur_stage->adapt_search_algorithm ==
-                         ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT);
-    int valley_threshold = FFMAX(2, max_order/6);
-    int exact_count = (ctx->cur_stage->adapt_count_algorithm ==
-                       ADAPT_COUNT_ALGORITHM_EXACT);
-
-    count[0] = INT32_MAX;
-
-    for (i = 0; i <= max_order; i++) {
-        if (exact_count) {
-            count[i] = calc_block_size_fixed_order(ctx, block, i);
-        } else {
-            if (i && ctx->parcor_error[i-1] >= 1.0) {
-                calc_parcor_coeff_bit_size(ctx, block, i);
-                count[i] = block->bits_misc + block->bits_parcor_coeff;
-                count[i] += 0.5 * log2(ctx->parcor_error[i-1]) * block->length;
-            } else {
-                count[i] = INT32_MAX;
-            }
-        }
-
-        if (count[i] >= 0 && count[i] < count[best])
-            best = i;
-        else if (valley_detect && (i - best) > valley_threshold)
-            break;
-    }
-    block->opt_order = best;
-}
-
-
 /** Tests given block samples to be of constant value
  * Sets block->const_block_bits to the number of bits used for encoding the
  * constant block, or to zero if the block is not a constant block.
@@ -2364,33 +2255,111 @@ static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/** Generate the long-term predicted residuals for a given block
- *  using the current set of LTP parameters
- */
-static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
+static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
 {
-    ALSLTPInfo *ltp  = &block->ltp_info[block->js_block];
-    int32_t *ltp_ptr = ctx->ltp_buffer;
-    int offset = FFMAX(ltp->lag - 2, 0);
-    unsigned int ltp_smp;
-    int64_t y;
-    int center, end, base;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    int bit_count_ltp;
+    int32_t *save_ptr  = block->cur_ptr;
+    int ltp_lag_length = 8 + (ctx->avctx->sample_rate >=  96000) +
+                             (ctx->avctx->sample_rate >= 192000);
 
-    memcpy(ltp_ptr, block->cur_ptr, sizeof(*ltp_ptr) * offset);
+    find_block_ltp_params(ctx, block);
+    gen_ltp_residuals(ctx, block);
 
-    center = offset - ltp->lag;
-    end    = center + 3;
-    for (ltp_smp = offset; ltp_smp < block->length; ltp_smp++,center++,end++) {
-        int begin  = FFMAX(0, center - 2);
-        int tab    = 5 - (end - begin);
+    // generate bit count for LTP signal
+    block->cur_ptr = ctx->ltp_buffer;
+    ltp->use_ltp = 1;
+    find_block_entropy_params(ctx, block, block->opt_order);
 
-        y = 1 << 6;
+    ltp->bits_ltp = 1 + ltp_lag_length +
+                    rice_count(ltp->gain[0],               1) +
+                    rice_count(ltp->gain[1],               2) +
+                   urice_count(map_to_index(ltp->gain[2]), 2) +
+                    rice_count(ltp->gain[3],               2) +
+                    rice_count(ltp->gain[4],               1);
 
-        for (base = begin; base < end; base++, tab++)
-            y += MUL64(ltp->gain[tab], block->cur_ptr[base]);
+    // test if LTP pays off
+    bit_count_ltp = block->bits_misc +
+                    block->bits_parcor_coeff +
+                    block->ent_info[ltp->use_ltp].bits_ec_param_and_res +
+                    ltp->bits_ltp;
+    bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
 
-        ltp_ptr[ltp_smp] = block->cur_ptr[ltp_smp] - (y >> 7);
+    if (bit_count_ltp < *bit_count) {
+        block->cur_ptr = save_ptr;
+        *bit_count     = bit_count_ltp;
+    } else {
+        ltp->use_ltp  = 0;
+        ltp->bits_ltp = 1;
+        block->cur_ptr = save_ptr;
     }
+}
+
+
+static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
+                                       int order)
+{
+    int32_t count;
+    int32_t *save_ptr = block->cur_ptr;
+    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
+
+    if (order) {
+        if (calc_short_term_prediction(ctx, block, order))
+            return -1;
+        block->cur_ptr = block->res_ptr;
+    }
+    calc_parcor_coeff_bit_size(ctx, block, order);
+
+
+    find_block_entropy_params (ctx, block, order);
+
+    count  = block->bits_misc + block->bits_parcor_coeff +
+                    ent->bits_ec_param_and_res;
+    count += (8 - (count & 7)) & 7; // byte align
+#if 0
+    if (ctx->sconf.long_term_prediction)
+        check_ltp(ctx, block, &count);
+#endif
+    block->cur_ptr = save_ptr;
+
+    return count;
+}
+
+
+static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
+                                   int max_order)
+{
+    int i;
+    int32_t count[max_order+1];
+    int best = 0;
+    int valley_detect = (ctx->cur_stage->adapt_search_algorithm ==
+                         ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT);
+    int valley_threshold = FFMAX(2, max_order/6);
+    int exact_count = (ctx->cur_stage->adapt_count_algorithm ==
+                       ADAPT_COUNT_ALGORITHM_EXACT);
+
+    count[0] = INT32_MAX;
+
+    for (i = 0; i <= max_order; i++) {
+        if (exact_count) {
+            count[i] = calc_block_size_fixed_order(ctx, block, i);
+        } else {
+            if (i && ctx->parcor_error[i-1] >= 1.0) {
+                calc_parcor_coeff_bit_size(ctx, block, i);
+                count[i] = block->bits_misc + block->bits_parcor_coeff;
+                count[i] += 0.5 * log2(ctx->parcor_error[i-1]) * block->length;
+            } else {
+                count[i] = INT32_MAX;
+            }
+        }
+
+        if (count[i] >= 0 && count[i] < count[best])
+            best = i;
+        else if (valley_detect && (i - best) > valley_threshold)
+            break;
+    }
+    block->opt_order = best;
 }
 
 
@@ -2598,63 +2567,178 @@ static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
 }
 
 
-/** Use all suitable difference coding infos for all possible block-switching stages
+/** Generates the difference signals for each channel pair channel & channel+1
  */
-static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
+static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
 {
-    ALSSpecificConfig *sconf = &ctx->sconf;
-    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
-    unsigned int b;
+    unsigned int n;
+    unsigned int max_order = (ctx->ra_counter != 1) ? ctx->sconf.max_order : 0;
 
-    for (b = 0; b < num_blocks; b++) {
-        unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
-        unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
-        unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
-        uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
+    int32_t *c1 = ctx->raw_samples    [channel     ] - max_order;
+    int32_t *c2 = ctx->raw_samples    [channel  + 1] - max_order;
+    int32_t *d  = ctx->raw_dif_samples[channel >> 1] - max_order;
 
-        // replace normal signal size with
-        // difference signal size if suitable
-        if        (js_info[b] == 1) {
-            FFSWAP(unsigned int, block_size[b], js_size[b]);
-        } else if (js_info[b] == 2)
-            FFSWAP(unsigned int, buddy_size[b], js_size[b]);
+    for (n = 0; n < ctx->cur_frame_length + max_order; n++) {
+        *d++ = *c2 - *c1;
+        c1++;
+        c2++;
     }
-
-    if (sconf->block_switching && stage < sconf->block_switching + 2)
-        use_js_sizes(ctx, channel, stage + 1);
 }
 
 
-/** Reset all difference coding infos for all possible block-switching stages
+/** Chooses the appropriate method for difference channel coding
+ *  for the current frame
  */
-static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
+static void select_difference_coding_mode(ALSEncContext *ctx)
 {
+    AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
-    unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
-    unsigned int b;
+    unsigned int c;
 
-    for (b = 0; b < num_blocks; b++) {
-        ALSBlock     *blocks     = ctx->blocks  [channel     ] + num_blocks - 1;
-        ALSBlock     *buddys     = ctx->blocks  [channel +  1] + num_blocks - 1;
-        unsigned int *block_size = ctx->bs_sizes[channel     ] + num_blocks - 1;
-        unsigned int *buddy_size = ctx->bs_sizes[channel +  1] + num_blocks - 1;
-        unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
-        uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
+    // to be implemented
+    // depends on sconf->joint_stereo and sconf->mc_coding
+    // selects either joint_stereo or mcc mode
+    // sets js_switch (js && mcc) and/or independent_bs
+    // both parameters to be added to the context...
+    // until mcc mode is implemented, syntax could be tested
+    // by using js_switch all the time if mcc is enabled globally
+    //
+    // while not implemented, output most simple mode:
+    //  -> 0 if !mcc and while js is not implemented
+    //  -> 1 if  mcc (would require js to be implemented and
+    //                correct output of mcc frames/block)
 
-        // replace normal signal size with
-        // difference signal size if suitable
-        if        (js_info[b] == 1) {
-            FFSWAP(unsigned int, block_size[b], js_size[b]);
-        } else if (js_info[b] == 2)
-            FFSWAP(unsigned int, buddy_size[b], js_size[b]);
+    ctx->js_switch = sconf->mc_coding;
+    c              = 0;
 
-        js_info[b] = 0;
-        blocks [b].js_block = 0;
-        buddys [b].js_block = 0;
+
+    // if joint-stereo is enabled, dependently code each channel pair
+    if (sconf->joint_stereo) {
+        for (; c < avctx->channels - 1; c += 2) {
+            ctx->independent_bs[c    ] = 0;
+            ctx->independent_bs[c + 1] = 0;
+        }
     }
 
-    if (sconf->block_switching && stage < sconf->block_switching + 2)
-        reset_js(ctx, channel, stage + 1);
+
+    // set (the remaining) channels to independent coding
+    for (; c < avctx->channels; c++)
+        ctx->independent_bs[c] = 1;
+
+
+    // generate difference signal if needed
+    if (sconf->joint_stereo) {
+        for (c = 0; c < avctx->channels - 1; c+=2) {
+            gen_dif_signal(ctx, c);
+        }
+    }
+
+
+    // generate all block sizes for this frame
+    for (c = 0; c < avctx->channels; c++) {
+        gen_sizes(ctx, c, 0);
+    }
+
+
+    // select difference signals wherever suitable
+    if (sconf->joint_stereo) {
+        for (c = 0; c < avctx->channels - 1; c+=2) {
+            gen_js_infos(ctx, c, 0);
+        }
+    }
+}
+
+
+static int write_specific_config(AVCodecContext *avctx)
+{
+    ALSEncContext *ctx       = avctx->priv_data;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    PutBitContext pb;
+    MPEG4AudioConfig m4ac;
+    int config_offset;
+
+    unsigned int header_size = 6; // Maximum size of AudioSpecificConfig before ALSSpecificConfig
+
+    // determine header size
+    // crc & aux_data not yet supported
+    header_size += ALS_SPECIFIC_CFG_SIZE;
+    header_size += (sconf->chan_config > 0) << 1;                       // chan_config_info
+    header_size += avctx->channels          << 1;                       // chan_pos[c]
+    header_size += (sconf->crc_enabled > 0) << 2;                       // crc
+    if (sconf->ra_flag == RA_FLAG_HEADER && sconf->ra_distance > 0)     // ra_unit_size
+        header_size += (sconf->samples / sconf->frame_length + 1) << 2;
+
+    if (avctx->extradata)
+        av_freep(&avctx->extradata);
+
+    avctx->extradata = av_mallocz(header_size + FF_INPUT_BUFFER_PADDING_SIZE);
+    if (!avctx->extradata)
+        return AVERROR(ENOMEM);
+
+    init_put_bits(&pb, avctx->extradata, header_size);
+
+
+    // AudioSpecificConfig, reference to ISO/IEC 14496-3 section 1.6.2.1 & 1.6.3
+    memset(&m4ac, 0, sizeof(MPEG4AudioConfig));
+    m4ac.object_type    = AOT_ALS;
+    m4ac.sampling_index = 0x0f;
+    m4ac.sample_rate    = avctx->sample_rate;
+    m4ac.chan_config    = 0;
+    m4ac.sbr            = -1;
+
+    config_offset = ff_mpeg4audio_write_config(&m4ac, avctx->extradata,
+                                               avctx->extradata_size);
+
+    if (config_offset < 0)
+        return config_offset;
+
+    skip_put_bits(&pb, config_offset);
+    // switch(AudioObjectType) -> case 36: ALSSpecificConfig
+
+    // fillBits (align)
+    align_put_bits(&pb);
+
+    put_bits32(&pb,     MKBETAG('A', 'L', 'S', '\0'));
+    put_bits32(&pb,     avctx->sample_rate);
+    put_bits32(&pb,     sconf->samples);
+    put_bits  (&pb, 16, avctx->channels - 1);
+    put_bits  (&pb,  3, 0);                      // original file_type (0 = unknown, 1 = wav, ...)
+    put_bits  (&pb,  3, sconf->resolution);
+    put_bits  (&pb,  1, sconf->floating);
+    put_bits  (&pb,  1, sconf->msb_first);       // msb first (0 = LSB, 1 = MSB)
+    put_bits  (&pb, 16, sconf->frame_length - 1);
+    put_bits  (&pb,  8, sconf->ra_distance);
+    put_bits  (&pb,  2, sconf->ra_flag);
+    put_bits  (&pb,  1, sconf->adapt_order);
+    put_bits  (&pb,  2, sconf->coef_table);
+    put_bits  (&pb,  1, sconf->long_term_prediction);
+    put_bits  (&pb, 10, sconf->max_order);
+    put_bits  (&pb,  2, sconf->block_switching);
+    put_bits  (&pb,  1, sconf->bgmc);
+    put_bits  (&pb,  1, sconf->sb_part);
+    put_bits  (&pb,  1, sconf->joint_stereo);
+    put_bits  (&pb,  1, sconf->mc_coding);
+    put_bits  (&pb,  1, sconf->chan_config);
+    put_bits  (&pb,  1, sconf->chan_sort);
+    put_bits  (&pb,  1, sconf->crc_enabled);    // crc_enabled
+    put_bits  (&pb,  1, sconf->rlslms);
+    put_bits  (&pb,  5, 0);                     // reserved bits
+    put_bits  (&pb,  1, 0);                     // aux_data_enabled (0 = false)
+
+    // align
+    align_put_bits(&pb);
+
+    put_bits32(&pb, 0);                         // original header size
+    put_bits32(&pb, 0);                         // original trailer size
+    if (sconf->crc_enabled)
+        put_bits32(&pb, ~ctx->crc);             // CRC
+
+
+    // writing in local header finished,
+    // set the real size
+    avctx->extradata_size = put_bits_count(&pb) >> 3;
+
+    return 0;
 }
 
 
@@ -2964,99 +3048,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // print ALSSpecificConfig info
     ff_als_dprint_specific_config(avctx, sconf);
 
-
-    return 0;
-}
-
-
-static int write_specific_config(AVCodecContext *avctx)
-{
-    ALSEncContext *ctx       = avctx->priv_data;
-    ALSSpecificConfig *sconf = &ctx->sconf;
-    PutBitContext pb;
-    MPEG4AudioConfig m4ac;
-    int config_offset;
-
-    unsigned int header_size = 6; // Maximum size of AudioSpecificConfig before ALSSpecificConfig
-
-    // determine header size
-    // crc & aux_data not yet supported
-    header_size += ALS_SPECIFIC_CFG_SIZE;
-    header_size += (sconf->chan_config > 0) << 1;                       // chan_config_info
-    header_size += avctx->channels          << 1;                       // chan_pos[c]
-    header_size += (sconf->crc_enabled > 0) << 2;                       // crc
-    if (sconf->ra_flag == RA_FLAG_HEADER && sconf->ra_distance > 0)     // ra_unit_size
-        header_size += (sconf->samples / sconf->frame_length + 1) << 2;
-
-    if (avctx->extradata)
-        av_freep(&avctx->extradata);
-
-    avctx->extradata = av_mallocz(header_size + FF_INPUT_BUFFER_PADDING_SIZE);
-    if (!avctx->extradata)
-        return AVERROR(ENOMEM);
-
-    init_put_bits(&pb, avctx->extradata, header_size);
-
-
-    // AudioSpecificConfig, reference to ISO/IEC 14496-3 section 1.6.2.1 & 1.6.3
-    memset(&m4ac, 0, sizeof(MPEG4AudioConfig));
-    m4ac.object_type    = AOT_ALS;
-    m4ac.sampling_index = 0x0f;
-    m4ac.sample_rate    = avctx->sample_rate;
-    m4ac.chan_config    = 0;
-    m4ac.sbr            = -1;
-
-    config_offset = ff_mpeg4audio_write_config(&m4ac, avctx->extradata,
-                                               avctx->extradata_size);
-
-    if (config_offset < 0)
-        return config_offset;
-
-    skip_put_bits(&pb, config_offset);
-    // switch(AudioObjectType) -> case 36: ALSSpecificConfig
-
-    // fillBits (align)
-    align_put_bits(&pb);
-
-    put_bits32(&pb,     MKBETAG('A', 'L', 'S', '\0'));
-    put_bits32(&pb,     avctx->sample_rate);
-    put_bits32(&pb,     sconf->samples);
-    put_bits  (&pb, 16, avctx->channels - 1);
-    put_bits  (&pb,  3, 0);                      // original file_type (0 = unknown, 1 = wav, ...)
-    put_bits  (&pb,  3, sconf->resolution);
-    put_bits  (&pb,  1, sconf->floating);
-    put_bits  (&pb,  1, sconf->msb_first);       // msb first (0 = LSB, 1 = MSB)
-    put_bits  (&pb, 16, sconf->frame_length - 1);
-    put_bits  (&pb,  8, sconf->ra_distance);
-    put_bits  (&pb,  2, sconf->ra_flag);
-    put_bits  (&pb,  1, sconf->adapt_order);
-    put_bits  (&pb,  2, sconf->coef_table);
-    put_bits  (&pb,  1, sconf->long_term_prediction);
-    put_bits  (&pb, 10, sconf->max_order);
-    put_bits  (&pb,  2, sconf->block_switching);
-    put_bits  (&pb,  1, sconf->bgmc);
-    put_bits  (&pb,  1, sconf->sb_part);
-    put_bits  (&pb,  1, sconf->joint_stereo);
-    put_bits  (&pb,  1, sconf->mc_coding);
-    put_bits  (&pb,  1, sconf->chan_config);
-    put_bits  (&pb,  1, sconf->chan_sort);
-    put_bits  (&pb,  1, sconf->crc_enabled);    // crc_enabled
-    put_bits  (&pb,  1, sconf->rlslms);
-    put_bits  (&pb,  5, 0);                     // reserved bits
-    put_bits  (&pb,  1, 0);                     // aux_data_enabled (0 = false)
-
-    // align
-    align_put_bits(&pb);
-
-    put_bits32(&pb, 0);                         // original header size
-    put_bits32(&pb, 0);                         // original trailer size
-    if (sconf->crc_enabled)
-        put_bits32(&pb, ~ctx->crc);             // CRC
-
-
-    // writing in local header finished,
-    // set the real size
-    avctx->extradata_size = put_bits_count(&pb) >> 3;
 
     return 0;
 }
