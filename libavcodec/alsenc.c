@@ -698,11 +698,12 @@ static void get_block_sizes(ALSEncContext *ctx,
                             unsigned int c1, unsigned int c2)
 {
     ALSSpecificConfig *sconf     = &ctx->sconf;
+    int ltp = sconf->long_term_prediction;
     unsigned int div_blocks[32];
     unsigned int *ptr_div_blocks = div_blocks;
     unsigned int b;
     int32_t *res_ptr = ctx->res_samples[c1];
-    int32_t *ltp_ptr = ctx->ltp_samples[c1];
+    int32_t *ltp_ptr = ltp ? ctx->ltp_samples[c1] : NULL;
     int32_t *smp_ptr = ctx->raw_samples[c1];
     int32_t *dif_ptr = ctx->raw_dif_samples[c1 >> 1];
     int32_t *lsb_ptr = ctx->raw_lsb_samples[c1];
@@ -761,7 +762,7 @@ static void get_block_sizes(ALSEncContext *ctx,
 
     if (c1 != c2) {
         res_ptr             = ctx->res_samples[c2];
-        ltp_ptr             = ctx->ltp_samples[c2];
+        ltp_ptr             = ltp ? ctx->ltp_samples[c2] : NULL;
         smp_ptr             = ctx->raw_samples[c2];
         dif_ptr             = ctx->raw_dif_samples[c1 >> 1];
         lsb_ptr             = ctx->raw_lsb_samples[c2];
@@ -3155,11 +3156,19 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     dprintf(avctx, "\n");
+    if (sconf->joint_stereo) {
     dprintf(avctx, "Joint-Stereo:\n");
     dprint_stage_options(avctx, &ctx->stages[STAGE_JOINT_STEREO]);
+    } else {
+        dprintf(avctx, "Joint-Stereo: N/A\n");
+    }
     dprintf(avctx, "\n");
+    if (sconf->block_switching) {
     dprintf(avctx, "Block-Switching:\n");
     dprint_stage_options(avctx, &ctx->stages[STAGE_BLOCK_SWITCHING]);
+    } else {
+        dprintf(avctx, "Block-Switching: N/A\n");
+    }
     dprintf(avctx, "\n");
     dprintf(avctx, "Final:\n");
     dprint_stage_options(avctx, &ctx->stages[STAGE_FINAL]);
@@ -3217,6 +3226,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
             encode_end(avctx);
             return AVERROR(ENOMEM);
         }
+
+        // assign ltp buffer pointers
+        ctx->ltp_samples[0] = ctx->ltp_buffer + channel_offset;
+        for (c = 1; c < avctx->channels; c++)
+            ctx->ltp_samples[c] = ctx->ltp_samples[c - 1] + channel_size;
     }
 
     // assign buffer pointers
@@ -3224,13 +3238,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + channel_offset;
     ctx->raw_lsb_samples[0] = ctx->raw_lsb_buffer + channel_offset;
     ctx->res_samples    [0] = ctx->res_buffer     + channel_offset;
-    ctx->ltp_samples    [0] = ctx->ltp_buffer     + channel_offset;
     ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
         ctx->res_samples[c] = ctx->res_samples[c - 1] + channel_size;
-        ctx->ltp_samples[c] = ctx->ltp_samples[c - 1] + channel_size;
         ctx->raw_lsb_samples[c] = ctx->raw_lsb_samples[c - 1] + channel_size;
         ctx->blocks     [c] = ctx->blocks     [c - 1] + 32;
     }
