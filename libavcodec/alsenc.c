@@ -2887,7 +2887,15 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 {
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
-    const ALSSpecificConfig *compr;
+
+    // set default compression level and clip to allowed range
+    if (avctx->compression_level == FF_COMPRESSION_DEFAULT)
+        avctx->compression_level = 1;
+    else
+        avctx->compression_level = av_clip(avctx->compression_level, 0, 2);
+
+    // set compression level defaults
+    *sconf = *spc_config_settings[avctx->compression_level];
 
 
     // total number of samples unknown
@@ -2915,25 +2923,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     ctx->max_rice_param = sconf->resolution > 1 ? 31 : 15;
 
 
-    // set default compression level and clip to allowed range
-    if (avctx->compression_level == FF_COMPRESSION_DEFAULT)
-        avctx->compression_level = 1;
-    else
-        avctx->compression_level = av_clip(avctx->compression_level, 0, 2);
-    compr = spc_config_settings[avctx->compression_level];
-
-
     // determine frame length
     frame_partitioning(ctx);
 
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
-    // default for now = 1. should be changed when implemented.
-    // maybe use AVCodecContext.gop_size. it is user-configurable, and its
-    // default value is 12, which is every 1/2 sec. for 2048 frame size and
-    // 44100 Hz sample rate.
-    // TODO: alloow user to override ra_distance
-    sconf->ra_distance = compr->ra_distance;
     sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
 
@@ -2944,74 +2938,27 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->ra_flag = RA_FLAG_NONE;
 
 
-    // determine if adaptive prediction order is used.
-    // since the current implementation is excruciatingly slow, don't use it
-    sconf->adapt_order = compr->adapt_order;
-
-
     // determine the coef_table to be used
     sconf->coef_table = (avctx->sample_rate > 48000) +
                         (avctx->sample_rate > 96000);
 
 
-    // determine if long-term prediction is used
-    // should also be user-defineable
-    sconf->long_term_prediction = compr->long_term_prediction;
-
-
-    // determine a maximum prediction order
-    // no samples: not yet possible to determine..
-    // TODO: do evaluation to find a suitable standard value?
-    //       if adapt_order is set and compression level is high,
-    //       use maximum value to be able to find the best order
-    sconf->max_order = compr->max_order;
+    // user-specified maximum prediction order
     if (avctx->max_prediction_order >= 0)
         sconf->max_order = av_clip(avctx->max_prediction_order, 0, 1023);
 
 
-    // determine if block-switching is used
-    // depends on simple profile or not (user-defined?)
-    // may be always enable this by default with the maximum level,
-    // simple profile supports up to 3 stages
-    // disable for the fastest compression mode
-    // should be set when implemented
-    sconf->block_switching = compr->block_switching;
-
-
     // limit the block_switching depth based on whether the full frame length
     // is evenly divisible by the minimum block size.
-    // FIXME: should we do this in sconf or just limit the actual depth used?
     while (sconf->block_switching > 0 &&
            sconf->frame_length % (1 << (sconf->block_switching + 2))) {
         sconf->block_switching--;
     }
 
 
-    // determine if BGMC mode is used
-    // should be user-defineable
-    sconf->bgmc = compr->bgmc;
+    // user-specified use of BGMC entropy coding mode
     if (avctx->coder_type == FF_CODER_TYPE_AC)
         sconf->bgmc = 1;
-
-
-    // determine what sub-block partitioning is used
-    sconf->sb_part = compr->sb_part;
-
-
-    // determine if joint-stereo is used
-    // planned to be determined for each frame
-    // set = 1 if #channels > 1 (?)
-    // should be set when implemented
-    // turn off for fastest compression level
-    sconf->joint_stereo = compr->joint_stereo;
-
-
-    // determine if multi-channel coding is used
-    // enable for better compression levels if implemented
-    // may be sanity check: channels > 2
-    // (although specs allow mc_coding for 2 channels...
-    // maybe give a warning)
-    sconf->mc_coding = compr->mc_coding;
 
 
     // determine manual channel configuration
@@ -3028,16 +2975,9 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->chan_pos  = NULL;
 
 
-    // determine if backward adaptive is used
-    // user defined by explicit option and/or compression level
-    sconf->rlslms = compr->rlslms;
-
-
-    // determine if CRC checksums are used
-    // depends on compression level
-    // should be enabled by default, not to use
-    // in the fastest mode
-    sconf->crc_enabled = compr->crc_enabled;
+    // Use native-endian sample byte order.
+    // We don't really know the original byte order, so this is only done to
+    // speed up the CRC calculation.
 #if HAVE_BIGENDIAN
     sconf->msb_first = 1;
 #else
