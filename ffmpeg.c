@@ -761,6 +761,13 @@ need_realloc:
             AVPacket pkt;
             av_init_packet(&pkt);
 
+            if (allocated_audio_buf_size < frame_bytes) {
+                av_fast_malloc(&audio_buf, &allocated_audio_buf_size, frame_bytes);
+                if (!audio_buf) {
+                    fprintf(stderr, "Out of memory in do_audio_out\n");
+                    av_exit(1);
+                }
+            }
             av_fifo_generic_read(ost->fifo, audio_buf, frame_bytes, NULL);
 
             //FIXME pass ost->sync_opts as AVFrame.pts in avcodec_encode_audio()
