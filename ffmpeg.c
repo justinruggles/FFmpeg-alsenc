@@ -485,6 +485,23 @@ static void choose_sample_fmt(AVStream *st, AVCodec *codec)
     }
 }
 
+static void choose_sample_rate(AVStream *st, AVCodec *codec)
+{
+    if(codec && codec->supported_samplerates){
+        const int *p= codec->supported_samplerates;
+        int best;
+        int best_dist=INT_MAX;
+        for(; *p; p++){
+            int dist= abs(st->codec->sample_rate - *p);
+            if(dist < best_dist){
+                best_dist= dist;
+                best= *p;
+            }
+        }
+        st->codec->sample_rate= best;
+    }
+}
+
 static void choose_pixel_fmt(AVStream *st, AVCodec *codec)
 {
     if(codec && codec->pix_fmts){
@@ -3319,6 +3336,7 @@ static void new_audio_stream(AVFormatContext *oc)
     if (audio_stream_copy) {
         st->stream_copy = 1;
         audio_enc->channels = audio_channels;
+        audio_enc->sample_rate = audio_sample_rate;
     } else {
         AVCodec *codec;
 
@@ -3340,13 +3358,14 @@ static void new_audio_stream(AVFormatContext *oc)
         }
         audio_enc->channels = audio_channels;
         audio_enc->sample_fmt = audio_sample_fmt;
+        audio_enc->sample_rate = audio_sample_rate;
         audio_enc->channel_layout = channel_layout;
         if (avcodec_channel_layout_num_channels(channel_layout) != audio_channels)
             audio_enc->channel_layout = 0;
         choose_sample_fmt(st, codec);
+        choose_sample_rate(st, codec);
     }
     nb_ocodecs++;
-    audio_enc->sample_rate = audio_sample_rate;
     audio_enc->time_base= (AVRational){1, audio_sample_rate};
     if (audio_language) {
         av_metadata_set(&st->metadata, "language", audio_language);
@@ -3897,19 +3916,22 @@ static int opt_preset(const char *opt, const char *arg)
     FILE *f=NULL;
     char filename[1000], tmp[1000], tmp2[1000], line[1000];
     int i;
-    const char *base[2]= { getenv("HOME"),
+    const char *base[3]= { getenv("FFMPEG_DATADIR"),
+                           getenv("HOME"),
                            FFMPEG_DATADIR,
                          };
 
     if (*opt != 'f') {
-        for(i=!base[0]; i<2 && !f; i++){
-            snprintf(filename, sizeof(filename), "%s%s/%s.ffpreset", base[i], i ? "" : "/.ffmpeg", arg);
+        for(i=0; i<3 && !f; i++){
+            if(!base[i])
+                continue;
+            snprintf(filename, sizeof(filename), "%s%s/%s.ffpreset", base[i], i != 1 ? "" : "/.ffmpeg", arg);
             f= fopen(filename, "r");
             if(!f){
                 char *codec_name= *opt == 'v' ? video_codec_name :
                                   *opt == 'a' ? audio_codec_name :
                                                 subtitle_codec_name;
-                snprintf(filename, sizeof(filename), "%s%s/%s-%s.ffpreset", base[i],  i ? "" : "/.ffmpeg", codec_name, arg);
+                snprintf(filename, sizeof(filename), "%s%s/%s-%s.ffpreset", base[i],  i != 1 ? "" : "/.ffmpeg", codec_name, arg);
                 f= fopen(filename, "r");
             }
         }
@@ -4081,7 +4103,9 @@ int main(int argc, char **argv)
     int64_t ti;
 
     avcodec_register_all();
+#if CONFIG_AVDEVICE
     avdevice_register_all();
+#endif
     av_register_all();
 
 #if HAVE_ISATTY

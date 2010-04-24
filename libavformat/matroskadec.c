@@ -20,7 +20,7 @@
  */
 
 /**
- * @file libavformat/matroskadec.c
+ * @file
  * Matroska file demuxer
  * by Ronald Bultje <rbultje@ronald.bitfreak.net>
  * with a little help from Moritz Bunkus <moritz@bunkus.org>
@@ -1394,6 +1394,8 @@ static int matroska_read_header(AVFormatContext *s, AVFormatParameters *ap)
             st->codec->codec_type = AVMEDIA_TYPE_AUDIO;
             st->codec->sample_rate = track->audio.out_samplerate;
             st->codec->channels = track->audio.channels;
+            if (st->codec->codec_id != CODEC_ID_AAC)
+            st->need_parsing = AVSTREAM_PARSE_HEADERS;
         } else if (track->type == MATROSKA_TRACK_TYPE_SUBTITLE) {
             st->codec->codec_type = AVMEDIA_TYPE_SUBTITLE;
         }
