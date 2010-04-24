@@ -161,6 +161,7 @@ typedef struct {
     unsigned int shift_lsbs;        ///< number of bits the samples have been right shifted
     ALSLTPInfo ltp_info[2];         ///< one set of LTPInfo for non-js- and js-residuals
     ALSEntropyInfo ent_info[2];     ///< one set of EntropyInfo for non-LTP- and LTP-residuals
+    int32_t *ltp_ptr;               ///< points to the first ltp residual for this block
     int32_t *res_ptr;               ///< points to the first residual for this block
     int32_t *smp_ptr;               ///< points to the first raw sample for this block
     int32_t *dif_ptr;               ///< points to the first difference sample for this block
@@ -213,6 +214,7 @@ typedef struct {
     double *acf_window_buffer;      ///< buffer containing all pre-calculated autocorrelation windows
     double *acf_window[6];          ///< pre-calculated autocorrelation windows for each block switching depth
     int32_t *ltp_buffer;            ///< temporary buffer to store long-term predicted samples
+    int32_t **ltp_samples;          ///< pointer to the beginning of the current frame's ltp residuals in the buffer for each channel
     double *ltp_corr_buffer;        ///< temporary buffer to store the signal during LTP autocorrelation
 } ALSEncContext;
 
@@ -700,6 +702,7 @@ static void get_block_sizes(ALSEncContext *ctx,
     unsigned int *ptr_div_blocks = div_blocks;
     unsigned int b;
     int32_t *res_ptr = ctx->res_samples[c1];
+    int32_t *ltp_ptr = ctx->ltp_samples[c1];
     int32_t *smp_ptr = ctx->raw_samples[c1];
     int32_t *dif_ptr = ctx->raw_dif_samples[c1 >> 1];
     int32_t *lsb_ptr = ctx->raw_lsb_samples[c1];
@@ -730,10 +733,12 @@ static void get_block_sizes(ALSEncContext *ctx,
         div_blocks[b]  = ctx->sconf.frame_length >> div_blocks[b];
         block->length  = div_blocks[b];
         block->res_ptr = res_ptr;
+        block->ltp_ptr = ltp_ptr;
         block->smp_ptr = smp_ptr;
         block->dif_ptr = dif_ptr;
         block->lsb_ptr = lsb_ptr;
         res_ptr       += block->length;
+        ltp_ptr       += block->length;
         smp_ptr       += block->length;
         dif_ptr       += block->length;
         lsb_ptr       += block->length;
@@ -756,6 +761,7 @@ static void get_block_sizes(ALSEncContext *ctx,
 
     if (c1 != c2) {
         res_ptr             = ctx->res_samples[c2];
+        ltp_ptr             = ctx->ltp_samples[c2];
         smp_ptr             = ctx->raw_samples[c2];
         dif_ptr             = ctx->raw_dif_samples[c1 >> 1];
         lsb_ptr             = ctx->raw_lsb_samples[c2];
@@ -766,10 +772,12 @@ static void get_block_sizes(ALSEncContext *ctx,
             block->div_block = ctx->blocks[c1][b].div_block;
             block->length  = ctx->blocks[c1][b].length;
             block->res_ptr = res_ptr;
+            block->ltp_ptr = ltp_ptr;
             block->smp_ptr = smp_ptr;
             block->dif_ptr = dif_ptr;
             block->lsb_ptr = lsb_ptr;
             res_ptr       += block->length;
+            ltp_ptr       += block->length;
             smp_ptr       += block->length;
             dif_ptr       += block->length;
             lsb_ptr       += block->length;
@@ -1007,7 +1015,7 @@ static int map_to_index(int gain)
 static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 {
     ALSLTPInfo *ltp  = &block->ltp_info[block->js_block];
-    int32_t *ltp_ptr = ctx->ltp_buffer;
+    int32_t *ltp_ptr = block->ltp_ptr;
     int offset = FFMAX(ltp->lag - 2, 0);
     unsigned int ltp_smp;
     int64_t y;
@@ -1172,9 +1180,6 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                 set_sr_golomb_als(pb, ltp->gain[4] >> 3,          1);
 
                 put_bits(pb, ltp_lag_length, ltp->lag - FFMAX(4, block->opt_order + 1));
-
-                gen_ltp_residuals(ctx, block);
-                block->cur_ptr = ctx->ltp_buffer;
             }
         }
 
@@ -2267,7 +2272,7 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
     gen_ltp_residuals(ctx, block);
 
     // generate bit count for LTP signal
-    block->cur_ptr = ctx->ltp_buffer;
+    block->cur_ptr = block->ltp_ptr;
     ltp->use_ltp = 1;
     find_block_entropy_params(ctx, block, block->opt_order);
 
@@ -2286,7 +2291,6 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
     bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
 
     if (bit_count_ltp < *bit_count) {
-        block->cur_ptr = save_ptr;
         *bit_count     = bit_count_ltp;
     } else {
         ltp->use_ltp  = 0;
@@ -2474,6 +2478,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     ent = &block->ent_info[ltp->use_ltp];
     find_block_entropy_params(ctx, block, block->opt_order);
 
+    ltp->bits_ltp = !!sconf->long_term_prediction;
     bit_count = block->bits_misc + block->bits_parcor_coeff +
                 ent->bits_ec_param_and_res + ltp->bits_ltp;
     bit_count += (8 - (bit_count & 7)) & 7; // byte align
@@ -3025,6 +3030,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->parcor_error);
     av_freep(&ctx->acf_window);
     av_freep(&ctx->ltp_buffer);
+    av_freep(&ctx->ltp_samples);
     av_freep(&ctx->ltp_corr_buffer);
 
     av_freep(&avctx->extradata);
@@ -3200,12 +3206,13 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     if (sconf->long_term_prediction) {
-        ctx->ltp_buffer = av_malloc(sizeof(*ctx->ltp_buffer) * sconf->frame_length);
+        ctx->ltp_buffer      = av_malloc(sizeof(*ctx->ltp_buffer)  * avctx->channels * channel_size);
+        ctx->ltp_samples     = av_malloc(sizeof(*ctx->ltp_samples) * avctx->channels);
         ctx->ltp_corr_buffer = av_malloc (sizeof(*ctx->ltp_corr_buffer) *
                                           (sconf->frame_length +
                                            FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length)));
 
-        if (!ctx->ltp_buffer || !ctx->ltp_corr_buffer) {
+        if (!ctx->ltp_buffer || !ctx->ltp_samples || !ctx->ltp_corr_buffer) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
             encode_end(avctx);
             return AVERROR(ENOMEM);
@@ -3217,11 +3224,13 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + channel_offset;
     ctx->raw_lsb_samples[0] = ctx->raw_lsb_buffer + channel_offset;
     ctx->res_samples    [0] = ctx->res_buffer     + channel_offset;
+    ctx->ltp_samples    [0] = ctx->ltp_buffer     + channel_offset;
     ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
         ctx->res_samples[c] = ctx->res_samples[c - 1] + channel_size;
+        ctx->ltp_samples[c] = ctx->ltp_samples[c - 1] + channel_size;
         ctx->raw_lsb_samples[c] = ctx->raw_lsb_samples[c - 1] + channel_size;
         ctx->blocks     [c] = ctx->blocks     [c - 1] + 32;
     }
