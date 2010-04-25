@@ -2877,6 +2877,10 @@ static void frame_partitioning(ALSEncContext *ctx)
             avctx->frame_size = 4096;
         else
             avctx->frame_size = 8192;
+
+        // increase frame size if block switching is used
+        if (sconf->block_switching)
+            avctx->frame_size <<= (sconf->block_switching + 2) >> 1;
     }
 
     // ensure a certain boundary for the frame size
