@@ -2933,8 +2933,28 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     ctx->max_rice_param = sconf->resolution > 1 ? 31 : 15;
 
 
+    // user-override for block switching using AVCodecContext.max_partition_order
+    // note: needs to be modified when 1-level and 2-level block switching are implemented
+    if (avctx->max_partition_order >= 0) {
+        if (avctx->max_partition_order == 0)
+            sconf->block_switching = 0;
+        else if (avctx->max_partition_order <= 3)
+            sconf->block_switching = 1;
+        else
+            sconf->block_switching = FFMIN(3, avctx->max_partition_order - 2);
+    }
+
+
     // determine frame length
     frame_partitioning(ctx);
+
+
+    // limit the block_switching depth based on whether the full frame length
+    // is evenly divisible by the minimum block size.
+    while (sconf->block_switching > 0 &&
+           sconf->frame_length % (1 << (sconf->block_switching + 2))) {
+        sconf->block_switching--;
+    }
 
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
@@ -2956,14 +2976,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // user-specified maximum prediction order
     if (avctx->max_prediction_order >= 0)
         sconf->max_order = av_clip(avctx->max_prediction_order, 0, 1023);
-
-
-    // limit the block_switching depth based on whether the full frame length
-    // is evenly divisible by the minimum block size.
-    while (sconf->block_switching > 0 &&
-           sconf->frame_length % (1 << (sconf->block_switching + 2))) {
-        sconf->block_switching--;
-    }
 
 
     // user-specified use of BGMC entropy coding mode
