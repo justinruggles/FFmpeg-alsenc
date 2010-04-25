@@ -3173,15 +3173,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     dprintf(avctx, "\n");
     if (sconf->joint_stereo) {
-    dprintf(avctx, "Joint-Stereo:\n");
-    dprint_stage_options(avctx, &ctx->stages[STAGE_JOINT_STEREO]);
+        dprintf(avctx, "Joint-Stereo:\n");
+        dprint_stage_options(avctx, &ctx->stages[STAGE_JOINT_STEREO]);
     } else {
         dprintf(avctx, "Joint-Stereo: N/A\n");
     }
     dprintf(avctx, "\n");
     if (sconf->block_switching) {
-    dprintf(avctx, "Block-Switching:\n");
-    dprint_stage_options(avctx, &ctx->stages[STAGE_BLOCK_SWITCHING]);
+        dprintf(avctx, "Block-Switching:\n");
+        dprint_stage_options(avctx, &ctx->stages[STAGE_BLOCK_SWITCHING]);
     } else {
         dprintf(avctx, "Block-Switching: N/A\n");
     }
