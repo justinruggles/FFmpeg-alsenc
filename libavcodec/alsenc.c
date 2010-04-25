@@ -3320,14 +3320,17 @@ static av_cold int encode_init(AVCodecContext *avctx)
     dsputil_init(&ctx->dsp, avctx);
 
     // initialize autocorrelation window for each block size
-    ctx->acf_window[0] = ctx->acf_window_buffer;
+    // note: needs to be changed when 1-level and 2-level block switching is implemented
     for (b = 0; b <= sconf->block_switching + 2; b++) {
         int block_length = sconf->frame_length / (1 << b);
+        if (!b)
+            ctx->acf_window[b] = ctx->acf_window_buffer;
+        else
+            ctx->acf_window[b] = ctx->acf_window[b-1] + block_length;
         if (avctx->sample_rate <= 48000)
             init_sinerect_window(ctx->acf_window[b], block_length, 4);
         else
             init_hannrect_window(ctx->acf_window[b], block_length, 4);
-        ctx->acf_window[b+1] = ctx->acf_window[b] + block_length;
         if (!sconf->block_switching)
             break;
     }
