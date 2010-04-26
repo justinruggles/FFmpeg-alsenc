@@ -231,7 +231,6 @@ static const ALSSpecificConfig spc_config_c0 = {
     .mc_coding              = 0,
     .rlslms                 = 0,
     .crc_enabled            = 0,
-    .ra_distance            = 1,
 };
 
 /** compression level 0 joint-stereo options
@@ -286,7 +285,6 @@ static const ALSSpecificConfig spc_config_c1 = {
     .mc_coding              = 0,
     .rlslms                 = 0,
     .crc_enabled            = 1,
-    .ra_distance            = 12,
 };
 
 /** compression level 1 joint-stereo stage options */
@@ -339,7 +337,6 @@ static const ALSSpecificConfig spc_config_c2 = {
     .mc_coding              = 0,
     .rlslms                 = 0,
     .crc_enabled            = 1,
-    .ra_distance            = 0,
 };
 
 /** compression level 2 joint-stereo stage options */
