@@ -2949,6 +2949,11 @@ static void frame_partitioning(ALSEncContext *ctx)
 
     sconf->frame_length = avctx->frame_size;
 
+    // determine distance between ra-frames. 0 = no ra, 1 = all ra
+    // defaults to 10s intervals for random access
+    sconf->ra_distance = 10 * avctx->sample_rate / sconf->frame_length;
+    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
+
 
     // setting avctx->frame_size to ra_unit_size
     if(sconf->ra_distance)
@@ -3006,10 +3011,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
         else
             sconf->block_switching = FFMIN(3, avctx->max_partition_order - 2);
     }
-
-
-    // determine distance between ra-frames. 0 = no ra, 1 = all ra
-    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
 
     // determine frame length
