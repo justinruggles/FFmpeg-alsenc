@@ -2748,6 +2748,8 @@ static int write_specific_config(AVCodecContext *avctx)
 }
 
 
+/** encodes a single frame
+ */
 static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                         int buf_size, void *data)
 {
@@ -2755,18 +2757,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int b, c;
     int frame_data_size;
-
-    // last frame has been encoded, update extradata
-    if (!data) {
-        // rewrite AudioSpecificConfig & ALSSpecificConfig to extradata
-        int ret = write_specific_config(avctx);
-        if (ret) {
-            av_log(avctx, AV_LOG_ERROR, "Rewriting of extradata failed.\n");
-            return ret;
-        }
-        return 0;
-    }
-
 
     ctx->cur_frame_length = avctx->frame_size;
 
@@ -2848,6 +2838,74 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 }
 
 
+/** encodes all frames of a random access unit
+ */
+static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
+                          int buf_size, void *data)
+{
+    ALSEncContext *ctx       = avctx->priv_data;
+    ALSSpecificConfig *sconf = &ctx->sconf;
+    int f, num, last, fsize;
+    int read = 0;
+
+    // last frame has been encoded, update extradata
+    if (!data) {
+        // rewrite AudioSpecificConfig & ALSSpecificConfig to extradata
+        int ret = write_specific_config(avctx);
+        if (ret) {
+            av_log(avctx, AV_LOG_ERROR, "Rewriting of extradata failed.\n");
+            return ret;
+        }
+        return 0;
+    }
+
+    // no need to take special care of always/never using ra-frames
+    // jsut encode frame-by-frame
+    if (sconf->ra_distance < 2)
+        return encode_frame(avctx, frame, buf_size, data);
+    else
+        fsize = avctx->frame_size / sconf->ra_distance;
+
+    // encode the whole ra-unit
+    if (fsize != sconf->frame_length) {
+        unsigned int remaining = avctx->frame_size;
+        num = 0;
+        while (remaining >= sconf->frame_length) {
+            num++;
+            remaining -= sconf->frame_length;
+        }
+        last = remaining;
+    } else {
+        num  = sconf->ra_distance;
+        last = 0;
+    }
+
+    avctx->frame_size = sconf->frame_length;
+
+    #define ENCODE_FRAMES(bps)                           \
+    {                                                    \
+        int##bps##_t *src = (int##bps##_t*) data;        \
+        for (f = 0; f < num; f++) {                      \
+            read += encode_frame(avctx, frame + read, buf_size - read, src);\
+            src  += avctx->frame_size * avctx->channels; \
+        }                                                \
+        if (last) {                                      \
+            avctx->frame_size = last;                    \
+            read += encode_frame(avctx, frame + read, buf_size - read, src);\
+        } else                                           \
+            avctx->frame_size *= sconf->ra_distance;     \
+    }                                                    \
+
+    if (avctx->bits_per_raw_sample <= 16) {
+        ENCODE_FRAMES(16)
+    } else {
+        ENCODE_FRAMES(32)
+    }
+
+    return read;
+}
+
+
 /** Rearranges internal order of channels to optimize joint-channel coding
  */
 static void channel_sorting(ALSEncContext *ctx)
@@ -2890,6 +2948,11 @@ static void frame_partitioning(ALSEncContext *ctx)
     avctx->frame_size = av_clip(avctx->frame_size, 2, 65536);
 
     sconf->frame_length = avctx->frame_size;
+
+
+    // setting avctx->frame_size to ra_unit_size
+    if(sconf->ra_distance)
+        avctx->frame_size *= sconf->ra_distance;
 }
 
 
@@ -2945,6 +3008,10 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     }
 
 
+    // determine distance between ra-frames. 0 = no ra, 1 = all ra
+    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
+
+
     // determine frame length
     frame_partitioning(ctx);
 
@@ -2955,10 +3022,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
            sconf->frame_length % (1 << (sconf->block_switching + 2))) {
         sconf->block_switching--;
     }
-
-
-    // determine distance between ra-frames. 0 = no ra, 1 = all ra
-    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
 
     // determine where to store ra_flag (01: beginning of frame_data)
@@ -3351,7 +3414,7 @@ AVCodec als_encoder = {
     CODEC_ID_MP4ALS,
     sizeof(ALSEncContext),
     encode_init,
-    encode_frame,
+    encode_ra_unit,
     encode_end,
     NULL,
     .capabilities = CODEC_CAP_SMALL_LAST_FRAME | CODEC_CAP_DELAY,
