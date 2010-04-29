@@ -2953,8 +2953,18 @@ static void frame_partitioning(ALSEncContext *ctx)
 
 
     // setting avctx->frame_size to ra_unit_size
-    if(sconf->ra_distance)
+    if(sconf->ra_distance) {
+        // protect from frame size being larger than AVCODEC_MAX_AUDIO_FRAME_SIZE
+        int sample_size = avctx->channels * avctx->bits_per_raw_sample / 8;
+        if (avctx->frame_size * sconf->ra_distance * sample_size  >
+            AVCODEC_MAX_AUDIO_FRAME_SIZE) {
+            sconf->ra_distance = AVCODEC_MAX_AUDIO_FRAME_SIZE /
+                                 (avctx->frame_size * sample_size);
+            sconf->ra_distance = FFMAX(1, sconf->ra_distance);
+        }
+
         avctx->frame_size *= sconf->ra_distance;
+    }
 }
 
 
