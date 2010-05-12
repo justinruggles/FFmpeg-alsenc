@@ -3009,7 +3009,6 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // user-override for block switching using AVCodecContext.max_partition_order
-    // note: needs to be modified when 1-level and 2-level block switching are implemented
     if (avctx->max_partition_order >= 0) {
         sconf->block_switching = FFMIN(5, avctx->max_partition_order);
     }
@@ -3386,7 +3385,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
     dsputil_init(&ctx->dsp, avctx);
 
     // initialize autocorrelation window for each block size
-    // note: needs to be changed when 1-level and 2-level block switching is implemented
     for (b = 0; b <= sconf->block_switching; b++) {
         int block_length = sconf->frame_length / (1 << b);
         if (!b)
