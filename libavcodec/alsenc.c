@@ -873,10 +873,7 @@ static void block_partitioning(ALSEncContext *ctx)
 
 static inline int rice_count(int v, int k)
 {
-    unsigned int v0;
-
-    v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
-
+    unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
     return (v0 >> k) + 1 + k;
 }
 
