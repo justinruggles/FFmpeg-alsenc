@@ -905,7 +905,7 @@ static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
 
     /* write remainder using k bits */
     if (k)
-        put_bits(pb, k, v - ((q0 - 1) << k));
+        put_bits(pb, k, v - (q0 << k));
 
     return 0;
 }
