@@ -554,7 +554,7 @@ static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
             FFSWAP(unsigned int, buddy_size[b], js_size[b]);
     }
 
-    if (sconf->block_switching && stage < sconf->block_switching + 2)
+    if (sconf->block_switching && stage < sconf->block_switching)
         use_js_sizes(ctx, channel, stage + 1);
 }
 
@@ -587,7 +587,7 @@ static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
         buddys [b].js_block = 0;
     }
 
-    if (sconf->block_switching && stage < sconf->block_switching + 2)
+    if (sconf->block_switching && stage < sconf->block_switching)
         reset_js(ctx, channel, stage + 1);
 }
 
@@ -832,7 +832,7 @@ static void block_partitioning(ALSEncContext *ctx)
         for (c = 0; c < avctx->channels - 1; c += 2) {
             if (sconf->joint_stereo) {
                 unsigned int bits_ind, bits_dep;
-                unsigned int bs_info_len = 1 << (sconf->block_switching + 2);
+                unsigned int bs_info_len = 1 << FFMAX(3, sconf->block_switching);
                 int32_t bs_info_c1, bs_info_c2;
                 int32_t bs_info = ctx->bs_info[c];
 
@@ -1278,7 +1278,7 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
     if (!sconf->mc_coding || ctx->js_switch) {
         for (c = 0; c < avctx->channels; c++) {
             if (sconf->block_switching) {
-                unsigned int bs_info_len = 1 << (sconf->block_switching + 2);
+                unsigned int bs_info_len = 1 << FFMAX(3, sconf->block_switching);
                 uint32_t bs_info         = ctx->bs_info[c];
 
                 if (sconf->joint_stereo && ctx->independent_bs[c])
@@ -2520,7 +2520,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         block++;
     }
 
-    if (sconf->block_switching && stage < sconf->block_switching + 2)
+    if (sconf->block_switching && stage < sconf->block_switching)
         gen_sizes(ctx, channel, stage + 1);
     else
         ctx->bs_info[channel] = bs_info_tmp;
@@ -2556,7 +2556,7 @@ static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
         }
     }
 
-    if (sconf->block_switching && stage < sconf->block_switching + 2)
+    if (sconf->block_switching && stage < sconf->block_switching)
         gen_js_infos(ctx, channel, stage + 1);
 }
 
@@ -2707,7 +2707,7 @@ static int write_specific_config(AVCodecContext *avctx)
     put_bits  (&pb,  2, sconf->coef_table);
     put_bits  (&pb,  1, sconf->long_term_prediction);
     put_bits  (&pb, 10, sconf->max_order);
-    put_bits  (&pb,  2, sconf->block_switching);
+    put_bits  (&pb,  2, FFMAX(3,sconf->block_switching) - 2);
     put_bits  (&pb,  1, sconf->bgmc);
     put_bits  (&pb,  1, sconf->sb_part);
     put_bits  (&pb,  1, sconf->joint_stereo);
@@ -2926,7 +2926,7 @@ static void frame_partitioning(ALSEncContext *ctx)
 
         // increase frame size if block switching is used
         if (sconf->block_switching)
-            avctx->frame_size <<= (sconf->block_switching + 2) >> 1;
+            avctx->frame_size <<= sconf->block_switching >> 1;
     }
 
     // ensure a certain boundary for the frame size
@@ -3000,14 +3000,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 
     // user-override for block switching using AVCodecContext.max_partition_order
-    // note: needs to be modified when 1-level and 2-level block switching are implemented
     if (avctx->max_partition_order >= 0) {
-        if (avctx->max_partition_order == 0)
-            sconf->block_switching = 0;
-        else if (avctx->max_partition_order <= 3)
-            sconf->block_switching = 1;
-        else
-            sconf->block_switching = FFMIN(3, avctx->max_partition_order - 2);
+        sconf->block_switching = FFMIN(5, avctx->max_partition_order);
     }
 
 
@@ -3018,7 +3012,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // limit the block_switching depth based on whether the full frame length
     // is evenly divisible by the minimum block size.
     while (sconf->block_switching > 0 &&
-           sconf->frame_length % (1 << (sconf->block_switching + 2))) {
+           sconf->frame_length % (1 << sconf->block_switching)) {
         sconf->block_switching--;
     }
 
@@ -3346,7 +3340,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
 
     // allocate block-switching and joint-stereo buffers
-    num_bs_sizes = (8 << sconf->block_switching) - 1;
+    num_bs_sizes = (2 << sconf->block_switching) - 1;
 
     ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
     ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
@@ -3382,8 +3376,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     dsputil_init(&ctx->dsp, avctx);
 
     // initialize autocorrelation window for each block size
-    // note: needs to be changed when 1-level and 2-level block switching is implemented
-    for (b = 0; b <= sconf->block_switching + 2; b++) {
+    for (b = 0; b <= sconf->block_switching; b++) {
         int block_length = sconf->frame_length / (1 << b);
         if (!b)
             ctx->acf_window[b] = ctx->acf_window_buffer;
