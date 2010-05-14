@@ -884,13 +884,13 @@ static inline int urice_count(unsigned int v, int k)
 }
 
 
-static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
+static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
+                                        int k, int *q0)
 {
-    int q, q0;
+    int q;
 
-    /* write quotient in zero-terminated unary */
-    q0 = v >> k;
-    q  = q0 + 1;
+    *q0 = v >> k;
+    q  = *q0 + 1;
 
     /* protect from buffer overwrite */
     if (put_bits_count(pb) + q + k > pb->size_in_bits) {
@@ -902,6 +902,18 @@ static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
         q -= 31;
     }
     put_bits(pb, q, ((1<<q)-1)^1);
+
+    return 0;
+}
+
+
+static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
+{
+    int q0;
+
+    /* write quotient in zero-terminated unary */
+    if (golomb_write_quotient(pb, v, k, &q0))
+        return -1;
 
     /* write remainder using k bits */
     if (k)
@@ -914,25 +926,14 @@ static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
 static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 {
     unsigned int v0;
-    int q, q0;
+    int q0;
 
     /* remap to unsigned */
     v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
 
     /* write quotient in zero-terminated unary */
-    q0 = v0 >> k;
-    q  = q0 + 1;
-
-    /* protect from buffer overwrite */
-    if (put_bits_count(pb) + q + k > pb->size_in_bits) {
+    if (golomb_write_quotient(pb, v0, k, &q0))
         return -1;
-    }
-
-    while (q > 31) {
-        put_bits(pb, 31, 0x7FFFFFFF);
-        q -= 31;
-    }
-    put_bits(pb, q, ((1<<q)-1)^1);
 
     /* write remainder using k bits */
     if (k)
