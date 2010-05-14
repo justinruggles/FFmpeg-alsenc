@@ -2707,7 +2707,7 @@ static int write_specific_config(AVCodecContext *avctx)
     put_bits  (&pb,  2, sconf->coef_table);
     put_bits  (&pb,  1, sconf->long_term_prediction);
     put_bits  (&pb, 10, sconf->max_order);
-    put_bits  (&pb,  2, FFMAX(3,sconf->block_switching) - 2);
+    put_bits  (&pb,  2, sconf->block_switching ? FFMAX(1, (sconf->block_switching - 2)) : 0);
     put_bits  (&pb,  1, sconf->bgmc);
     put_bits  (&pb,  1, sconf->sb_part);
     put_bits  (&pb,  1, sconf->joint_stereo);
