@@ -875,11 +875,7 @@ static inline int rice_count(int v, int k)
 {
     unsigned int v0;
 
-    if (v < -INT16_MIN || v > INT16_MAX) {
         v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
-    } else {
-        v0 = (2 * v) ^ (v >> 31);
-    }
 
     return (v0 >> k) + 1 + k;
 }
@@ -923,11 +919,7 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
     int q;
 
     /* remap to unsigned */
-    if (v < -INT16_MIN || v > INT16_MAX) {
         v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
-    } else {
-        v0 = (2 * v) ^ (v >> 31);
-    }
 
     /* write quotient in zero-terminated unary */
     q = (v0 >> k) + 1;
