@@ -893,9 +893,8 @@ static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
     q  = *q0 + 1;
 
     /* protect from buffer overwrite */
-    if (put_bits_count(pb) + q + k > pb->size_in_bits) {
+    if (put_bits_count(pb) + q + k > pb->size_in_bits)
         return -1;
-    }
 
     while (q > 31) {
         put_bits(pb, 31, 0x7FFFFFFF);
