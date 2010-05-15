@@ -958,12 +958,15 @@ static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned i
 
         if (res >> k >=  abs_max || res >> k <= -abs_max) {
             res += res >> k >= abs_max ? high_offset : low_offset;
-            if (pb)
-                set_sr_golomb_als(pb, res, s);
+            if (pb && set_sr_golomb_als(pb, res, s) < 0)
+                return -1;
             count += rice_count(res, s);
         } else if (k) {
-            if (pb)
+            if (pb) {
+                if (put_bits_count(pb) + k > pb->size_in_bits)
+                    return -1;
                 put_sbits(pb, k, res & lsb_mask);
+            }
             count += k;
         }
     }
@@ -1213,10 +1216,12 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                 delta[sb] = 5 - s[sb] + k[sb];
                 max  [sb] = ff_bgmc_max[sx[sb]] >> delta[sb];
 
-                ff_bgmc_encode_msb(pb, res_ptr, sb_length - i,
-                                   k[sb], delta[sb], max[sb],
-                                   s[sb], sx[sb],
-                                   &high, &low, &follow);
+                if (ff_bgmc_encode_msb(pb, res_ptr, sb_length - i,
+                                       k[sb], delta[sb], max[sb],
+                                       s[sb], sx[sb],
+                                       &high, &low, &follow) < 0) {
+                    return -1;
+                }
 
                 res_ptr += sb_length - i;
             } else {
@@ -1228,12 +1233,14 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         }
 
         if (sconf->bgmc) {
-            ff_bgmc_encode_end(pb, &low, &follow);
+            if (ff_bgmc_encode_end(pb, &low, &follow) < 0)
+                return -1;
 
             res_ptr = block->cur_ptr + start;
 
             for (sb = 0; sb < ent->sub_blocks; sb++, start = 0) {
-                bgmc_encode_lsb(pb, res_ptr, sb_length - start, k[sb], max[sb], s[sb]);
+                if (bgmc_encode_lsb(pb, res_ptr, sb_length - start, k[sb], max[sb], s[sb]) < 0)
+                    return -1;
                 res_ptr += sb_length - start;
             }
         }
@@ -1416,6 +1423,7 @@ static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
     if (bgmc) {
         unsigned int high, low, follow;
         unsigned int delta, k, max, b;
+        int c;
 
         // count msb's
         ff_bgmc_encode_init(&high, &low, &follow);
@@ -1425,14 +1433,22 @@ static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
         delta = 5 - s + k;
         max = ff_bgmc_max[sx] >> delta;
 
-        count += ff_bgmc_encode_msb(NULL, res_ptr, sb_length - len,
-                                    k, delta, max, s, sx,
-                                    &high, &low, &follow);
+        c = ff_bgmc_encode_msb(NULL, res_ptr, sb_length - len, k, delta, max,
+                               s, sx, &high, &low, &follow);
+        if (c < 0)
+            return -1;
+        count += c;
 
-        count += ff_bgmc_encode_end(NULL, &low, &follow);
+        c = ff_bgmc_encode_end(NULL, &low, &follow);
+        if (c < 0)
+            return -1;
+        count += c;
 
         // count lsb's
-        count += bgmc_encode_lsb(NULL, res_ptr, sb_length - len, k, max, s);
+        c = bgmc_encode_lsb(NULL, res_ptr, sb_length - len, k, max, s);
+        if (c < 0)
+            return -1;
+        count += c;
     } else {
         int i;
         for (i = len; i < sb_length; i++) {

@@ -615,6 +615,9 @@ static int put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *fo
     int count = *follow + 1;
 
     if (pb) {
+        if (put_bits_count(pb) + count > pb->size_in_bits)
+            return -1;
+
         if (!*follow) {
             put_bits(pb, 1, bit);
         } else if (*follow < 31) {
@@ -661,7 +664,10 @@ int ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
     while (1) {
         if (high >= HALF) {
             if        (low >= HALF) {
-                count += put_bits_follow(pb, 1, f);
+                int c  = put_bits_follow(pb, 1, f);
+                if (c < 0)
+                    return -1;
+                count += c;
                 low   -= HALF;
                 high  -= HALF;
             } else if (low >= FIRST_QTR && high < THIRD_QTR) {
@@ -670,7 +676,10 @@ int ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
                 high  -= FIRST_QTR;
             } else break;
         } else {
-            count += put_bits_follow(pb, 0, f);
+            int c = put_bits_follow(pb, 0, f);
+            if (c < 0)
+                return -1;
+            count += c;
         }
         low   *= 2;
         high   = 2 * high  + 1;
@@ -696,6 +705,7 @@ int ff_bgmc_encode_msb(PutBitContext *pb, const int32_t *symbols, unsigned int n
 
     for (; n > 0; n--) {
         int32_t res = *symbols;
+        int c;
 
         res >>= k;
         res <<= 1;
@@ -708,7 +718,10 @@ int ff_bgmc_encode_msb(PutBitContext *pb, const int32_t *symbols, unsigned int n
         else if (res >= tail)
             res++;
 
-        count += ff_bgmc_encode(pb, res, delta, sx, h, l, f);
+        c = ff_bgmc_encode(pb, res, delta, sx, h, l, f);
+        if (c < 0)
+            return -1;
+        count += c;
 
         symbols++;
     }
