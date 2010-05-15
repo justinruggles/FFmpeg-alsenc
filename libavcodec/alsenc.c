@@ -86,6 +86,8 @@
 #define EC_PARAM_ALGORITHM_RICE_EXACT       1
 /** Estimates BGMC parameters using mean of unsigned residual samples */
 #define EC_PARAM_ALGORITHM_BGMC_ESTIMATE    2
+/** Calculates BGMC parameters using a search algorithm based on exact bit count */
+#define EC_PARAM_ALGORITHM_BGMC_EXACT       3
 
 /** Uses estimate for returned entropy coding bit count */
 #define EC_BIT_COUNT_ALGORITHM_ESTIMATE     0
@@ -437,6 +439,7 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
     case EC_PARAM_ALGORITHM_RICE_ESTIMATE: dprintf(avctx, "param_algorithm = rice estimate\n"); break;
     case EC_PARAM_ALGORITHM_RICE_EXACT:    dprintf(avctx, "param_algorithm = rice exact\n");    break;
     case EC_PARAM_ALGORITHM_BGMC_ESTIMATE: dprintf(avctx, "param_algorithm = bgmc estimate\n"); break;
+    case EC_PARAM_ALGORITHM_BGMC_EXACT:    dprintf(avctx, "param_algorithm = bgmc exact\n");    break;
     }
 
     switch (stage->count_algorithm) {
@@ -1842,6 +1845,117 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, int order)
+{
+    ALSEncStage    *stage = ctx->cur_stage;
+    ALSLTPInfo     *ltp   = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent   = &block->ent_info[ltp->use_ltp];
+    int s[4][8], sx[4][8];
+    int p, sb;
+    int p_max;
+    int p_best;
+    unsigned int count_best = UINT_MAX;
+
+
+    if (!stage->sb_part || block->length & 0x3 || block->length < 16)
+        p_max = 0;
+    else
+        p_max = 3;
+
+    p_best = p_max;
+
+    for (p = p_max; p >= 0; p--) {
+        int num_subblocks  = 1 << p;
+        int sb_length      = block->length / num_subblocks;
+        int32_t *res_ptr   = block->cur_ptr;
+        unsigned int count;
+
+        for (sb = 0; sb < num_subblocks; sb++) {
+            int si, sxi;
+            int best_s=0, best_sx=0;
+            unsigned int best_param_count = UINT_MAX;
+
+            for (si = 0; si <= ctx->max_rice_param; si++) {
+                int step;
+                unsigned int sx_count[16];
+                unsigned int best_sx_count;
+
+                /* start search for sx in the middle */
+                sxi = 7;
+                sx_count[sxi] = subblock_ec_count_exact(res_ptr,
+                                            block->length, sb_length,
+                                            si, sxi, ctx->max_rice_param,
+                                            !sb && block->ra_block,
+                                            order, 1);
+                sxi++;
+                sx_count[sxi] = subblock_ec_count_exact(res_ptr,
+                                            block->length, sb_length,
+                                            si, sxi, ctx->max_rice_param,
+                                            !sb && block->ra_block,
+                                            order, 1);
+
+                /* determine sx search direction */
+                if (sx_count[sxi] < sx_count[sxi-1]) {
+                    best_sx_count = sx_count[sxi];
+                    if (best_sx_count < best_param_count) {
+                        best_s = si;
+                        best_sx = sxi;
+                        best_param_count = best_sx_count;
+                    }
+                    step = 1;
+                } else {
+                    sxi--;
+                    best_sx_count = sx_count[sxi];
+                    if (best_sx_count < best_param_count) {
+                        best_s = si;
+                        best_sx = sxi;
+                        best_param_count = best_sx_count;
+                    }
+                    step = -1;
+                }
+                sxi += step;
+
+                /* search for best sx for the current value of s */
+                for (; sxi >= 0 && sxi < 16; sxi += step) {
+                    sx_count[sxi] = subblock_ec_count_exact(res_ptr,
+                                                block->length, sb_length,
+                                                si, sxi, ctx->max_rice_param,
+                                                !sb && block->ra_block,
+                                                order, 1);
+                    if (sx_count[sxi] < best_sx_count) {
+                        best_sx_count = sx_count[sxi];
+                        if (best_sx_count < best_param_count) {
+                            best_s = si;
+                            best_sx = sxi;
+                            best_param_count = best_sx_count;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+            s [p][sb] = best_s;
+            sx[p][sb] = best_sx;
+            res_ptr += sb_length;
+        }
+        count = block_ec_count_exact(ctx, block, num_subblocks, s[p], sx[p],
+                                     order, 1);
+        if (count < count_best) {
+            count_best = count;
+            p_best = p;
+        }
+    }
+
+    ent->sub_blocks = 1 << p_best;
+    for (sb = 0; sb < ent->sub_blocks; sb++) {
+        ent->rice_param[sb] = s [p_best][sb];
+        ent->bgmc_param[sb] = sx[p_best][sb];
+    }
+
+    ent->bits_ec_param_and_res = count_best;
+}
+
+
 /**
  * Calculate optimal sub-block division and Rice parameters for a block.
  * @param ctx                   encoder context
@@ -1856,6 +1970,8 @@ static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
 
     if        (stage->param_algorithm == EC_PARAM_ALGORITHM_BGMC_ESTIMATE) {
         find_block_bgmc_params(ctx, block, order);
+    } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_BGMC_EXACT) {
+        find_block_bgmc_params_exact(ctx, block, order);
     } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_RICE_ESTIMATE) {
         find_block_rice_params_est(ctx, block, order);
     } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_RICE_EXACT) {
