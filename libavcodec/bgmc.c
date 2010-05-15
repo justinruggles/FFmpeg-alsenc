@@ -614,6 +614,7 @@ static int put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *fo
 {
     int count = *follow + 1;
 
+    if (pb) {
     if (!*follow) {
         put_bits(pb, 1, bit);
     } else if (*follow < 31) {
@@ -623,19 +624,10 @@ static int put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *fo
         for (unsigned int i = 0; i < *follow; i++)
             put_bits(pb, 1, !bit);
     }
+    }
 
     *follow = 0;
 
-    return count;
-}
-
-
-/** Counts a bit and a given number of opposite follow bits
- */
-static int cnt_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *follow)
-{
-    int count = *follow + 1;
-    *follow   = 0;
     return count;
 }
 
@@ -645,10 +637,7 @@ static int cnt_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *fo
 int ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f)
 {
     *f += 1;
-    if (pb)
-        return put_bits_follow(pb, *l >= FIRST_QTR, f);
-    else
-        return cnt_bits_follow(pb, 0, f);
+    return put_bits_follow(pb, *l >= FIRST_QTR, f);
 }
 
 
@@ -669,31 +658,22 @@ int ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
     high = low + ((range * cf_table[sx][(symbol    ) << delta] - (1 << FREQ_BITS)) >> FREQ_BITS);
     low  = low + ((range * cf_table[sx][(symbol + 1) << delta]                   ) >> FREQ_BITS);
 
-    #define ENCODING_LOOP(fun)\
-    {                                                               \
-        while (1) {                                                 \
-            if (high >= HALF) {                                     \
-                if        (low >= HALF) {                           \
-                    count += fun##_bits_follow(pb, 1, f);           \
-                    low   -= HALF;                                  \
-                    high  -= HALF;                                  \
-                } else if (low >= FIRST_QTR && high < THIRD_QTR) {  \
-                    *f    += 1;                                     \
-                    low   -= FIRST_QTR;                             \
-                    high  -= FIRST_QTR;                             \
-                } else break;                                       \
-            } else {                                                \
-                count += fun##_bits_follow(pb, 0, f);               \
-            }                                                       \
-            low   *= 2;                                             \
-            high   = 2 * high  + 1;                                 \
-        }                                                           \
-    }
-
-    if (pb) {
-        ENCODING_LOOP(put);
-    } else {
-        ENCODING_LOOP(cnt);
+    while (1) {
+        if (high >= HALF) {
+            if        (low >= HALF) {
+                count += put_bits_follow(pb, 1, f);
+                low   -= HALF;
+                high  -= HALF;
+            } else if (low >= FIRST_QTR && high < THIRD_QTR) {
+                *f    += 1;
+                low   -= FIRST_QTR;
+                high  -= FIRST_QTR;
+            } else break;
+        } else {
+            count += put_bits_follow(pb, 0, f);
+        }
+        low   *= 2;
+        high   = 2 * high  + 1;
     }
 
     // save current state
