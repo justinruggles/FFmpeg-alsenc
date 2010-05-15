@@ -1321,16 +1321,13 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 
             for (b= 0; b < ctx->num_blocks[c]; b++) {
                 if (ctx->independent_bs[c]) {
-                    ret = write_block(ctx, &ctx->blocks[c][b]);
-                    if (ret < 0)
-                        return ret;
+                    if (write_block(ctx, &ctx->blocks[c][b]) < 0)
+                        return -1;
                 } else {
-                    ret = write_block(ctx, &ctx->blocks[c][b]);
-                    if (ret < 0)
-                        return ret;
-                    ret = write_block(ctx, &ctx->blocks[c+1][b]);
-                    if (ret < 0)
-                        return ret;
+                    if (write_block(ctx, &ctx->blocks[c  ][b]) < 0 ||
+                        write_block(ctx, &ctx->blocks[c+1][b]) < 0) {
+                        return -1;
+                    }
                 }
             }
 
