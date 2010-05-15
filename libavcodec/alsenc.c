@@ -112,6 +112,12 @@
 #define GET_BS_BIT(ptr_bs_info, pos) ((*ptr_bs_info & (1 << (30 - pos))) > 0)
 
 
+#define OVERFLOW_PROTECT(pb, bits, ERROR)                   \
+    if (put_bits_count(pb) + (bits) > pb->size_in_bits) {   \
+        ERROR                                               \
+    }
+
+
 /** grouped encoding algorithms and options */
 typedef struct {
     // encoding options used during the processing of the stage
@@ -893,8 +899,7 @@ static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
     q  = *q0 + 1;
 
     /* protect from buffer overwrite */
-    if (put_bits_count(pb) + q + k > pb->size_in_bits)
-        return -1;
+    OVERFLOW_PROTECT(pb, q+k, return -1;)
 
     while (q > 31) {
         put_bits(pb, 31, 0x7FFFFFFF);
@@ -963,8 +968,7 @@ static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned i
             count += rice_count(res, s);
         } else if (k) {
             if (pb) {
-                if (put_bits_count(pb) + k > pb->size_in_bits)
-                    return -1;
+                OVERFLOW_PROTECT(pb, k, return -1;)
                 put_sbits(pb, k, res & lsb_mask);
             }
             count += k;
@@ -1159,8 +1163,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         // LPTenable && LTPgain && LTPlag
         if (sconf->long_term_prediction) {
-            if (put_bits_count(pb) + 1 > pb->size_in_bits)
-                return -1;
+            OVERFLOW_PROTECT(pb, 1, return -1;)
             put_bits(pb, 1, ltp->use_ltp);
 
             if (ltp->use_ltp) {
@@ -1175,8 +1178,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                     return -1;
                 }
 
-                if (put_bits_count(pb) + ltp_lag_length > pb->size_in_bits)
-                    return -1;
+                OVERFLOW_PROTECT(pb, ltp_lag_length, return -1;)
                 put_bits(pb, ltp_lag_length, ltp->lag - FFMAX(4, block->opt_order + 1));
             }
         }
