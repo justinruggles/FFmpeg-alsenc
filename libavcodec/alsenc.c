@@ -113,9 +113,17 @@
 
 
 #define OVERFLOW_PROTECT(pb, bits, ERROR)                   \
-    if (put_bits_count(pb) + (bits) > pb->size_in_bits) {   \
+{                                                           \
+    if (put_bits_count(pb) + (bits) > (pb)->size_in_bits) { \
         ERROR                                               \
-    }
+    }                                                       \
+}
+
+#define PUT_BITS_SAFE(pb, bits, val, ERROR)     \
+{                                               \
+    OVERFLOW_PROTECT(pb, bits, ERROR)           \
+    put_bits(pb, bits, val);                    \
+}
 
 
 /** grouped encoding algorithms and options */
@@ -1047,10 +1055,12 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
 
     // block_type
-    put_bits(pb, 1, !block->constant);
+    PUT_BITS_SAFE(pb, 1, !block->constant, return -1;)
 
 
     if (block->constant) {
+        OVERFLOW_PROTECT(pb, 7, return -1;)
+
         // const_block
         put_bits(pb, 1, block->constant_value != 0);
 
@@ -1063,6 +1073,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         if (block->constant_value) {
             int const_val_bits = sconf->floating ? 24 : avctx->bits_per_raw_sample;
+            OVERFLOW_PROTECT(pb, const_val_bits, return -1;)
             if (const_val_bits == 32)
                 put_bits32(pb, block->constant_value);
             else
@@ -1083,15 +1094,15 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         unsigned int *sx = ent->bgmc_param;
 
         // js_block
-        put_bits(pb, 1, block->js_block);
+        PUT_BITS_SAFE(pb, 1, block->js_block, return -1;)
 
 
         // ec_sub
         if (sconf->sb_part || sconf->bgmc) {
             if (sconf->sb_part && sconf->bgmc)
-                put_bits(pb, 2, av_log2(ent->sub_blocks));
+                PUT_BITS_SAFE(pb, 2, av_log2(ent->sub_blocks), return -1;)
             else
-                put_bits(pb, 1, ent->sub_blocks > 1);
+                PUT_BITS_SAFE(pb, 1, ent->sub_blocks > 1, return -1;)
         }
 
 
@@ -1102,12 +1113,12 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
             for (sb = 0; sb < ent->sub_blocks; sb++)
                 S[sb] = (ent->rice_param[sb] << 4) | ent->bgmc_param[sb];
 
-            put_bits(pb, 8 + (avctx->bits_per_raw_sample > 16), S[0]);
+            PUT_BITS_SAFE(pb, 8 + (avctx->bits_per_raw_sample > 16), S[0], return -1;)
             for (sb = 1; sb < ent->sub_blocks; sb++)
                 if (set_sr_golomb_als(pb, S[sb] - S[sb-1], 2))
                     return -1;
         } else {
-            put_bits(pb, 4 + (avctx->bits_per_raw_sample > 16), ent->rice_param[0]);
+            PUT_BITS_SAFE(pb, 4 + (avctx->bits_per_raw_sample > 16), ent->rice_param[0], return -1;)
 
             for (sb = 1; sb < ent->sub_blocks; sb++) {
                 if (set_sr_golomb_als(pb, ent->rice_param[sb] - ent->rice_param[sb-1], 0))
@@ -1117,10 +1128,10 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
 
         // shift_lsbs && shift_pos
-        put_bits(pb, 1, block->shift_lsbs > 0);
+        PUT_BITS_SAFE(pb, 1, block->shift_lsbs > 0, return -1;)
 
         if (block->shift_lsbs)
-            put_bits(pb, 4, block->shift_lsbs - 1);
+            PUT_BITS_SAFE(pb, 4, block->shift_lsbs - 1, return -1;)
 
 
         // opt_order && quant_cof
@@ -1129,12 +1140,13 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
             if (sconf->adapt_order) {
                 int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
                                                     2, sconf->max_order + 1));
-                put_bits(pb, opt_order_length, block->opt_order);
+                PUT_BITS_SAFE(pb, opt_order_length, block->opt_order, return -1;)
             }
 
 
             // for each quant_cof, put(quant_cof) in rice code
             if (sconf->coef_table == 3) {
+                OVERFLOW_PROTECT(pb, block->opt_order * 7, return -1;)
                 for (i = 0; i < block->opt_order; i++)
                     put_bits(pb, 7, 64 + block->q_parcor_coeff[i]);
             } else {
@@ -1163,8 +1175,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         // LPTenable && LTPgain && LTPlag
         if (sconf->long_term_prediction) {
-            OVERFLOW_PROTECT(pb, 1, return -1;)
-            put_bits(pb, 1, ltp->use_ltp);
+            PUT_BITS_SAFE(pb, 1, ltp->use_ltp, return -1;)
 
             if (ltp->use_ltp) {
                 int ltp_lag_length = 8 + (avctx->sample_rate >=  96000) +
@@ -1178,8 +1189,9 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                     return -1;
                 }
 
-                OVERFLOW_PROTECT(pb, ltp_lag_length, return -1;)
-                put_bits(pb, ltp_lag_length, ltp->lag - FFMAX(4, block->opt_order + 1));
+                PUT_BITS_SAFE(pb, ltp_lag_length,
+                              ltp->lag - FFMAX(4, block->opt_order + 1),
+                              return -1;)
             }
         }
 
@@ -1278,6 +1290,7 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
     // make space for ra_unit_size
     if (sconf->ra_flag == RA_FLAG_FRAMES && sconf->ra_distance == 1) {
         // TODO: maybe keep frame count and allow other RA distances if API will allow
+        OVERFLOW_PROTECT(&ctx->pb, 32, return -1;)
         put_bits32(&ctx->pb, 0);
     }
 
@@ -1299,6 +1312,7 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
                 if (sconf->joint_stereo && ctx->independent_bs[c])
                     bs_info |= (1 << 31);
 
+                OVERFLOW_PROTECT(&ctx->pb, bs_info_len, return -1;)
                 if (bs_info_len == 32)
                     put_bits32(&ctx->pb, bs_info);
                 else
