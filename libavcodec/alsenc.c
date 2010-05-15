@@ -1159,18 +1159,24 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
         // LPTenable && LTPgain && LTPlag
         if (sconf->long_term_prediction) {
+            if (put_bits_count(pb) + 1 > pb->size_in_bits)
+                return -1;
             put_bits(pb, 1, ltp->use_ltp);
 
             if (ltp->use_ltp) {
                 int ltp_lag_length = 8 + (avctx->sample_rate >=  96000) +
                                          (avctx->sample_rate >= 192000);
 
-                set_sr_golomb_als(pb, ltp->gain[0] >> 3,          1);
-                set_sr_golomb_als(pb, ltp->gain[1] >> 3,          2);
-                set_ur_golomb_als(pb, map_to_index(ltp->gain[2]), 2);
-                set_sr_golomb_als(pb, ltp->gain[3] >> 3,          2);
-                set_sr_golomb_als(pb, ltp->gain[4] >> 3,          1);
+                if (set_sr_golomb_als(pb, ltp->gain[0] >> 3,          1) ||
+                    set_sr_golomb_als(pb, ltp->gain[1] >> 3,          2) ||
+                    set_ur_golomb_als(pb, map_to_index(ltp->gain[2]), 2) ||
+                    set_sr_golomb_als(pb, ltp->gain[3] >> 3,          2) ||
+                    set_sr_golomb_als(pb, ltp->gain[4] >> 3,          1)) {
+                    return -1;
+                }
 
+                if (put_bits_count(pb) + ltp_lag_length > pb->size_in_bits)
+                    return -1;
                 put_bits(pb, ltp_lag_length, ltp->lag - FFMAX(4, block->opt_order + 1));
             }
         }
