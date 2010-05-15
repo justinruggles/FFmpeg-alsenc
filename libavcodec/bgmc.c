@@ -615,15 +615,15 @@ static int put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *fo
     int count = *follow + 1;
 
     if (pb) {
-    if (!*follow) {
-        put_bits(pb, 1, bit);
-    } else if (*follow < 31) {
-        put_bits(pb, 1 + *follow, (1 << *follow) - !bit);
-    } else {
-        put_bits (pb, 1, bit);
-        for (unsigned int i = 0; i < *follow; i++)
-            put_bits(pb, 1, !bit);
-    }
+        if (!*follow) {
+            put_bits(pb, 1, bit);
+        } else if (*follow < 31) {
+            put_bits(pb, 1 + *follow, (1 << *follow) - !bit);
+        } else {
+            put_bits (pb, 1, bit);
+            for (unsigned int i = 0; i < *follow; i++)
+                put_bits(pb, 1, !bit);
+        }
     }
 
     *follow = 0;
