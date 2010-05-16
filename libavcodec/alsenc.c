@@ -1871,71 +1871,84 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
         unsigned int count;
 
         for (sb = 0; sb < num_subblocks; sb++) {
-            int si, sxi;
-            int best_s=0, best_sx=0;
-            unsigned int best_param_count = UINT_MAX;
+            int s0, si, sxi;
+            int step;
+            int best_s0 = 0;
+            unsigned int s0_count[256];
+            int dc = 0;
 
-            for (si = 0; si <= ctx->max_rice_param; si++) {
-                int step;
-                unsigned int sx_count[16];
-                unsigned int best_sx_count;
+            /* guess starting point for search */
+            if (!sb) {
+                if (p < p_max)
+                    s0 = av_clip((s[p+1][sb>>1] << 4) | sx[p+1][sb>>1], 5, 250);
+                else
+                    s0 = 127;
+            } else {
+                s0 = av_clip((s[p][sb-1] << 4) | sx[p][sb-1], 5, 250);
+            }
+            s0_count[s0] = subblock_ec_count_exact(res_ptr, block->length,
+                                sb_length, s0 >> 4, s0 & 0xF,
+                                ctx->max_rice_param, !sb && block->ra_block,
+                                order, 1);
 
-                /* start search for sx in the middle */
-                sxi = 7;
-                sx_count[sxi] = subblock_ec_count_exact(res_ptr,
-                                            block->length, sb_length,
-                                            si, sxi, ctx->max_rice_param,
-                                            !sb && block->ra_block,
-                                            order, 1);
-                sxi++;
-                sx_count[sxi] = subblock_ec_count_exact(res_ptr,
-                                            block->length, sb_length,
-                                            si, sxi, ctx->max_rice_param,
-                                            !sb && block->ra_block,
-                                            order, 1);
-
-                /* determine sx search direction */
-                if (sx_count[sxi] < sx_count[sxi-1]) {
-                    best_sx_count = sx_count[sxi];
-                    if (best_sx_count < best_param_count) {
-                        best_s = si;
-                        best_sx = sxi;
-                        best_param_count = best_sx_count;
-                    }
-                    step = 1;
-                } else {
-                    sxi--;
-                    best_sx_count = sx_count[sxi];
-                    if (best_sx_count < best_param_count) {
-                        best_s = si;
-                        best_sx = sxi;
-                        best_param_count = best_sx_count;
-                    }
-                    step = -1;
+            /* determine search direction */
+            s0 += 5;
+            s0_count[s0] = subblock_ec_count_exact(res_ptr, block->length,
+                                sb_length, s0 >> 4, s0 & 0xF,
+                                ctx->max_rice_param, !sb && block->ra_block,
+                                order, 1);
+            s0 -= 10;
+            s0_count[s0] = subblock_ec_count_exact(res_ptr, block->length,
+                                sb_length, s0 >> 4, s0 & 0xF,
+                                ctx->max_rice_param, !sb && block->ra_block,
+                                order, 1);
+            s0 += 5;
+            if (s0_count[s0+5] < s0_count[s0]) {
+                step = 1;
+            } else if (s0_count[s0-5] < s0_count[s0]) {
+                step = -1;
+            } else {
+                /* lowest count is likely between s0-4 and s0+4 */
+                int max_s0 = s0 + 5;
+                best_s0 = s0;
+                for (s0 = s0 - 4; s0 < max_s0; s0++) {
+                    s0_count[s0] = subblock_ec_count_exact(res_ptr, block->length,
+                                        sb_length, s0 >> 4, s0 & 0xF,
+                                        ctx->max_rice_param, !sb && block->ra_block,
+                                        order, 1);
+                    if (s0_count[s0] < s0_count[best_s0])
+                        best_s0 = s0;
                 }
-                sxi += step;
+                dc = 1;
+            }
 
-                /* search for best sx for the current value of s */
-                for (; sxi >= 0 && sxi < 16; sxi += step) {
-                    sx_count[sxi] = subblock_ec_count_exact(res_ptr,
-                                                block->length, sb_length,
-                                                si, sxi, ctx->max_rice_param,
-                                                !sb && block->ra_block,
-                                                order, 1);
-                    if (sx_count[sxi] < best_sx_count) {
-                        best_sx_count = sx_count[sxi];
-                        if (best_sx_count < best_param_count) {
-                            best_s = si;
-                            best_sx = sxi;
-                            best_param_count = best_sx_count;
-                        }
+            /* search for best parameters */
+            if (!dc) {
+                best_s0 = s0;
+                s0 += step;
+
+                for (; s0 >= 0 && s0 < 256; s0 += step) {
+                    si  = s0 >> 4;
+                    sxi = s0 & 0xF;
+                    s0_count[s0] = subblock_ec_count_exact(res_ptr,
+                                        block->length, sb_length, si, sxi,
+                                        ctx->max_rice_param, !sb && block->ra_block,
+                                        order, 1);
+                    if (s0_count[s0] < s0_count[best_s0]) {
+                        best_s0 = s0;
+                        dc = 0;
                     } else {
-                        break;
+                        dc++;
+                        if (dc > 5)
+                            break;
                     }
                 }
             }
-            s [p][sb] = best_s;
-            sx[p][sb] = best_sx;
+
+            /* save best parameters for this sub-block */
+            s [p][sb] = best_s0 >> 4;
+            sx[p][sb] = best_s0 & 0xF;
+
             res_ptr += sb_length;
         }
         count = block_ec_count_exact(ctx, block, num_subblocks, s[p], sx[p],
