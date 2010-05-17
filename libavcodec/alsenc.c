@@ -3507,11 +3507,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
     num_bs_sizes = (2 << sconf->block_switching) - 1;
 
     ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
-    ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes);
-    ctx->js_sizes_buffer = av_malloc(sizeof(*ctx->js_sizes_buffer) * num_bs_sizes * (avctx->channels >> 1));
-    ctx->js_sizes        = av_malloc(sizeof(*ctx->js_sizes)        * num_bs_sizes);
-    ctx->js_infos_buffer = av_malloc(sizeof(*ctx->js_infos_buffer) * num_bs_sizes * (avctx->channels >> 1));
-    ctx->js_infos        = av_malloc(sizeof(*ctx->js_infos)        * num_bs_sizes);
+    ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes * avctx->channels);
+    ctx->js_sizes_buffer = av_malloc(sizeof(*ctx->js_sizes_buffer) * num_bs_sizes * ((avctx->channels + 1) >> 1));
+    ctx->js_sizes        = av_malloc(sizeof(*ctx->js_sizes)        * num_bs_sizes * avctx->channels);
+    ctx->js_infos_buffer = av_malloc(sizeof(*ctx->js_infos_buffer) * num_bs_sizes * ((avctx->channels + 1) >> 1));
+    ctx->js_infos        = av_malloc(sizeof(*ctx->js_infos)        * num_bs_sizes * avctx->channels);
 
     if (!ctx->bs_sizes || !ctx->bs_sizes_buffer ||
         !ctx->js_sizes || !ctx->js_sizes_buffer ||
