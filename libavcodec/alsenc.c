@@ -232,6 +232,7 @@ typedef struct {
     int32_t *ltp_buffer;            ///< temporary buffer to store long-term predicted samples
     int32_t **ltp_samples;          ///< pointer to the beginning of the current frame's ltp residuals in the buffer for each channel
     double *ltp_corr_buffer;        ///< temporary buffer to store the signal during LTP autocorrelation
+    double *ltp_corr_samples;       ///< pointer to the beginning of the block in ltp_corr_buffer
 } ALSEncContext;
 
 
@@ -2112,7 +2113,6 @@ static void test_zero_lsb(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-#if 1
 /* Generate a weighted residual signal for autocorrelation detection
  * used in LTP mode
  */
@@ -2122,7 +2122,7 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
     int len          = (int)block->length;
     int32_t *cur_ptr = block->cur_ptr;
     uint64_t sum      = 0;
-    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double *corr_ptr = ctx->ltp_corr_samples;
     double mean_quot;
     int i;
 
@@ -2135,11 +2135,12 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
     // apply weighting:
     // x *= 1 / [ sqrt(abs(x)) / 5*sqrt(mean) + 1 ]  // XXX: what weighting function is this?
     mean_quot = (sqrt(mean_quot) * 5);
-    for (i = -lag_max; i < len; i++)
-        corr_ptr[i] = 1 / (sqrt(abs(cur_ptr[i])) / mean_quot + 1);
+    for (i = -lag_max-2; i < len; i++)
+        corr_ptr[i] = cur_ptr[i] / (sqrt(abs(cur_ptr[i])) / mean_quot + 1.0);
 }
 
 
+#if 1
 /* Generate the autocorrelation function and find
  * its positive maximum value to be used for LTP lag
  */
@@ -2149,7 +2150,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     int i, i_max;
     double autoc_max;
     double autoc[lag_max];
-    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double *corr_ptr = ctx->ltp_corr_samples;
 
     ff_lpc_compute_autocorr(block->cur_ptr, corr_ptr, block->length, lag_max, autoc);
 
@@ -2166,8 +2167,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     block->ltp_info[block->js_block].lag = i_max;
 }
 
-static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
-                                int lag_max)
+static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
 {
     int *ltp_gain = block->ltp_info[block->js_block].gain;
 
@@ -2180,29 +2180,6 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
 
 #else
 
-static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
-                                int lag_max)
-{
-    int len          = (int)block->length;
-    int32_t *cur_ptr = block->cur_ptr;
-    uint64_t sum      = 0;
-    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
-    double mean_quot;
-    int i;
-
-    // determine absolute mean of residual signal,
-    // including previous samples
-    for (i = -lag_max; i < len; i++)
-        sum += abs(cur_ptr[i]);
-    mean_quot = (double)(sum) / (block->length + lag_max);
-
-    // apply weighting:
-    // x *= 1 / [ sqrt(abs(x)) / 5*sqrt(mean) + 1 ]  // XXX: what weighting function is this?
-    mean_quot = (sqrt(mean_quot) * 5);
-    for (i = -lag_max - 2; i < len; i++)
-        corr_ptr[i] = cur_ptr[i] / (sqrt(abs(cur_ptr[i])) / mean_quot + 1);
-}
-
 
 static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
                                int lag_max, int start)
@@ -2211,7 +2188,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     int begin        = 0;
     int end          = block->length;
     int lag_best     = 0;
-    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double *corr_ptr = ctx->ltp_corr_samples;
     double sum_a     = 0;
     double acorr_max = -1;
 
@@ -2222,6 +2199,11 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     // calculate autocorrelation coefficient of original signal
     for (smp = begin - start; smp < end - start; smp++)
         sum_a += corr_ptr[smp] * corr_ptr[smp];
+
+    if (!sum_a) {
+        block->ltp_info[block->js_block].lag = start;
+        return;
+    }
 
     // compute normalized autocorrelation for each possible lag
     for (lag = start; lag < lag_max; lag++) {
@@ -2302,13 +2284,12 @@ static void	Cholesky( double* a, double* b, const double* c, int n )
 }
 
 
-static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
-                                int lag_max)
+static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
 {
     int icc;
     int smp, i;
     int taumax = block->ltp_info[block->js_block].lag;
-    double *corr_ptr = ctx->ltp_corr_buffer + lag_max;
+    double *corr_ptr = ctx->ltp_corr_samples;
 
     double ioa[25], ob[5], ic[5];
     double powc0  = 0.0, powc1  = 0.0, powc2  = 0.0, powc3  = 0.0, powc4  = 0.0;
@@ -2375,7 +2356,10 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block,
         for(icc=0; icc<5; icc++) {
             if (icc == 2) continue;
             ltp_gain[icc] = ob[icc] * 16 + ((ob[icc] > 0) ? 0.5 : -0.5);
-            ltp_gain[icc] = av_clip(ltp_gain[icc], -8, 8) << 3;
+            if (icc == 0 || icc == 4)
+                ltp_gain[icc] = av_clip(ltp_gain[icc], -6, 5) * 8;
+            else
+                ltp_gain[icc] = av_clip(ltp_gain[icc], -8, 7) * 8;
         }
 
         // 2
@@ -2403,13 +2387,23 @@ static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
     AVCodecContext *avctx    = ctx->avctx;
 
     int start   = FFMAX(4, block->opt_order + 1);
+    int end     = FFMIN(ALS_MAX_LTP_LAG, block->length);
     int lag     = 256 << (  (avctx->sample_rate >=  96000)
                           + (avctx->sample_rate >= 192000));
-    int lag_max = FFMIN(lag + start, FFMIN(ALS_MAX_LTP_LAG, block->length));
+    int lag_max;
+    if (lag + start > end - 3)
+        lag = end - start - 3;
+    lag_max = FFMIN(lag + start, end);
+
+    if (block->length <= start || lag <= 0 ) {
+        memset(block->ltp_info[block->js_block].gain, 0, 5 * sizeof(int));
+        block->ltp_info[block->js_block].lag = start;
+        return;
+    }
 
     get_weighted_signal(ctx, block, lag_max);
     find_best_autocorr (ctx, block, lag_max, start);
-    get_ltp_coeffs     (ctx, block, lag_max);
+    get_ltp_coeffs     (ctx, block);
 }
 
 
@@ -3456,6 +3450,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->ltp_corr_buffer = av_malloc (sizeof(*ctx->ltp_corr_buffer) *
                                           (sconf->frame_length +
                                            FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length)));
+        ctx->ltp_corr_samples = ctx->ltp_corr_buffer + FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
 
         if (!ctx->ltp_buffer || !ctx->ltp_samples || !ctx->ltp_corr_buffer) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
