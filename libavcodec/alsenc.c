@@ -1659,7 +1659,8 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
 /** Full search for optimal BGMC parameters and and sub-block devision
  */
-static void find_block_bgmc_params(ALSEncContext *ctx, ALSBlock *block, int order)
+static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
+                                       int order)
 {
     ALSEncStage    *stage = ctx->cur_stage;
     ALSLTPInfo     *ltp   = &block->ltp_info[block->js_block];
@@ -1983,7 +1984,7 @@ static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
     ALSEncStage *stage = ctx->cur_stage;
 
     if        (stage->param_algorithm == EC_PARAM_ALGORITHM_BGMC_ESTIMATE) {
-        find_block_bgmc_params(ctx, block, order);
+        find_block_bgmc_params_est(ctx, block, order);
     } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_BGMC_EXACT) {
         find_block_bgmc_params_exact(ctx, block, order);
     } else if (stage->param_algorithm == EC_PARAM_ALGORITHM_RICE_ESTIMATE) {
