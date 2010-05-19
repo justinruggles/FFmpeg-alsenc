@@ -2240,138 +2240,150 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
 
 // XXX: replace me
 ///////////////////// begin of shameless adapted copy from reference
-static void	Cholesky( double* a, double* b, const double* c, int n )
+
+#define MAX_VARS 32
+
+typedef struct {
+    double a[MAX_VARS][MAX_VARS];
+    double b[MAX_VARS];
+    double c[MAX_VARS];
+    int count;
+} CholeskyContext;
+
+static void init_cholesky(CholeskyContext *m, int count)
 {
-    int        i, j, k, zeroflag = 0;
-    double    acc;
-    static    const double    eps = 1.e-16;
+    memset(m, 0, sizeof(*m));
+    m->count = count;
+}
 
-    double t[ n*n ];
-    double invt[ n ];
+static void	solve_cholesky(CholeskyContext *m)
+{
+    int i, j, k;
+    double acc;
+    static const double eps = 1.e-16;
 
+    double t[5][5];
+    double invt[5];
 
-    t[0] = sqrt( a[0] + eps );
-    invt[0] = 1. / t[0];
-    for( k=1; k<n; k++ ) t[k*n] = a[k*n] * invt[0];
-    for( i=1; i<n; i++ ) {
-        acc = a[i*n+i] + eps;
-        for( k=0; k<i; k++ ) acc -= t[i*n+k] * t[i*n+k];
-        if(acc <= 0.0){ zeroflag=1; break;}
-        t[i*n+i] = sqrt( acc );
-        invt[i] = 1. / t[i*n+i];
-        for( j=i+1; j<n; j++ ) {
-            acc = a[j*n+i] + eps;
-            for( k=0; k<i; k++ ) acc -= t[j*n+k] * t[i*n+k];
-            t[j*n+i] = acc * invt[i];
+    t[0][0] = sqrt(m->a[0][0] + eps);
+    invt[0] = 1.0 / t[0][0];
+    for (k = 1; k < 5; k++)
+        t[k][0] = m->a[k][0] * invt[0];
+
+    for (i = 1; i < 5; i++) {
+        acc = m->a[i][i] + eps;
+        for (k = 0; k < i; k++)
+            acc -= t[i][k] * t[i][k];
+        if (acc <= 0.0) {
+            memset(m->b, 0, 5 * sizeof(*m->b));
+            return;
+        }
+        t[i][i] = sqrt(acc);
+        invt[i] = 1.0 / t[i][i];
+        for (j = i + 1; j < 5; j++) {
+            acc = m->a[j][i] + eps;
+            for (k = 0; k < i; k++)
+                acc -= t[j][k] * t[i][k];
+            t[j][i] = acc * invt[i];
         }
     }
 
-    if(zeroflag) {
-        for(i = 0; i < n; i++) b[i] = 0.0;
-        return;
+    for (i = 0; i < 5; i++) {
+        acc = m->c[i];
+        for (k = 0; k < i; k++)
+            acc -= t[i][k] * m->a[0][k];
+        m->a[0][i] = acc * invt[i];
     }
 
-    for( i=0; i<n; i++ ) {
-        acc = c[i];
-        for( k=0; k<i; k++ ) acc -= t[i*n+k] * a[k];
-        a[i] = acc * invt[i];
-    }
-
-    for( i=n-1; i>=0; i-- ) {
-        acc = a[i];
-        for( k=i+1; k<n; k++ ) acc -= t[k*n+i] * b[k];
-        b[i] = acc * invt[i];
+    for (i = 4; i >= 0; i--) {
+        acc = m->a[0][i];
+        for (k = i + 1; k < 5; k++)
+            acc -= t[k][i] * m->b[k];
+        m->b[i] = acc * invt[i];
     }
 }
 
 
 static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
 {
-    int icc;
+    int icc, quant;
     int smp, i;
-    int taumax = block->ltp_info[block->js_block].lag;
+    int taumax       = block->ltp_info[block->js_block].lag;
+    int *ltp_gain    = block->ltp_info[block->js_block].gain;
     double *corr_ptr = ctx->ltp_corr_samples;
+    CholeskyContext m;
 
-    double ioa[25], ob[5], ic[5];
-    double powc0  = 0.0, powc1  = 0.0, powc2  = 0.0, powc3  = 0.0, powc4  = 0.0;
     double pwm2m2 = 0.0, pwm2m1 = 0.0, pwm20  = 0.0, pwm2p1 = 0.0, pwm2p2 = 0.0;
     double pwm1m1 = 0.0, pwm10  = 0.0, pwm1p1 = 0.0, pwm1p2 = 0.0;
     double pw00   = 0.0, pw0p1  = 0.0, pw0p2  = 0.0;
     double pwp1p1 = 0.0, pwp1p2 = 0.0;
     double pwp2p2 = 0.0;
 
-    for( smp=-taumax; smp<(int)(block->length)-taumax-2; smp++ ) {
-        powc0 += corr_ptr[smp+taumax] * corr_ptr[smp-2];
-        powc1 += corr_ptr[smp+taumax] * corr_ptr[smp-1];
-        powc2 += corr_ptr[smp+taumax] * corr_ptr[smp];
-        powc3 += corr_ptr[smp+taumax] * corr_ptr[smp+1];
-        powc4 += corr_ptr[smp+taumax] * corr_ptr[smp+2];
+    init_cholesky(&m, 5);
+
+    for (smp = -taumax; smp < (int)(block->length)-taumax-2; smp++) {
+        m.c[0] += corr_ptr[smp+taumax] * corr_ptr[smp-2];
+        m.c[1] += corr_ptr[smp+taumax] * corr_ptr[smp-1];
+        m.c[2] += corr_ptr[smp+taumax] * corr_ptr[smp  ];
+        m.c[3] += corr_ptr[smp+taumax] * corr_ptr[smp+1];
+        m.c[4] += corr_ptr[smp+taumax] * corr_ptr[smp+2];
 
         pwm2m2 += corr_ptr[smp-2] * corr_ptr[smp-2];
         pwm2m1 += corr_ptr[smp-2] * corr_ptr[smp-1];
-        pwm20  += corr_ptr[smp-2] * corr_ptr[smp];
+        pwm20  += corr_ptr[smp-2] * corr_ptr[smp  ];
         pwm2p1 += corr_ptr[smp-2] * corr_ptr[smp+1];
         pwm2p2 += corr_ptr[smp-2] * corr_ptr[smp+2];
         pwm1m1 += corr_ptr[smp-1] * corr_ptr[smp-1];
-        pwm10  += corr_ptr[smp-1] * corr_ptr[smp];
+        pwm10  += corr_ptr[smp-1] * corr_ptr[smp  ];
         pwm1p1 += corr_ptr[smp-1] * corr_ptr[smp+1];
         pwm1p2 += corr_ptr[smp-1] * corr_ptr[smp+2];
-        pw00   += corr_ptr[smp]   * corr_ptr[smp];
-        pw0p1  += corr_ptr[smp]   * corr_ptr[smp+1];
-        pw0p2  += corr_ptr[smp]   * corr_ptr[smp+2];
+        pw00   += corr_ptr[smp  ] * corr_ptr[smp  ];
+        pw0p1  += corr_ptr[smp  ] * corr_ptr[smp+1];
+        pw0p2  += corr_ptr[smp  ] * corr_ptr[smp+2];
         pwp1p1 += corr_ptr[smp+1] * corr_ptr[smp+1];
         pwp1p2 += corr_ptr[smp+1] * corr_ptr[smp+2];
         pwp2p2 += corr_ptr[smp+2] * corr_ptr[smp+2];
     }
 
-    ic[0] = powc0;
-    ic[1] = powc1;
-    ic[2] = powc2;
-    ic[3] = powc3;
-    ic[4] = powc4;
-    ioa[ 0] = pwm2m2;
-    ioa[ 1] = ioa[ 5] = pwm2m1;
-    ioa[ 2] = ioa[10] = pwm20;
-    ioa[ 3] = ioa[15] = pwm2p1;
-    ioa[ 4] = ioa[20] = pwm2p2;
-    ioa[ 6] = pwm1m1;
-    ioa[ 7] = ioa[11] = pwm10;
-    ioa[ 8] = ioa[16] = pwm1p1;
-    ioa[ 9] = ioa[21] = pwm1p2;
-    ioa[12] = pw00;
-    ioa[13] = ioa[17] = pw0p1;
-    ioa[14] = ioa[22] = pw0p2;
-    ioa[18] = pwp1p1;
-    ioa[19] = ioa[23] = pwp1p2;
-    ioa[24] = pwp2p2;
+    m.a[0][0] = pwm2m2;
+    m.a[0][1] = m.a[1][0] = pwm2m1;
+    m.a[0][2] = m.a[2][0] = pwm20;
+    m.a[0][3] = m.a[3][0] = pwm2p1;
+    m.a[0][4] = m.a[4][0] = pwm2p2;
+    m.a[1][1]             = pwm1m1;
+    m.a[1][2] = m.a[2][1] = pwm10;
+    m.a[1][3] = m.a[3][1] = pwm1p1;
+    m.a[1][4] = m.a[4][1] = pwm1p2;
+    m.a[2][2]             = pw00;
+    m.a[2][3] = m.a[3][2] = pw0p1;
+    m.a[2][4] = m.a[4][2] = pw0p2;
+    m.a[3][3]             = pwp1p1;
+    m.a[3][4] = m.a[4][3] = pwp1p2;
+    m.a[4][4]             = pwp2p2;
 
-    Cholesky(ioa, ob, ic, 5);
+    solve_cholesky(&m);
 
 
-    // calculate coefficients
-    {
-        // 0,1 and 3,4
-        int *ltp_gain = block->ltp_info[block->js_block].gain;
-        int quant     = ceil(ob[2] * 256 + 0.5);
+    // quantize coefficients
 
-        for(icc=0; icc<5; icc++) {
-            if (icc == 2) continue;
-            ltp_gain[icc] = ob[icc] * 16 + ((ob[icc] > 0) ? 0.5 : -0.5);
-            if (icc == 0 || icc == 4)
-                ltp_gain[icc] = av_clip(ltp_gain[icc], -6, 5) * 8;
-            else
-                ltp_gain[icc] = av_clip(ltp_gain[icc], -8, 7) * 8;
-        }
+    // 0,1 and 3,4  (linear quantization)
+    for (icc = 0; icc < 5; icc++) {
+        int g = lrint(m.b[icc] * 16.0);
+        if (icc & 1)
+            ltp_gain[icc] = av_clip(g, -8, 7) * 8;
+        else
+            ltp_gain[icc] = av_clip(g, -6, 5) * 8;
+    }
 
-        // 2
-        ltp_gain[2] = 0;
-        for(i = 15; i >= 1; i--) {
-            uint8_t cur = ff_als_ltp_gain_values[i >> 2][i & 3];
-
-            if (quant > cur + ff_als_ltp_gain_values[(i-1) >> 2][(i-1) & 3]) {
-                ltp_gain[2] = cur;
-                return;
-            }
+    // 2 (vector quantization, roughly logarithmic)
+    quant = lrint(m.b[2] * 256.0);
+    ltp_gain[2] = 0;
+    for(i = 15; i > 0; i--) {
+        uint8_t a = ff_als_ltp_gain_values[ i    >> 2][ i    & 3];
+        uint8_t b = ff_als_ltp_gain_values[(i-1) >> 2][(i-1) & 3];
+        if (quant > a + b) {
+            ltp_gain[2] = a;
+            return;
         }
     }
 }
