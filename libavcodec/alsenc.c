@@ -43,6 +43,7 @@
 #include "audioconvert.h"
 #include "bgmc.h"
 #include "libavutil/crc.h"
+#include "libavutil/lls.h"
 
 
 /** Total size of fixed-size fields in ALSSpecificConfig */
@@ -2181,6 +2182,8 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
 
 #else
 
+// XXX: replace me
+///////////////////// begin of shameless adapted copy from reference
 
 static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
                                int lag_max, int start)
@@ -2238,70 +2241,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     block->ltp_info[block->js_block].lag = lag_best;
 }
 
-// XXX: replace me
-///////////////////// begin of shameless adapted copy from reference
-
-#define MAX_VARS 32
-
-typedef struct {
-    double a[MAX_VARS][MAX_VARS];
-    double b[MAX_VARS];
-    double c[MAX_VARS];
-    int count;
-} CholeskyContext;
-
-static void init_cholesky(CholeskyContext *m, int count)
-{
-    memset(m, 0, sizeof(*m));
-    m->count = count;
-}
-
-static void	solve_cholesky(CholeskyContext *m)
-{
-    int i, j, k;
-    double acc;
-    static const double eps = 1.e-16;
-
-    double t[5][5];
-    double invt[5];
-
-    t[0][0] = sqrt(m->a[0][0] + eps);
-    invt[0] = 1.0 / t[0][0];
-    for (k = 1; k < 5; k++)
-        t[k][0] = m->a[k][0] * invt[0];
-
-    for (i = 1; i < 5; i++) {
-        acc = m->a[i][i] + eps;
-        for (k = 0; k < i; k++)
-            acc -= t[i][k] * t[i][k];
-        if (acc <= 0.0) {
-            memset(m->b, 0, 5 * sizeof(*m->b));
-            return;
-        }
-        t[i][i] = sqrt(acc);
-        invt[i] = 1.0 / t[i][i];
-        for (j = i + 1; j < 5; j++) {
-            acc = m->a[j][i] + eps;
-            for (k = 0; k < i; k++)
-                acc -= t[j][k] * t[i][k];
-            t[j][i] = acc * invt[i];
-        }
-    }
-
-    for (i = 0; i < 5; i++) {
-        acc = m->c[i];
-        for (k = 0; k < i; k++)
-            acc -= t[i][k] * m->a[0][k];
-        m->a[0][i] = acc * invt[i];
-    }
-
-    for (i = 4; i >= 0; i--) {
-        acc = m->a[0][i];
-        for (k = i + 1; k < 5; k++)
-            acc -= t[k][i] * m->b[k];
-        m->b[i] = acc * invt[i];
-    }
-}
+///////////////////// end of shameless adapted copy from reference
 
 
 static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
@@ -2311,64 +2251,35 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
     int taumax       = block->ltp_info[block->js_block].lag;
     int *ltp_gain    = block->ltp_info[block->js_block].gain;
     double *corr_ptr = ctx->ltp_corr_samples;
-    CholeskyContext m;
+    double coeff[5];
 
-    double pwm2m2 = 0.0, pwm2m1 = 0.0, pwm20  = 0.0, pwm2p1 = 0.0, pwm2p2 = 0.0;
-    double pwm1m1 = 0.0, pwm10  = 0.0, pwm1p1 = 0.0, pwm1p2 = 0.0;
-    double pw00   = 0.0, pw0p1  = 0.0, pw0p2  = 0.0;
-    double pwp1p1 = 0.0, pwp1p2 = 0.0;
-    double pwp2p2 = 0.0;
+    LLSModel m;
 
-    init_cholesky(&m, 5);
+    double c[5] = {0,};
+
+    av_init_lls(&m, 5);
 
     for (smp = -taumax; smp < (int)(block->length)-taumax-2; smp++) {
-        m.c[0] += corr_ptr[smp+taumax] * corr_ptr[smp-2];
-        m.c[1] += corr_ptr[smp+taumax] * corr_ptr[smp-1];
-        m.c[2] += corr_ptr[smp+taumax] * corr_ptr[smp  ];
-        m.c[3] += corr_ptr[smp+taumax] * corr_ptr[smp+1];
-        m.c[4] += corr_ptr[smp+taumax] * corr_ptr[smp+2];
+        c[0] += corr_ptr[smp+taumax] * corr_ptr[smp-2];
+        c[1] += corr_ptr[smp+taumax] * corr_ptr[smp-1];
+        c[2] += corr_ptr[smp+taumax] * corr_ptr[smp  ];
+        c[3] += corr_ptr[smp+taumax] * corr_ptr[smp+1];
+        c[4] += corr_ptr[smp+taumax] * corr_ptr[smp+2];
 
-        pwm2m2 += corr_ptr[smp-2] * corr_ptr[smp-2];
-        pwm2m1 += corr_ptr[smp-2] * corr_ptr[smp-1];
-        pwm20  += corr_ptr[smp-2] * corr_ptr[smp  ];
-        pwm2p1 += corr_ptr[smp-2] * corr_ptr[smp+1];
-        pwm2p2 += corr_ptr[smp-2] * corr_ptr[smp+2];
-        pwm1m1 += corr_ptr[smp-1] * corr_ptr[smp-1];
-        pwm10  += corr_ptr[smp-1] * corr_ptr[smp  ];
-        pwm1p1 += corr_ptr[smp-1] * corr_ptr[smp+1];
-        pwm1p2 += corr_ptr[smp-1] * corr_ptr[smp+2];
-        pw00   += corr_ptr[smp  ] * corr_ptr[smp  ];
-        pw0p1  += corr_ptr[smp  ] * corr_ptr[smp+1];
-        pw0p2  += corr_ptr[smp  ] * corr_ptr[smp+2];
-        pwp1p1 += corr_ptr[smp+1] * corr_ptr[smp+1];
-        pwp1p2 += corr_ptr[smp+1] * corr_ptr[smp+2];
-        pwp2p2 += corr_ptr[smp+2] * corr_ptr[smp+2];
+        av_update_lls(&m, &corr_ptr[smp-2], 1.0);
     }
+    memcpy(&m.covariance[0][1], c, 5 * sizeof(double));
 
-    m.a[0][0] = pwm2m2;
-    m.a[0][1] = m.a[1][0] = pwm2m1;
-    m.a[0][2] = m.a[2][0] = pwm20;
-    m.a[0][3] = m.a[3][0] = pwm2p1;
-    m.a[0][4] = m.a[4][0] = pwm2p2;
-    m.a[1][1]             = pwm1m1;
-    m.a[1][2] = m.a[2][1] = pwm10;
-    m.a[1][3] = m.a[3][1] = pwm1p1;
-    m.a[1][4] = m.a[4][1] = pwm1p2;
-    m.a[2][2]             = pw00;
-    m.a[2][3] = m.a[3][2] = pw0p1;
-    m.a[2][4] = m.a[4][2] = pw0p2;
-    m.a[3][3]             = pwp1p1;
-    m.a[3][4] = m.a[4][3] = pwp1p2;
-    m.a[4][4]             = pwp2p2;
-
-    solve_cholesky(&m);
+    av_solve_lls(&m, 0.0, 0);
+    for (icc = 0; icc < 5; icc++)
+        coeff[icc] = m.coeff[4][icc];
 
 
     // quantize coefficients
 
     // 0,1 and 3,4  (linear quantization)
     for (icc = 0; icc < 5; icc++) {
-        int g = lrint(m.b[icc] * 16.0);
+        int g = lrint(coeff[icc] * 16.0);
         if (icc & 1)
             ltp_gain[icc] = av_clip(g, -8, 7) * 8;
         else
@@ -2376,7 +2287,7 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
     }
 
     // 2 (vector quantization, roughly logarithmic)
-    quant = lrint(m.b[2] * 256.0);
+    quant = lrint(coeff[2] * 256.0);
     ltp_gain[2] = 0;
     for(i = 15; i > 0; i--) {
         uint8_t a = ff_als_ltp_gain_values[ i    >> 2][ i    & 3];
@@ -2387,7 +2298,6 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
         }
     }
 }
-///////////////////// end of shameless adapted copy from reference
 #endif
 
 
