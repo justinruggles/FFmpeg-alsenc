@@ -2172,7 +2172,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     double autoc_max;
     double autoc[lag_max];
 
-    compute_autocorr_norm(ctx->ltp_corr_samples, block->length, lag_max, autoc);
+    compute_autocorr_norm(ctx->ltp_corr_samples, block->length, lag_max, 1, autoc);
 
     autoc_max = autoc[start];
     i_max     = start;
