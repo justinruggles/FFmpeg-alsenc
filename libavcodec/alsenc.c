@@ -105,6 +105,11 @@
 /**  Do an exact bit count during adaptive LPC order search */
 #define ADAPT_COUNT_ALGORITHM_EXACT         1
 
+/** Use fixed values for LTP coefficients */
+#define LTP_COEFF_ALGORITHM_FIXED           0
+/** Calculate LTP coefficients using Cholesky factorization */
+#define LTP_COEFF_ALGORITHM_CHOLESKY        1
+
 /** Find optimal block partitioning using Full-Search */
 #define BS_ALGORITHM_FULL_SEARCH    1
 /** Find optimal block partitioning using Bottom-Up */
@@ -144,6 +149,7 @@ typedef struct {
     int count_algorithm;            ///< algorithm to use for residual + rice param bit count
     int adapt_search_algorithm;     ///< algorithm to use for adaptive LPC order search
     int adapt_count_algorithm;      ///< algorithm to use for adaptive LPC order bit count
+    int ltp_coeff_algorithm;        ///< algorithm to use to determine LTP coefficients
     int merge_algorithm;            ///< algorithm to use to determine final block partitioning
 } ALSEncStage;
 
@@ -262,6 +268,7 @@ static const ALSEncStage stage_js_c0 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
@@ -275,6 +282,7 @@ static const ALSEncStage stage_bs_c0 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
@@ -287,6 +295,7 @@ static const ALSEncStage stage_final_c0 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_ESTIMATE,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
@@ -315,6 +324,7 @@ static const ALSEncStage stage_js_c1 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -327,6 +337,7 @@ static const ALSEncStage stage_bs_c1 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -339,6 +350,7 @@ static const ALSEncStage stage_final_c1 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -366,6 +378,7 @@ static const ALSEncStage stage_js_c2 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_CHOLESKY,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -378,6 +391,7 @@ static const ALSEncStage stage_bs_c2 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_CHOLESKY,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -390,6 +404,7 @@ static const ALSEncStage stage_final_c2 = {
     .count_algorithm        = EC_BIT_COUNT_ALGORITHM_EXACT,
     .adapt_search_algorithm = ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT,
     .adapt_count_algorithm  = ADAPT_COUNT_ALGORITHM_ESTIMATE,
+    .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_CHOLESKY,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
@@ -457,6 +472,11 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
     switch (stage->adapt_count_algorithm) {
     case ADAPT_COUNT_ALGORITHM_ESTIMATE: dprintf(avctx, "adapt_count_algorithm = estimate\n"); break;
     case ADAPT_COUNT_ALGORITHM_EXACT:    dprintf(avctx, "adapt_count_algorithm = exact\n");    break;
+    }
+
+    switch (stage->ltp_coeff_algorithm) {
+    case LTP_COEFF_ALGORITHM_FIXED:    dprintf(avctx, "ltp_coeff_algorithm = fixed\n");    break;
+    case LTP_COEFF_ALGORITHM_CHOLESKY: dprintf(avctx, "ltp_coeff_algorithm = cholesky\n"); break;
     }
 
     switch (stage->merge_algorithm) {
@@ -2188,10 +2208,22 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+static void get_ltp_coeffs_fixed(ALSEncContext *ctx, ALSBlock *block)
+{
+    int *ltp_gain = block->ltp_info[block->js_block].gain;
+
+    ltp_gain[0] = 8;
+    ltp_gain[1] = 8;
+    ltp_gain[2] = 16;
+    ltp_gain[3] = 8;
+    ltp_gain[4] = 8;
+}
+
+
 /**
  * Calculate LTP coefficients using Cholesky factorization.
  */
-static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
+static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
 {
     int icc, quant;
     int smp, i;
@@ -2276,7 +2308,10 @@ static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
 
     get_weighted_signal(ctx, block, lag_max);
     find_best_autocorr (ctx, block, lag_max, start);
-    get_ltp_coeffs     (ctx, block);
+    if (ctx->cur_stage->ltp_coeff_algorithm == LTP_COEFF_ALGORITHM_FIXED)
+        get_ltp_coeffs_fixed(ctx, block);
+    else
+        get_ltp_coeffs_cholesky(ctx, block);
 }
 
 
