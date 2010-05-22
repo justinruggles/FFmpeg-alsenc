@@ -2142,7 +2142,28 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-#if 0
+static void compute_autocorr_norm(const double *data, int len, int lag,
+                                  double *autoc)
+{
+    int i, j;
+    double acf0 = 1.0;
+
+    for (i = 0; i < len; i++)
+        acf0 += data[i] * data[i];
+
+    autoc[0] = 1.0;
+    for (j = 1; j < lag; j++) {
+        double sum = 1.0;
+
+        // calculate autocorrelation coefficient
+        for (i = j; i < len; i++)
+            sum += data[i] * data[i-j];
+
+        // normalize
+        autoc[j] = sum / acf0;
+    }
+}
+
 
 /* Generate the autocorrelation function and find
  * its positive maximum value to be used for LTP lag
@@ -2153,9 +2174,8 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     int i, i_max;
     double autoc_max;
     double autoc[lag_max];
-    double *corr_ptr = ctx->ltp_corr_samples;
 
-    ff_lpc_compute_autocorr(block->cur_ptr, corr_ptr, block->length, lag_max, autoc);
+    compute_autocorr_norm(ctx->ltp_corr_samples, block->length, lag_max, autoc);
 
     autoc_max = autoc[start];
     i_max     = start;
@@ -2170,65 +2190,6 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     block->ltp_info[block->js_block].lag = i_max;
 }
 
-#else
-
-/**
- * Find optimal LTP lag by using a normalized autocorrelation function.
- */
-static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
-                               int lag_max, int start)
-{
-    int smp, lag;
-    int begin        = 0;
-    int end          = block->length;
-    int lag_best     = 0;
-    double *corr_ptr = ctx->ltp_corr_samples;
-    double sum_a     = 0;
-    double acorr_max = -1;
-
-
-    // calculate autocorrelation coefficient of original signal
-    for (smp = begin - start; smp < end - start; smp++)
-        sum_a += corr_ptr[smp] * corr_ptr[smp];
-
-    if (!sum_a) {
-        block->ltp_info[block->js_block].lag = start;
-        return;
-    }
-
-    // compute normalized autocorrelation for each possible lag
-    for (lag = start; lag < lag_max; lag++) {
-        double sum_b = 0;
-        double acorr;
-        int first = begin - lag - 1;
-        int last  = end   - lag - 1;
-
-        // calculate autocorrelation coefficient
-        for (smp = begin - lag; smp < end - lag; smp++)
-            sum_b += corr_ptr[smp + lag] * corr_ptr[smp];
-
-        // skip negative autocorrelation coefficients
-        if (sum_b >= 0) {
-            // normalize autocorrelation coefficient
-            acorr = sum_b * sum_b / sum_a;
-
-            // save maximum autocorrelation
-            if (acorr > acorr_max) {
-                lag_best   = lag;
-                acorr_max = acorr;
-            }
-        }
-
-        // update autocorrelation coefficient of
-        // original signal for next iteration
-        sum_a += corr_ptr[first] * corr_ptr[first] -
-                 corr_ptr[ last] * corr_ptr[ last];
-    }
-
-    block->ltp_info[block->js_block].lag = lag_best;
-}
-
-#endif
 
 /**
  * Calculate LTP coefficients using Cholesky factorization.
