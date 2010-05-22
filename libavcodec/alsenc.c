@@ -2195,27 +2195,32 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
 {
     int icc, quant;
     int smp, i;
+    int len          = (int)block->length;
     int taumax       = block->ltp_info[block->js_block].lag;
     int *ltp_gain    = block->ltp_info[block->js_block].gain;
     double *corr_ptr = ctx->ltp_corr_samples;
+    double *corr_ptr_lag;
     double coeff[5];
-
     LLSModel m;
-
-    double c[5] = {0,};
+    double *c = &m.covariance[0][1];
 
     av_init_lls(&m, 5);
 
-    for (smp = -taumax; smp < (int)(block->length)-taumax-2; smp++) {
-        c[0] += corr_ptr[smp+taumax] * corr_ptr[smp-2];
-        c[1] += corr_ptr[smp+taumax] * corr_ptr[smp-1];
-        c[2] += corr_ptr[smp+taumax] * corr_ptr[smp  ];
-        c[3] += corr_ptr[smp+taumax] * corr_ptr[smp+1];
-        c[4] += corr_ptr[smp+taumax] * corr_ptr[smp+2];
+    corr_ptr_lag = corr_ptr - 2 - taumax;
+    for (smp = 0; smp < len - 2; smp++)
+        av_update_lls(&m, corr_ptr_lag++, 1.0);
 
-        av_update_lls(&m, &corr_ptr[smp-2], 1.0);
+    corr_ptr_lag = corr_ptr - 2 - taumax;
+    memset(c, 0, 5 * sizeof(*c));
+    for (smp = 0; smp < len - 2; smp++) {
+        double v = *corr_ptr++;
+        c[0] += v * corr_ptr_lag[0];
+        c[1] += v * corr_ptr_lag[1];
+        c[2] += v * corr_ptr_lag[2];
+        c[3] += v * corr_ptr_lag[3];
+        c[4] += v * corr_ptr_lag[4];
+        corr_ptr_lag++;
     }
-    memcpy(&m.covariance[0][1], c, 5 * sizeof(double));
 
     av_solve_lls(&m, 0.0, 0);
     for (icc = 0; icc < 5; icc++)
