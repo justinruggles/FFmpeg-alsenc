@@ -2187,9 +2187,6 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     double acorr_max = -1;
 
 
-    // XXX: sum_a can become zero if there is no check
-    // for constant zero signal prior to LTP!
-
     // calculate autocorrelation coefficient of original signal
     for (smp = begin - start; smp < end - start; smp++)
         sum_a += corr_ptr[smp] * corr_ptr[smp];
