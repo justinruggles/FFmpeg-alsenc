@@ -2142,7 +2142,8 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-#if 1
+#if 0
+
 /* Generate the autocorrelation function and find
  * its positive maximum value to be used for LTP lag
  */
@@ -2169,22 +2170,11 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     block->ltp_info[block->js_block].lag = i_max;
 }
 
-static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
-{
-    int *ltp_gain = block->ltp_info[block->js_block].gain;
-
-    ltp_gain[0] = 8;
-    ltp_gain[1] = 8;
-    ltp_gain[2] = 16;
-    ltp_gain[3] = 8;
-    ltp_gain[4] = 8;
-}
-
 #else
 
-// XXX: replace me
-///////////////////// begin of shameless adapted copy from reference
-
+/**
+ * Find optimal LTP lag by using a normalized autocorrelation function.
+ */
 static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
                                int lag_max, int start)
 {
@@ -2241,9 +2231,11 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     block->ltp_info[block->js_block].lag = lag_best;
 }
 
-///////////////////// end of shameless adapted copy from reference
+#endif
 
-
+/**
+ * Calculate LTP coefficients using Cholesky factorization.
+ */
 static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
 {
     int icc, quant;
@@ -2298,8 +2290,6 @@ static void get_ltp_coeffs(ALSEncContext *ctx, ALSBlock *block)
         }
     }
 }
-#endif
-
 
 
 /** Select the best set of LTP parameters based on maximum autocorrelation
