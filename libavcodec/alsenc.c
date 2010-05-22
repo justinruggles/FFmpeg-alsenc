@@ -2142,25 +2142,22 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+/**
+ * Generic autocorrelation with optional normalization.
+ * double source data, no windowing, data-lag assumed to be valid pointer.
+ */
 static void compute_autocorr_norm(const double *data, int len, int lag,
-                                  double *autoc)
+                                  int normalize, double *autoc)
 {
     int i, j;
-    double acf0 = 1.0;
 
-    for (i = 0; i < len; i++)
-        acf0 += data[i] * data[i];
-
-    autoc[0] = 1.0;
-    for (j = 1; j < lag; j++) {
+    for (j = 0; j < lag; j++) {
         double sum = 1.0;
-
-        // calculate autocorrelation coefficient
         for (i = j; i < len; i++)
             sum += data[i] * data[i-j];
-
-        // normalize
-        autoc[j] = sum / acf0;
+        autoc[j] = sum;
+        if (normalize)
+            autoc[j] /= autoc[0];
     }
 }
 
