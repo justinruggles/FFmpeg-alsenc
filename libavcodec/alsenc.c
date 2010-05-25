@@ -1666,15 +1666,15 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     if (count1 <= count4) {
         ent->sub_blocks = 1;
         ent->rice_param[0] = param[4];
+        ent->bits_ec_param_and_res = count1;
     } else {
         ent->sub_blocks = 4;
         ent->rice_param[0] = param[0];
         ent->rice_param[1] = param[1];
         ent->rice_param[2] = param[2];
         ent->rice_param[3] = param[3];
+        ent->bits_ec_param_and_res = count4;
     }
-
-    ent->bits_ec_param_and_res = FFMIN(count1, count4);
 }
 
 
