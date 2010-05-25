@@ -1601,13 +1601,14 @@ static inline void estimate_bgmc_params(uint64_t sum, unsigned int n, int *s,
 static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
                                       int order)
 {
-    int i, sb, sb_max, sb_length;
+    int i, sb, sb_max, sb_length, p0;
     uint64_t sum[5] = {0,};
     int param[5];
     unsigned int count1, count4;
     ALSEncStage *stage = ctx->cur_stage;
     ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
+    const int32_t *res_ptr = block->cur_ptr;
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         sb_max = 1;
@@ -1616,16 +1617,9 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     sb_length = block->length / sb_max;
 
     for (sb = 0; sb < sb_max; sb++) {
-        const int32_t *res_ptr1 = block->cur_ptr + (sb * sb_length);
         for (i = 0; i < sb_length; i++) {
-            int v = *res_ptr1++;
-            if (ctx->max_rice_param > 15) {
-                unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
-                sum[sb] += v0;
-            } else {
-                v = (2 * v) ^ (v >> 31);
-                sum[sb] += v;
-            }
+            int32_t v = *res_ptr++;
+            sum[sb] += (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
         }
         sum[4] += sum[sb];
 
@@ -1641,8 +1635,9 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
         count1 += 4 + (ctx->max_rice_param > 15);
     }
 
-    if (sb_max == 1 || ((param[0] == param[1]) && (param[1] == param[2]) &&
-        (param[2] == param[3]))) {
+    p0 = param[0];
+    if (sb_max == 1 || ((p0 == param[1]) && (p0 == param[2]) &&
+        (p0 == param[3]))) {
         ent->sub_blocks = 1;
         ent->rice_param[0] = param[4];
         ent->bits_ec_param_and_res = count1;
