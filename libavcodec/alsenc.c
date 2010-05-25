@@ -1817,35 +1817,9 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         return;
     }
 
+    param[4] = (param[0] + param[1] + param[2] + param[3]) >> 2;
 
-    /* start 1/3 distance between 0 and max_param */
-    k = FFMIN(param[0], ctx->max_rice_param-1);
-    count[4][k] = block_ec_count_exact(ctx, block, 1, &k, NULL, order, 0);
-    k++;
-    count[4][k] = block_ec_count_exact(ctx, block, 1, &k, NULL, order, 0);
-    if (count[4][k] < count[4][k-1]) {
-        best_k = k;
-        step = 1;
-        k++;
-    } else {
-        best_k = k - 1;
-        step = -1;
-        k -= 2;
-    }
-
-    for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
-        count[4][k] = block_ec_count_exact(ctx, block, 1, &k, NULL, order, 0);
-
-        if (count[4][k] < count[4][best_k]) {
-            best_k = k;
-        } else {
-            break;
-        }
-    }
-    param[4] = best_k;
-
-
-    count1  = count[4][param[4]];
+    count1 = block_ec_count_exact(ctx, block, 1, &param[4], NULL, order, 0);
     count4 = count[0][param[0]] + count[1][param[1]] + count[2][param[2]] +
              count[3][param[3]] + block_ec_param_count(ctx, block, 4, param, NULL, 0);
     if (count1 <= count4) {
