@@ -1753,8 +1753,8 @@ static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
 static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
                                         int order)
 {
-    unsigned int count[5][32] = {{0,}};
-    int param[5];
+    unsigned int count[4] = {0,};
+    int param[4], p0;
     int k, step, sb, sb_max, sb_length;
     int best_k;
     unsigned int count1, count4;
@@ -1771,45 +1771,50 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     best_k = ctx->max_rice_param / 3;
 
     for (sb = 0; sb < sb_max; sb++) {
+        int32_t *res_ptr = block->cur_ptr + (sb * sb_length);
+        unsigned int c1, c2;
         k = FFMIN(best_k, ctx->max_rice_param-1);
-        count[sb][k] = subblock_ec_count_exact(block->cur_ptr + (sb * sb_length),
+        c1 = subblock_ec_count_exact(res_ptr,
                                                block->length, sb_length, k, 0,
                                                ctx->max_rice_param,
                                                !sb && block->ra_block, order, 0);
         k++;
-        count[sb][k] = subblock_ec_count_exact(block->cur_ptr + (sb * sb_length),
+        c2 = subblock_ec_count_exact(res_ptr,
                                                block->length, sb_length, k, 0,
                                                ctx->max_rice_param,
                                                !sb && block->ra_block, order, 0);
-        if (count[sb][k] < count[sb][k-1]) {
+        if (c2 < c1) {
             best_k = k;
             step = 1;
             k++;
         } else {
             best_k = k - 1;
+            c2 = c1;
             step = -1;
             k -= 2;
         }
 
         for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
-            count[sb][k] = subblock_ec_count_exact(block->cur_ptr + (sb * sb_length),
+            c1 = subblock_ec_count_exact(res_ptr,
                                                    block->length, sb_length, k, 0,
                                                    ctx->max_rice_param,
                                                    !sb && block->ra_block, order, 0);
 
-            if (count[sb][k] < count[sb][best_k]) {
+            if (c1 < c2) {
                 best_k = k;
+                c2 = c1;
             } else {
                 break;
             }
         }
         param[sb] = best_k;
+        count[sb] = c2;
     }
 
 
     /* if sub-block partitioning is not used, stop here */
-    if (sb_max == 1 || (param[0] == param[1] && param[1] == param[2] &&
-        param[2] == param[3])) {
+    p0 = param[0];
+    if (sb_max == 1 || (p0 == param[1] && p0 == param[2] && p0 == param[3])) {
         ent->sub_blocks = 1;
         ent->rice_param[0] = param[0];
         ent->bits_ec_param_and_res = block_ec_count_exact(ctx, block, 1,
@@ -1817,14 +1822,14 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         return;
     }
 
-    param[4] = (param[0] + param[1] + param[2] + param[3]) >> 2;
+    p0 = (param[0] + param[1] + param[2] + param[3]) >> 2;
 
-    count1 = block_ec_count_exact(ctx, block, 1, &param[4], NULL, order, 0);
-    count4 = count[0][param[0]] + count[1][param[1]] + count[2][param[2]] +
-             count[3][param[3]] + block_ec_param_count(ctx, block, 4, param, NULL, 0);
+    count1 = block_ec_count_exact(ctx, block, 1, &p0, NULL, order, 0);
+    count4 = count[0] + count[1] + count[2] + count[3] +
+             block_ec_param_count(ctx, block, 4, param, NULL, 0);
     if (count1 <= count4) {
         ent->sub_blocks = 1;
-        ent->rice_param[0] = param[4];
+        ent->rice_param[0] = p0;
         ent->bits_ec_param_and_res = count1;
     } else {
         ent->sub_blocks = 4;
