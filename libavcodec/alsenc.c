@@ -257,6 +257,7 @@ static const ALSSpecificConfig spc_config_c0 = {
     .crc_enabled            = 0,
 };
 
+
 /** compression level 0 joint-stereo options
     note: compression level 0 does not use joint-stereo */
 static const ALSEncStage stage_js_c0 = {
@@ -272,6 +273,7 @@ static const ALSEncStage stage_js_c0 = {
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
 
+
 /** compression level 0 block switching stage options */
 static const ALSEncStage stage_bs_c0 = {
     .check_constant         = 0,
@@ -285,6 +287,7 @@ static const ALSEncStage stage_bs_c0 = {
     .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_BOTTOM_UP,
 };
+
 
 /** compression level 0 final stage options */
 static const ALSEncStage stage_final_c0 = {
@@ -314,6 +317,7 @@ static const ALSSpecificConfig spc_config_c1 = {
     .crc_enabled            = 1,
 };
 
+
 /** compression level 1 joint-stereo stage options */
 static const ALSEncStage stage_js_c1 = {
     .check_constant         = 1,
@@ -328,6 +332,7 @@ static const ALSEncStage stage_js_c1 = {
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
+
 /** compression level 1 block switching stage options */
 static const ALSEncStage stage_bs_c1 = {
     .check_constant         = 1,
@@ -340,6 +345,7 @@ static const ALSEncStage stage_bs_c1 = {
     .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_FIXED,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
+
 
 /** compression level 1 final stage options */
 static const ALSEncStage stage_final_c1 = {
@@ -369,6 +375,7 @@ static const ALSSpecificConfig spc_config_c2 = {
     .crc_enabled            = 1,
 };
 
+
 /** compression level 2 joint-stereo stage options */
 static const ALSEncStage stage_js_c2 = {
     .check_constant         = 1,
@@ -382,6 +389,7 @@ static const ALSEncStage stage_js_c2 = {
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
 
+
 /** compression level 2 block switching stage options */
 static const ALSEncStage stage_bs_c2 = {
     .check_constant         = 1,
@@ -394,6 +402,7 @@ static const ALSEncStage stage_bs_c2 = {
     .ltp_coeff_algorithm    = LTP_COEFF_ALGORITHM_CHOLESKY,
     .merge_algorithm        = BS_ALGORITHM_FULL_SEARCH,
 };
+
 
 /** compression level 2 final stage options */
 static const ALSEncStage stage_final_c2 = {
@@ -416,6 +425,7 @@ static const ALSSpecificConfig * const spc_config_settings[3] = {
     &spc_config_c2,
 };
 
+
 /** joint-stereo stage options for each compression level */
 static const ALSEncStage * const stage_js_settings[3] = {
     &stage_js_c0,
@@ -423,12 +433,14 @@ static const ALSEncStage * const stage_js_settings[3] = {
     &stage_js_c2,
 };
 
+
 /** block switching stage options for each compression level */
 static const ALSEncStage * const stage_bs_settings[3] = {
     &stage_bs_c0,
     &stage_bs_c1,
     &stage_bs_c2,
 };
+
 
 /** final stage options for each compression level */
 static const ALSEncStage * const stage_final_settings[3] = {
@@ -1118,10 +1130,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
     unsigned int i;
     int start = 0;
 
-
     // block_type
     PUT_BITS_SAFE(pb, 1, !block->constant, return -1;)
-
 
     if (block->constant) {
         OVERFLOW_PROTECT(pb, 7, return -1;)
@@ -1129,12 +1139,10 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         // const_block
         put_bits(pb, 1, block->constant_value != 0);
 
-
         // js_block
         put_bits(pb, 1, block->js_block);
         // reserved
         put_bits(pb, 5, 0);
-
 
         if (block->constant_value) {
             int const_val_bits = sconf->floating ? 24 : avctx->bits_per_raw_sample;
@@ -1161,7 +1169,6 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         // js_block
         PUT_BITS_SAFE(pb, 1, block->js_block, return -1;)
 
-
         // ec_sub
         if (sconf->sb_part || sconf->bgmc) {
             if (sconf->sb_part && sconf->bgmc)
@@ -1169,7 +1176,6 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
             else
                 PUT_BITS_SAFE(pb, 1, ent->sub_blocks > 1, return -1;)
         }
-
 
         // s[k], sx[k]
         if (sconf->bgmc) {
@@ -1191,13 +1197,11 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
             }
         }
 
-
         // shift_lsbs && shift_pos
         PUT_BITS_SAFE(pb, 1, block->shift_lsbs > 0, return -1;)
 
         if (block->shift_lsbs)
             PUT_BITS_SAFE(pb, 4, block->shift_lsbs - 1, return -1;)
-
 
         // opt_order && quant_cof
         if (!sconf->rlslms) {
@@ -1207,7 +1211,6 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                                                     2, sconf->max_order + 1));
                 PUT_BITS_SAFE(pb, opt_order_length, block->opt_order, return -1;)
             }
-
 
             // for each quant_cof, put(quant_cof) in rice code
             if (sconf->coef_table == 3) {
@@ -1237,7 +1240,6 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
             }
         }
 
-
         // LPTenable && LTPgain && LTPlag
         if (sconf->long_term_prediction) {
             PUT_BITS_SAFE(pb, 1, ltp->use_ltp, return -1;)
@@ -1259,7 +1261,6 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
                               return -1;)
             }
         }
-
 
         // write residuals
         // for now, all frames are RA frames, so use progressive prediction for
@@ -1331,10 +1332,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         }
     }
 
-
     if (!sconf->mc_coding || ctx->js_switch)
         align_put_bits(pb);
-
 
     return 0;
 }
@@ -1353,7 +1352,6 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 
     init_put_bits(&ctx->pb, frame, buf_size);
 
-
     // make space for ra_unit_size
     if (sconf->ra_flag == RA_FLAG_FRAMES && sconf->ra_distance == 1) {
         // TODO: maybe keep frame count and allow other RA distances if API will allow
@@ -1361,13 +1359,11 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
         put_bits32(&ctx->pb, 0);
     }
 
-
     // js_switch
     if (ctx->js_switch) {
         // to be implemented
         // not yet supported anyway
     }
-
 
     // write blocks
     if (!sconf->mc_coding || ctx->js_switch) {
@@ -1406,7 +1402,6 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 
     }
 
-
     flush_put_bits(&ctx->pb);
     ret = put_bits_count(&ctx->pb) >> 3;
 
@@ -1414,7 +1409,6 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
     if (sconf->ra_flag == RA_FLAG_FRAMES && sconf->ra_distance == 1) {
         AV_WB32(frame, ret);
     }
-
 
     return ret;
 }
@@ -1734,7 +1728,6 @@ static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
     unsigned int count_best = UINT_MAX;
     uint64_t sum[4][8];
 
-
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         p_max = 0;
     else
@@ -1857,7 +1850,6 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         count[sb] = c2;
     }
 
-
     /* if sub-block partitioning is not used, stop here */
     p0 = param[0];
     if (sb_max == 1 || (p0 == param[1] && p0 == param[2] && p0 == param[3])) {
@@ -1898,7 +1890,6 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
     int p_max;
     int p_best;
     unsigned int count_best = UINT_MAX;
-
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
         p_max = 0;
@@ -2282,7 +2273,6 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
     for (icc = 0; icc < 5; icc++)
         coeff[icc] = m.coeff[4][icc];
 
-
     // quantize coefficients
 
     // 0,1 and 3,4  (linear quantization)
@@ -2395,7 +2385,6 @@ static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
     }
     calc_parcor_coeff_bit_size(ctx, block, order);
 
-
     find_block_entropy_params (ctx, block, order);
 
     count  = block->bits_misc + block->bits_parcor_coeff +
@@ -2467,7 +2456,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
     test_const_value(ctx, block);
 
-
     // shifting samples:
     // determine if all the samples in this block can be right-shifted without
     // any information loss
@@ -2479,14 +2467,11 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
             block->bits_misc += 4;  // shift_pos
     }
 
-
     block->bits_misc++; // add one bit for block->js_block
-
 
     // if this is a constant block, we don't need to find any other parameters
     if (block->constant)
         return block->bits_misc + block->bits_const_block;
-
 
     // short-term prediction:
     // use the mode chosen at encode_init() to find optimal parameters
@@ -2518,7 +2503,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
                                block->q_parcor_coeff, ctx->r_parcor_coeff);
     }
 
-
     // Determine optimal LPC order:
     //
     // quick estimate for LPC order. better searches will give better
@@ -2529,7 +2513,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
         block->opt_order = max_order;
     }
     calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
-
 
     // generate residuals using parameters:
 
@@ -2553,7 +2536,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
         block->cur_ptr = block->res_ptr;
     }
 
-
     // search for entropy coding (Rice/BGMC) parameters
     ltp->use_ltp = 0;
     ent = &block->ent_info[ltp->use_ltp];
@@ -2563,7 +2545,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     bit_count = block->bits_misc + block->bits_parcor_coeff +
                 ent->bits_ec_param_and_res + ltp->bits_ltp;
     bit_count += (8 - (bit_count & 7)) & 7; // byte align
-
 
     // determine lag and gain values for long-term prediction and
     // check if long-term prediction pays off for this block
@@ -2701,7 +2682,6 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     ctx->js_switch = sconf->mc_coding;
     c              = 0;
 
-
     // if joint-stereo is enabled, dependently code each channel pair
     if (sconf->joint_stereo) {
         for (; c < avctx->channels - 1; c += 2) {
@@ -2710,11 +2690,9 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
         }
     }
 
-
     // set (the remaining) channels to independent coding
     for (; c < avctx->channels; c++)
         ctx->independent_bs[c] = 1;
-
 
     // generate difference signal if needed
     if (sconf->joint_stereo) {
@@ -2723,12 +2701,10 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
         }
     }
 
-
     // generate all block sizes for this frame
     for (c = 0; c < avctx->channels; c++) {
         gen_block_sizes(ctx, c, 0);
     }
-
 
     // select difference signals wherever suitable
     if (sconf->joint_stereo) {
@@ -2737,6 +2713,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
         }
     }
 }
+
 
 /**
  * Writes an ALSSpecificConfig structure
@@ -2769,7 +2746,6 @@ static int write_specific_config(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
 
     init_put_bits(&pb, avctx->extradata, header_size);
-
 
     // AudioSpecificConfig, reference to ISO/IEC 14496-3 section 1.6.2.1 & 1.6.3
     memset(&m4ac, 0, sizeof(MPEG4AudioConfig));
@@ -2860,7 +2836,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
             ctx->ra_counter = 0;
     }
 
-
     // update CRC
     if (sconf->crc_enabled) {
         frame_data_size = (ctx->avctx->bits_per_raw_sample > 16) ? 4 : 2;
@@ -2869,10 +2844,8 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                                  frame_data_size);
     }
 
-
     // preprocessing
     deinterleave_raw_samples(ctx, data);
-
 
     // find optimal encoding parameters
 
@@ -2903,7 +2876,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
         // MCC: to be implemented
 
     }
-
 
     // bitstream assembly
     frame_data_size = write_frame(ctx, frame, buf_size);
@@ -3047,7 +3019,6 @@ static void frame_partitioning(ALSEncContext *ctx)
     sconf->ra_distance = 10 * avctx->sample_rate / sconf->frame_length;
     sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
-
     // setting avctx->frame_size to ra_unit_size
     if(sconf->ra_distance) {
         // protect from frame size being larger than AVCODEC_MAX_AUDIO_FRAME_SIZE
@@ -3082,10 +3053,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // set compression level defaults
     *sconf = *spc_config_settings[avctx->compression_level];
 
-
     // total number of samples unknown
     sconf->samples = 0xFFFFFFFF;
-
 
     // determine sample format
     switch (avctx->sample_fmt) {
@@ -3113,10 +3082,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
         sconf->block_switching = FFMIN(5, avctx->max_partition_order);
     }
 
-
     // determine frame length
     frame_partitioning(ctx);
-
 
     // limit the block_switching depth based on whether the full frame length
     // is evenly divisible by the minimum block size.
@@ -3125,28 +3092,23 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
         sconf->block_switching--;
     }
 
-
     // determine where to store ra_flag (01: beginning of frame_data)
     // default for now = RA_FLAG_NONE.
     // Using RA_FLAG_FRAMES would make decoding more robust in case of seeking
     // with raw ALS.  However, raw ALS is not supported in FFmpeg yet.
     sconf->ra_flag = RA_FLAG_NONE;
 
-
     // determine the coef_table to be used
     sconf->coef_table = (avctx->sample_rate > 48000) +
                         (avctx->sample_rate > 96000);
-
 
     // user-specified maximum prediction order
     if (avctx->max_prediction_order >= 0)
         sconf->max_order = av_clip(avctx->max_prediction_order, 0, 1023);
 
-
     // user-specified use of BGMC entropy coding mode
     if (avctx->coder_type == FF_CODER_TYPE_AC)
         sconf->bgmc = 1;
-
 
     // determine manual channel configuration
     // using avctx->channel_layout
@@ -3154,13 +3116,11 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->chan_config = 0;
     sconf->chan_config_info = 0;
 
-
     // determine channel sorting
     // using avctx->channel_layout
     // to be implemented
     sconf->chan_sort = 0;
     sconf->chan_pos  = NULL;
-
 
     // Use native-endian sample byte order.
     // We don't really know the original byte order, so this is only done to
@@ -3171,10 +3131,8 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     sconf->msb_first = 0;
 #endif
 
-
     // print ALSSpecificConfig info
     ff_als_dprint_specific_config(avctx, sconf);
-
 
     return 0;
 }
@@ -3279,11 +3237,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     ctx->avctx = avctx;
 
-
     // determine ALSSpecificConfig
     if (get_specific_config(avctx))
         return -1;
-
 
     // write AudioSpecificConfig & ALSSpecificConfig to extradata
     ret = write_specific_config(avctx);
@@ -3293,14 +3249,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
-
     // initialize sample count
     sconf->samples = 0;
 
-
     channel_offset = sconf->long_term_prediction ? ALS_MAX_LTP_LAG : sconf->max_order;
     channel_size = sconf->frame_length + channel_offset;
-
 
     // set up stage options
     ctx->stages = av_malloc(sizeof(*ctx->stages) * NUM_STAGES);
@@ -3355,10 +3308,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     dprint_stage_options(avctx, &ctx->stages[STAGE_FINAL]);
     dprintf(avctx, "\n");
 
-
     // set cur_stage pointer to the first stage
     ctx->cur_stage = ctx->stages;
-
 
     // allocate buffers
     ctx->independent_bs    = av_malloc (sizeof(*ctx->independent_bs) * avctx->channels);
@@ -3443,11 +3394,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
         }
     }
 
-
     // channel sorting
     if ((sconf->joint_stereo || sconf->mc_coding) && sconf->chan_sort)
         channel_sorting(ctx);
-
 
     // allocate block-switching and joint-stereo buffers
     num_bs_sizes = (2 << sconf->block_switching) - 1;
@@ -3478,10 +3427,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->js_infos[c + 1] = ctx->js_infos_buffer + (c + 1) * num_bs_sizes;
     }
 
-
     avctx->coded_frame = avcodec_alloc_frame();
     avctx->coded_frame->key_frame = 1;
-
 
     dsputil_init(&ctx->dsp, avctx);
 
