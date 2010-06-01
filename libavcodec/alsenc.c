@@ -217,7 +217,7 @@ typedef struct {
     int32_t **raw_lsb_samples;      ///< pointer to the beginning of the current frame's shifted samples in the buffer for each channel
     int32_t *res_buffer;            ///< buffer containing all residual samples of the frame plus max_order samples from the previous frame (or zeroes) for all channels
     int32_t **res_samples;          ///< pointer to the beginning of the current frame's samples in the buffer for each channel
-    uint32_t *bs_info;              ///< block-partitioning used for the current frame
+    uint32_t *bs_info;              ///< block partitioning used for the current frame
     int *num_blocks;                ///< number of blocks used for the block partitioning
     unsigned int *bs_sizes_buffer;  ///< buffer containing all block sizes for all channels
     unsigned int **bs_sizes;        ///< pointer to the beginning of the channel's block sizes for each channel
@@ -486,8 +486,9 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
 }
 
 
-/** Converts an array of channel-interleaved samples into
- *  multiple arrays of samples per channel
+/**
+ * Converts an array of channel-interleaved samples into
+ * multiple arrays of samples per channel
  */
 static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 {
@@ -511,8 +512,10 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 }
 
 
-/** Recursively parses a given block partitioning and
- *  sum up all block sizes used to get the overall bit count
+/**
+ * Recursively parses a given block partitioning and
+ * sums up all block sizes according to *bs_sizes
+ * to get the overall bit count
  */
 static void parse_bs_size(const uint32_t bs_info, unsigned int n,
                           unsigned int *bs_sizes, unsigned int *bit_count)
@@ -531,8 +534,9 @@ static void parse_bs_size(const uint32_t bs_info, unsigned int n,
 }
 
 
-/** Recursively parses a given block partitioning and
- *  set all nodes to zero
+/**
+ * Recursively parses a given block partitioning and
+ * sets all node bits to zero
  */
 static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
 {
@@ -547,8 +551,9 @@ static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
 }
 
 
-/** Recursively parses a given block partitioning and
- *  set all joint-stereo block flags
+/**
+ * Recursively parses a given block partitioning and
+ * sets all joint-stereo block flags according to *js_info
  */
 static void parse_bs_js(const uint32_t bs_info, unsigned int n,
                         uint8_t *js_info,
@@ -571,7 +576,9 @@ static void parse_bs_js(const uint32_t bs_info, unsigned int n,
 }
 
 
-/** Use all suitable difference coding infos for all possible block-switching stages
+/**
+ * Recursively sets all block sizes to joint-stereo sizes
+ * where difference coding pays off for a block
  */
 static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -585,8 +592,9 @@ static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
         uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
 
-        // replace normal signal size with
-        // difference signal size if suitable
+        // replace independent signal size with
+        // joint-stereo signal size according to js_info
+        // store independent value for resetting to independent coding
         if        (js_info[b] == 1) {
             FFSWAP(unsigned int, block_size[b], js_size[b]);
         } else if (js_info[b] == 2)
@@ -598,7 +606,8 @@ static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 }
 
 
-/** Reset all difference coding infos for all possible block-switching stages
+/**
+ * Recursively resets all block sizes to independent sizes
  */
 static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -614,8 +623,8 @@ static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
         unsigned int *js_size    = ctx->js_sizes[channel >> 1] + num_blocks - 1;
         uint8_t      *js_info    = ctx->js_infos[channel >> 1] + num_blocks - 1;
 
-        // replace normal signal size with
-        // difference signal size if suitable
+        // replace joint-stereo signal size with
+        // independent signal size accoring to js_info
         if        (js_info[b] == 1) {
             FFSWAP(unsigned int, block_size[b], js_size[b]);
         } else if (js_info[b] == 2)
@@ -631,9 +640,10 @@ static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
 }
 
 
-/** Successively merging the subblocks of the frame until
- *  the minimal bit count for the frame is found.
- *  Using Full-Search strategy.
+/**
+ * Recursively merges all subblocks of the frame until
+ * the minimal bit count is found.
+ * Using Full-Search strategy.
  */
 static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
                                  unsigned int c1, unsigned int c2)
@@ -659,16 +669,19 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
             merge_bs_fullsearch(ctx, b, c1, c2);
         }
 
-
+        // calculate sizes of both children
         parse_bs_size(*bs_info, a, sizes_c1, &sum_a);
         parse_bs_size(*bs_info, b, sizes_c1, &sum_b);
 
         if (c1 != c2) {
+            // for joint-stereo, also calculate size of
+            // the children of the buddy channel
             sum_n += sizes_c2[n];
             parse_bs_size(*bs_info, a, sizes_c2, &sum_a);
             parse_bs_size(*bs_info, b, sizes_c2, &sum_b);
         }
 
+        // test for merging
         if (sum_a + sum_b > sum_n) {
             parse_bs_zero(bs_info, n);
             if (c1 != c2) {
@@ -679,9 +692,10 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
 }
 
 
-/** Successively merging the subblocks of the frame until
- *  the minimal bit count for the frame is found.
- *  Using Bottom-Up strategy.
+/**
+ * Recursively merges all subblocks of the frame until
+ * the minimal bit count is found.
+ * Using Bottom-Up strategy.
  */
 static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
                                  unsigned int c1, unsigned int c2)
@@ -704,16 +718,21 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
             merge_bs_bottomup(ctx, b, c1, c2);
         }
 
+        // test if both children are leaves of the tree only
         if (!GET_BS_BIT(bs_info, a) && !GET_BS_BIT(bs_info, b)) {
+            // get sizes of both children
             sum_a += sizes_c1[a];
             sum_b += sizes_c1[b];
 
             if (c1 != c2) {
+                // for joint-stereo, also get size of
+                // the children of the buddy channel
                 sum_n += sizes_c2[n];
                 sum_a += sizes_c2[a];
                 sum_b += sizes_c2[b];
             }
 
+            // test for merging
             if (sum_a + sum_b > sum_n) {
                 parse_bs_zero(bs_info, n);
                 if (c1 != c2) {
@@ -725,9 +744,10 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
 }
 
 
-/** Reads block switching field if necessary and sets actual block sizes.
- *  Also assures that the block sizes of the last frame correspond to the
- *  actual number of samples.
+/**
+ * Reads block partitioning and sets actual block sizes and all sample pointers.
+ * Also assures that the block sizes of the last frame correspond to the
+ * actual number of samples.
  */
 static void get_block_sizes(ALSEncContext *ctx,
                             uint32_t *bs_info,
@@ -824,9 +844,10 @@ static void get_block_sizes(ALSEncContext *ctx,
 }
 
 
-/** Selects the best block-partitioning for the current frame
- *  depending on the chosen algorithm and sets the block sizes
- *  accordingly
+/**
+ * Gets the best block partitioning for the current frame
+ * depending on the chosen algorithm and sets the block sizes
+ * accordingly
  */
 static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
 {
@@ -835,6 +856,7 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
     unsigned int *sizes_c2 = ctx->bs_sizes[c2];
     unsigned int bit_count = 0;
 
+    // find best partitioning
     if(stage->merge_algorithm == BS_ALGORITHM_BOTTOM_UP) {
         merge_bs_bottomup(ctx, 0, c1, c2);
     } else {
@@ -844,11 +866,13 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
     get_block_sizes(ctx, &ctx->bs_info[c1], c1, c2);
 
     if (c1 != c2) {
+        // set joint-stereo sizes
         ALSBlock *ptr_blocks_c1 = ctx->blocks[c1];
         ALSBlock *ptr_blocks_c2 = ctx->blocks[c2];
         parse_bs_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
     }
 
+    // get bit count for the chosen partitioning
     parse_bs_size(ctx->bs_info[c1], 0, sizes_c1, &bit_count);
     if (c1 != c2)
         parse_bs_size(ctx->bs_info[c1], 0, sizes_c2, &bit_count);
@@ -858,7 +882,8 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
 
 
 
-/** Subdivide the frame into smaller blocks
+/**
+ * Subdivides the frame into smaller blocks
  */
 static void block_partitioning(ALSEncContext *ctx)
 {
@@ -868,6 +893,7 @@ static void block_partitioning(ALSEncContext *ctx)
 
     // find the best partitioning for each channel
     if (!sconf->mc_coding || ctx->js_switch) {
+        // for each channel pair
         for (c = 0; c < avctx->channels - 1; c += 2) {
             if (sconf->joint_stereo) {
                 unsigned int bits_ind, bits_dep;
@@ -875,6 +901,8 @@ static void block_partitioning(ALSEncContext *ctx)
                 int32_t bs_info_c1, bs_info_c2;
                 int32_t bs_info = ctx->bs_info[c];
 
+                // get bit count and bs_info fields
+                // for independent channels
                 bits_ind    = get_partition(ctx, c    , c    );
                 bits_ind   += get_partition(ctx, c + 1, c + 1);
                 bs_info_c1  = ctx->bs_info[c    ];
@@ -882,9 +910,12 @@ static void block_partitioning(ALSEncContext *ctx)
 
                 ctx->bs_info[c] = bs_info;
 
+                // get bit count and bs_info fields
+                // for joint-stereo
                 use_js_sizes(ctx, c, 0);
                 bits_dep = get_partition(ctx, c, c + 1);
 
+                // set to independent coding if necessary
                 if (bits_ind + bs_info_len < bits_dep) {
                     reset_js(ctx, c, 0);
                     ctx->independent_bs[c    ] = 1;
@@ -899,6 +930,7 @@ static void block_partitioning(ALSEncContext *ctx)
                 get_partition(ctx, c + 1, c + 1);
             }
         }
+        // for the last channel if number of channels is odd
         if (c < avctx->channels) {
             get_partition(ctx, c, c);
         }
@@ -980,7 +1012,8 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 }
 
 
-/** Encode the LSB part of the given symbols
+/**
+ * Encodes the LSB part of the given symbols
  */
 static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
                             unsigned int k, unsigned int max, unsigned int s)
@@ -1012,7 +1045,8 @@ static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned i
 }
 
 
-/** Map LTP gain value to nearest flattened array index
+/**
+ * Map LTP gain value to nearest flattened array index
  */
 static int map_to_index(int gain)
 {
@@ -1038,8 +1072,9 @@ static int map_to_index(int gain)
 }
 
 
-/** Generate the long-term predicted residuals for a given block
- *  using the current set of LTP parameters
+/**
+ * Generates the long-term predicted residuals for a given block
+ * using the current set of LTP parameters
  */
 static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -1068,7 +1103,8 @@ static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/** Write a given block of a given channel
+/**
+ * Writes a given block
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -1300,7 +1336,8 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/** Write the frame
+/**
+ * Writes the frame
  */
 static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 {
@@ -1434,8 +1471,9 @@ static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-/** Count bits needed to encode all symbols of a given subblock
- *  using given parameters
+/**
+ * Counts bits needed to encode all symbols of a given subblock
+ * using given parameters
  */
 static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
                                             int b_length, int sb_length,
@@ -1579,8 +1617,9 @@ static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
 }
 
 
-/** Get an estimated Rice parameter and split it into its LSB and MSB
- *  for further processing in BGMC
+/**
+ * Gets an estimated Rice parameter and splits it into its LSB and MSB
+ * for further processing in BGMC
  */
 static inline void estimate_bgmc_params(uint64_t sum, unsigned int n, int *s,
                                         int *sx)
@@ -1673,7 +1712,8 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-/** Full search for optimal BGMC parameters and and sub-block devision
+/**
+ * Full search for optimal BGMC parameters and sub-block devision
  */
 static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
@@ -1967,7 +2007,7 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
 
 
 /**
- * Calculate optimal sub-block division and Rice parameters for a block.
+ * Calculates optimal sub-block division and Rice parameters for a block.
  * @param ctx                   encoder context
  * @param block                 current block
  * @param[in] ra_block          indicates if this is a random access block
@@ -2040,7 +2080,8 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-/** Tests given block samples to be of constant value
+/**
+ * Tests given block samples to be of constant value.
  * Sets block->const_block_bits to the number of bits used for encoding the
  * constant block, or to zero if the block is not a constant block.
  */
@@ -2074,8 +2115,9 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/** Tests given block samples to share common zero LSBs.
- *  Sets block->shift_lsbs to the number common zero bits
+/**
+ * Tests given block samples to share common zero LSBs.
+ * Sets block->shift_lsbs to the number common zero bits
  */
 static void test_zero_lsb(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2109,7 +2151,8 @@ static void test_zero_lsb(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/* Generate a weighted residual signal for autocorrelation detection
+/**
+ * Generates a weighted residual signal for autocorrelation detection
  * used in LTP mode
  */
 static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
@@ -2156,7 +2199,8 @@ static void compute_autocorr_norm(const double *data, int len, int lag,
 }
 
 
-/* Generate the autocorrelation function and find
+/**
+ * Generates the autocorrelation function and finds
  * its positive maximum value to be used for LTP lag
  */
 static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
@@ -2195,7 +2239,7 @@ static void get_ltp_coeffs_fixed(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Calculate LTP coefficients using Cholesky factorization.
+ * Calculates LTP coefficients using Cholesky factorization.
  */
 static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2258,8 +2302,9 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/** Select the best set of LTP parameters based on maximum autocorrelation
- *  value of the weighted residual signal
+/**
+ * Select the best set of LTP parameters based on maximum autocorrelation
+ * value of the weighted residual signal
  */
 static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2396,7 +2441,8 @@ static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
-/** Encode a given block of a given channel
+/**
+ * Encode a given block of a given channel
  * @return number of bits that will be used to encode the block using the
  *         determined parameters
  */
@@ -2523,7 +2569,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 }
 
 
-/** Generates all possible block sizes for all possible block-switching stages
+/**
+ * Generates all possible block sizes for all possible block-switching stages
  */
 static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -2567,7 +2614,8 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 }
 
 
-/** Generates all suitable difference coding infos for all possible block-switching stages
+/**
+ * Generates all suitable difference coding infos for all possible block-switching stages
  */
 static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -2601,7 +2649,8 @@ static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
 }
 
 
-/** Generates the difference signals for each channel pair channel & channel+1
+/**
+ * Generates the difference signals for each channel pair channel & channel+1
  */
 static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
 {
@@ -2620,8 +2669,9 @@ static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
 }
 
 
-/** Chooses the appropriate method for difference channel coding
- *  for the current frame
+/**
+ * Chooses the appropriate method for difference channel coding
+ * for the current frame
  */
 static void select_difference_coding_mode(ALSEncContext *ctx)
 {
@@ -2776,7 +2826,8 @@ static int write_specific_config(AVCodecContext *avctx)
 }
 
 
-/** encodes a single frame
+/**
+ * Encodes a single frame
  */
 static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                         int buf_size, void *data)
@@ -2866,7 +2917,8 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 }
 
 
-/** encodes all frames of a random access unit
+/**
+ * Encodes all frames of a random access unit
  */
 static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
                           int buf_size, void *data)
@@ -2934,7 +2986,8 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
 }
 
 
-/** Rearranges internal order of channels to optimize joint-channel coding
+/**
+ * Rearranges internal order of channels to optimize joint-channel coding
  */
 static void channel_sorting(ALSEncContext *ctx)
 {
@@ -2944,7 +2997,8 @@ static void channel_sorting(ALSEncContext *ctx)
 }
 
 
-/** Determines the number of samples in each frame,
+/**
+ * Determines the number of samples in each frame,
  *  constant for all frames in the stream except the
  *  very last one which may differ
  */
