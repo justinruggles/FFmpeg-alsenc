@@ -848,6 +848,7 @@ static void set_blocks(ALSEncContext *ctx,
  * Gets the best block partitioning for the current frame
  * depending on the chosen algorithm and sets the block sizes
  * accordingly
+ * @return Overall bit count for the partition
  */
 static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
 {
@@ -1014,6 +1015,7 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 
 /**
  * Encodes the LSB part of the given symbols
+ * @return Overall bit count for all encoded symbols
  */
 static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
                             unsigned int k, unsigned int max, unsigned int s)
@@ -1047,6 +1049,7 @@ static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned i
 
 /**
  * Map LTP gain value to nearest flattened array index
+ * @return Nearest array index
  */
 static int map_to_index(int gain)
 {
@@ -1105,6 +1108,7 @@ static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 
 /**
  * Writes a given block
+ * @return 0 on success, -1 otherwise
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -1338,6 +1342,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
 /**
  * Writes the frame
+ * @return Overall bit count for the frame on success, -1 otherwise
  */
 static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 {
@@ -1474,6 +1479,7 @@ static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
 /**
  * Counts bits needed to encode all symbols of a given subblock
  * using given parameters
+ * @return Overall bit count for the subblock on success, -1 otherwise
  */
 static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
                                             int b_length, int sb_length,
@@ -2732,7 +2738,10 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
     }
 }
 
-
+/**
+ * Writes an ALSSpecificConfig structure
+ * @return 0 on success, AVERROR(x) otherwise
+ */
 static int write_specific_config(AVCodecContext *avctx)
 {
     ALSEncContext *ctx       = avctx->priv_data;
@@ -2828,6 +2837,7 @@ static int write_specific_config(AVCodecContext *avctx)
 
 /**
  * Encodes a single frame
+ * @return Overall bit count for the frame
  */
 static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
                         int buf_size, void *data)
@@ -2919,6 +2929,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 /**
  * Encodes all frames of a random access unit
+ * @return Overall bit count read, AVERROR(x) otherwise
  */
 static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
                           int buf_size, void *data)
@@ -2999,8 +3010,8 @@ static void channel_sorting(ALSEncContext *ctx)
 
 /**
  * Determines the number of samples in each frame,
- *  constant for all frames in the stream except the
- *  very last one which may differ
+ * constant for all frames in the stream except the
+ * very last one which may differ
  */
 static void frame_partitioning(ALSEncContext *ctx)
 {
@@ -3053,6 +3064,10 @@ static void frame_partitioning(ALSEncContext *ctx)
 }
 
 
+/**
+ * Determine the ALSSpecificConfig structure used to encode
+ * @return 0 on success, -1 otherwise
+ */
 static av_cold int get_specific_config(AVCodecContext *avctx)
 {
     ALSEncContext *ctx       = avctx->priv_data;
