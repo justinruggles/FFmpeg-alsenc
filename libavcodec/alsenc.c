@@ -3224,6 +3224,16 @@ static void init_sinerect_window(double *window, int len, double param)
 
 static av_cold int encode_init(AVCodecContext *avctx)
 {
+#define AV_MALLOC(ptr, fac)                 \
+{                                          \
+    ptr = av_malloc(sizeof(*ptr) * (fac)); \
+}
+
+#define AV_MALLOCZ(ptr, fac)                 \
+{                                           \
+    ptr = av_mallocz(sizeof(*ptr) * (fac)); \
+}
+
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int channel_size, channel_offset;
@@ -3251,7 +3261,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     channel_size   = sconf->frame_length + channel_offset;
 
     // set up stage options
-    ctx->stages = av_malloc(sizeof(*ctx->stages) * NUM_STAGES);
+//    ctx->stages = av_malloc(sizeof(*ctx->stages) * NUM_STAGES);
+    AV_MALLOC(ctx->stages, NUM_STAGES);
     if (!ctx->stages) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
@@ -3307,26 +3318,27 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->cur_stage = ctx->stages;
 
     // allocate buffers
-    ctx->independent_bs    = av_malloc (sizeof(*ctx->independent_bs) * avctx->channels);
-    ctx->raw_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)     * avctx->channels * channel_size);
-    ctx->raw_samples       = av_malloc (sizeof(*ctx->raw_samples)    * avctx->channels);
-    ctx->raw_dif_buffer    = av_mallocz(sizeof(*ctx->raw_dif_buffer)  * (avctx->channels >> 1) * channel_size);
-    ctx->raw_dif_samples   = av_malloc (sizeof(*ctx->raw_dif_samples) * (avctx->channels >> 1));
-    ctx->raw_lsb_buffer    = av_mallocz(sizeof(*ctx->raw_lsb_buffer)  * (avctx->channels) * channel_size);
-    ctx->raw_lsb_samples   = av_malloc (sizeof(*ctx->raw_lsb_samples) * (avctx->channels));
-    ctx->res_buffer        = av_mallocz(sizeof(*ctx->raw_buffer)     * avctx->channels * channel_size);
-    ctx->res_samples       = av_malloc (sizeof(*ctx->res_samples)    * avctx->channels);
-    ctx->num_blocks        = av_malloc (sizeof(*ctx->num_blocks)     * avctx->channels);
-    ctx->bs_info           = av_malloc (sizeof(*ctx->bs_info)        * avctx->channels);
-    ctx->block_buffer      = av_mallocz(sizeof(*ctx->block_buffer)   * avctx->channels * ALS_MAX_BLOCKS);
-    ctx->blocks            = av_malloc (sizeof(*ctx->blocks)         * avctx->channels);
-    ctx->q_parcor_coeff_buffer = av_malloc (sizeof(*ctx->q_parcor_coeff_buffer) * avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
-    ctx->acf_coeff         = av_malloc (sizeof(*ctx->acf_coeff)      *(sconf->max_order + 1));
-    ctx->parcor_coeff      = av_malloc (sizeof(*ctx->parcor_coeff)   * sconf->max_order);
-    ctx->lpc_coeff         = av_malloc (sizeof(*ctx->lpc_coeff)      * sconf->max_order);
-    ctx->parcor_error      = av_malloc (sizeof(*ctx->parcor_error)   * sconf->max_order);
-    ctx->r_parcor_coeff    = av_malloc (sizeof(*ctx->r_parcor_coeff) * sconf->max_order);
-    ctx->acf_window_buffer = av_malloc (sizeof(*ctx->acf_window_buffer) * sconf->frame_length * 2);
+    AV_MALLOC (ctx->independent_bs,    avctx->channels);
+    AV_MALLOCZ(ctx->raw_buffer,        avctx->channels * channel_size);
+    AV_MALLOC (ctx->raw_samples,       avctx->channels);
+    AV_MALLOCZ(ctx->raw_dif_buffer,   (avctx->channels >> 1) * channel_size);
+    AV_MALLOC (ctx->raw_dif_samples,  (avctx->channels >> 1));
+    AV_MALLOCZ(ctx->raw_lsb_buffer,   (avctx->channels) * channel_size);
+    AV_MALLOC (ctx->raw_lsb_samples,  (avctx->channels));
+    AV_MALLOCZ(ctx->res_buffer,        avctx->channels * channel_size);
+    AV_MALLOC (ctx->res_samples,       avctx->channels);
+    AV_MALLOC (ctx->num_blocks,        avctx->channels);
+    AV_MALLOC (ctx->bs_info,           avctx->channels);
+    AV_MALLOCZ(ctx->block_buffer,      avctx->channels * ALS_MAX_BLOCKS);
+    AV_MALLOC (ctx->blocks,            avctx->channels);
+    AV_MALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
+    AV_MALLOC (ctx->acf_coeff,        (sconf->max_order + 1));
+    AV_MALLOC (ctx->parcor_coeff,      sconf->max_order);
+    AV_MALLOC (ctx->lpc_coeff,         sconf->max_order);
+    AV_MALLOC (ctx->parcor_error,      sconf->max_order);
+    AV_MALLOC (ctx->r_parcor_coeff,    sconf->max_order);
+    AV_MALLOC (ctx->acf_window_buffer, sconf->frame_length * 2);
+
 
     // check buffers
     if (!ctx->independent_bs    ||
@@ -3343,10 +3355,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     if (sconf->long_term_prediction) {
         int ltp_end          = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
-        ctx->ltp_buffer      = av_malloc(sizeof(*ctx->ltp_buffer)  * avctx->channels * channel_size);
-        ctx->ltp_samples     = av_malloc(sizeof(*ctx->ltp_samples) * avctx->channels);
-        ctx->ltp_corr_buffer = av_malloc (sizeof(*ctx->ltp_corr_buffer) *
-                                          (sconf->frame_length + ltp_end));
+        AV_MALLOC(ctx->ltp_buffer,      avctx->channels * channel_size);
+        AV_MALLOC(ctx->ltp_samples,     avctx->channels);
+        AV_MALLOC(ctx->ltp_corr_buffer, sconf->frame_length + ltp_end);
+
         ctx->ltp_corr_samples = ctx->ltp_corr_buffer + ltp_end;
 
         if (!ctx->ltp_buffer || !ctx->ltp_samples || !ctx->ltp_corr_buffer) {
@@ -3396,12 +3408,12 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // allocate block-switching and joint-stereo buffers
     num_bs_sizes = (2 << sconf->block_switching) - 1;
 
-    ctx->bs_sizes_buffer = av_malloc(sizeof(*ctx->bs_sizes_buffer) * num_bs_sizes * avctx->channels);
-    ctx->bs_sizes        = av_malloc(sizeof(*ctx->bs_sizes)        * num_bs_sizes * avctx->channels);
-    ctx->js_sizes_buffer = av_malloc(sizeof(*ctx->js_sizes_buffer) * num_bs_sizes * ((avctx->channels + 1) >> 1));
-    ctx->js_sizes        = av_malloc(sizeof(*ctx->js_sizes)        * num_bs_sizes * avctx->channels);
-    ctx->js_infos_buffer = av_malloc(sizeof(*ctx->js_infos_buffer) * num_bs_sizes * ((avctx->channels + 1) >> 1));
-    ctx->js_infos        = av_malloc(sizeof(*ctx->js_infos)        * num_bs_sizes * avctx->channels);
+    AV_MALLOC(ctx->bs_sizes_buffer, num_bs_sizes * avctx->channels);
+    AV_MALLOC(ctx->bs_sizes,        num_bs_sizes * avctx->channels);
+    AV_MALLOC(ctx->js_sizes_buffer, num_bs_sizes * ((avctx->channels + 1) >> 1));
+    AV_MALLOC(ctx->js_sizes,        num_bs_sizes * avctx->channels);
+    AV_MALLOC(ctx->js_infos_buffer, num_bs_sizes * ((avctx->channels + 1) >> 1));
+    AV_MALLOC(ctx->js_infos,        num_bs_sizes * avctx->channels);
 
     if (!ctx->bs_sizes || !ctx->bs_sizes_buffer ||
         !ctx->js_sizes || !ctx->js_sizes_buffer ||
