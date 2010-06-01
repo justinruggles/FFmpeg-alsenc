@@ -1604,8 +1604,7 @@ static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
         sum = FFMAX((sum - (length >> 1)) / length, 1);
         k   = (int)floor(log2(sum));
     } else {
-        unsigned int sum1 = sum;
-        sum1 = sum1 - (length >> 1);
+        unsigned int sum1 = sum - (length >> 1);
         k    = av_log2(length < 256 ? FASTDIV(sum1, length) : sum1 / length);
     }
 
