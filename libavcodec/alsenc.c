@@ -530,7 +530,7 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
  * to get the overall bit count
  */
 static void bs_get_size(const uint32_t bs_info, unsigned int n,
-                          unsigned int *bs_sizes, unsigned int *bit_count)
+                        unsigned int *bs_sizes, unsigned int *bit_count)
 {
     if (n < 31 && ((bs_info << n) & 0x40000000)) {
         // if the level is valid and the investigated bit n is set
@@ -568,13 +568,13 @@ static void bs_set_zero(uint32_t *bs_info, unsigned int n)
  * sets all joint-stereo block flags according to *js_info
  */
 static void bs_set_js(const uint32_t bs_info, unsigned int n,
-                        uint8_t *js_info,
-                        ALSBlock **block_c1, ALSBlock **block_c2)
+                      uint8_t *js_info,
+                      ALSBlock **block_c1, ALSBlock **block_c2)
 {
     if (n < 31 && ((bs_info << n) & 0x40000000)) {
         // if the level is valid and the investigated bit n is set
         // then recursively check both children at bits (2n+1) and (2n+2)
-        n   *= 2;
+        n *= 2;
         bs_set_js(bs_info, n + 1, js_info, block_c1, block_c2);
         bs_set_js(bs_info, n + 2, js_info, block_c1, block_c2);
     } else {
@@ -642,7 +642,7 @@ static void reset_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         } else if (js_info[b] == 2)
             FFSWAP(unsigned int, buddy_size[b], js_size[b]);
 
-        js_info[b] = 0;
+        js_info[b]          = 0;
         blocks [b].js_block = 0;
         buddys [b].js_block = 0;
     }
@@ -658,7 +658,7 @@ static void reset_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
  * Using Full-Search strategy.
  */
 static void bs_merge_fullsearch(ALSEncContext *ctx, unsigned int n,
-                                 unsigned int c1, unsigned int c2)
+                                unsigned int c1, unsigned int c2)
 {
     uint32_t *bs_info = &ctx->bs_info[c1];
 
@@ -696,9 +696,8 @@ static void bs_merge_fullsearch(ALSEncContext *ctx, unsigned int n,
         // test for merging
         if (sum_a + sum_b > sum_n) {
             bs_set_zero(bs_info, n);
-            if (c1 != c2) {
+            if (c1 != c2)
                 ctx->bs_info[c2] = *bs_info;
-            }
         }
     }
 }
@@ -710,7 +709,7 @@ static void bs_merge_fullsearch(ALSEncContext *ctx, unsigned int n,
  * Using Bottom-Up strategy.
  */
 static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
-                                 unsigned int c1, unsigned int c2)
+                              unsigned int c1, unsigned int c2)
 {
     uint32_t *bs_info = &ctx->bs_info[c1];
 
@@ -747,9 +746,8 @@ static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
             // test for merging
             if (sum_a + sum_b > sum_n) {
                 bs_set_zero(bs_info, n);
-                if (c1 != c2) {
+                if (c1 != c2)
                     ctx->bs_info[c2] = *bs_info;
-                }
             }
         }
     }
@@ -761,22 +759,20 @@ static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
  * Also assures that the block sizes of the last frame correspond to the
  * actual number of samples.
  */
-static void set_blocks(ALSEncContext *ctx,
-                            uint32_t *bs_info,
-                            unsigned int c1, unsigned int c2)
+static void set_blocks(ALSEncContext *ctx, uint32_t *bs_info,
+                       unsigned int c1, unsigned int c2)
 {
-    ALSSpecificConfig *sconf     = &ctx->sconf;
-    int ltp = sconf->long_term_prediction;
+    ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int div_blocks[32];
     unsigned int *ptr_div_blocks = div_blocks;
     unsigned int b;
-    int32_t *res_ptr = ctx->res_samples[c1];
+    int ltp          = sconf->long_term_prediction;
     int32_t *ltp_ptr = ltp ? ctx->ltp_samples[c1] : NULL;
+    int32_t *res_ptr = ctx->res_samples[c1];
     int32_t *smp_ptr = ctx->raw_samples[c1];
     int32_t *dif_ptr = ctx->raw_dif_samples[c1 >> 1];
     int32_t *lsb_ptr = ctx->raw_lsb_samples[c1];
-
-    ALSBlock *block = ctx->blocks[c1];
+    ALSBlock *block  = ctx->blocks[c1];
 
     ctx->num_blocks[c1] = 0;
 
@@ -799,18 +795,18 @@ static void set_blocks(ALSEncContext *ctx,
 
     for (b = 0; b < ctx->num_blocks[c1]; b++) {
         block->div_block = div_blocks[b];
-        div_blocks[b]  = ctx->sconf.frame_length >> div_blocks[b];
-        block->length  = div_blocks[b];
-        block->res_ptr = res_ptr;
-        block->ltp_ptr = ltp_ptr;
-        block->smp_ptr = smp_ptr;
-        block->dif_ptr = dif_ptr;
-        block->lsb_ptr = lsb_ptr;
-        res_ptr       += block->length;
-        ltp_ptr       += block->length;
-        smp_ptr       += block->length;
-        dif_ptr       += block->length;
-        lsb_ptr       += block->length;
+        div_blocks[b]    = ctx->sconf.frame_length >> div_blocks[b];
+        block->length    = div_blocks[b];
+        block->res_ptr   = res_ptr;
+        block->ltp_ptr   = ltp_ptr;
+        block->smp_ptr   = smp_ptr;
+        block->dif_ptr   = dif_ptr;
+        block->lsb_ptr   = lsb_ptr;
+        res_ptr         += block->length;
+        ltp_ptr         += block->length;
+        smp_ptr         += block->length;
+        dif_ptr         += block->length;
+        lsb_ptr         += block->length;
         block++;
     }
 
@@ -820,8 +816,8 @@ static void set_blocks(ALSEncContext *ctx,
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
             if (remaining <= div_blocks[b]) {
                 ctx->blocks[c1][b].div_block = -1;
-                ctx->blocks[c1][b].length = remaining;
-                ctx->num_blocks[c1] = b + 1;
+                ctx->blocks[c1][b].length    = remaining;
+                ctx->num_blocks[c1]          = b + 1;
                 break;
             }
             remaining -= ctx->blocks[c1][b].length;
@@ -839,17 +835,17 @@ static void set_blocks(ALSEncContext *ctx,
 
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
             block->div_block = ctx->blocks[c1][b].div_block;
-            block->length  = ctx->blocks[c1][b].length;
-            block->res_ptr = res_ptr;
-            block->ltp_ptr = ltp_ptr;
-            block->smp_ptr = smp_ptr;
-            block->dif_ptr = dif_ptr;
-            block->lsb_ptr = lsb_ptr;
-            res_ptr       += block->length;
-            ltp_ptr       += block->length;
-            smp_ptr       += block->length;
-            dif_ptr       += block->length;
-            lsb_ptr       += block->length;
+            block->length    = ctx->blocks[c1][b].length;
+            block->res_ptr   = res_ptr;
+            block->ltp_ptr   = ltp_ptr;
+            block->smp_ptr   = smp_ptr;
+            block->dif_ptr   = dif_ptr;
+            block->lsb_ptr   = lsb_ptr;
+            res_ptr         += block->length;
+            ltp_ptr         += block->length;
+            smp_ptr         += block->length;
+            dif_ptr         += block->length;
+            lsb_ptr         += block->length;
             block++;
         }
     }
@@ -864,7 +860,7 @@ static void set_blocks(ALSEncContext *ctx,
  */
 static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
 {
-    ALSEncStage *stage = ctx->cur_stage;
+    ALSEncStage *stage     = ctx->cur_stage;
     unsigned int *sizes_c1 = ctx->bs_sizes[c1];
     unsigned int *sizes_c2 = ctx->bs_sizes[c2];
     unsigned int bit_count = 0;
@@ -974,7 +970,7 @@ static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
     int q;
 
     *q0 = v >> k;
-    q  = *q0 + 1;
+    q   = *q0 + 1;
 
     /* protect from buffer overwrite */
     OVERFLOW_PROTECT(pb, q+k, return -1;)
@@ -1030,19 +1026,19 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
  * @return Overall bit count for all encoded symbols
  */
 static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
-                            unsigned int k, unsigned int max, unsigned int s)
+                           unsigned int k, unsigned int max, unsigned int s)
 {
-    int count          = 0;
-    int lsb_mask       = (1 << k) - 1;
-    int abs_max        = (max + 1) >> 1;
+    int count       = 0;
+    int lsb_mask    = (1 << k) - 1;
+    int abs_max     = (max + 1) >> 1;
     int high_offset = -(abs_max      << k);
     int low_offset  =  (abs_max - 1) << k;
 
     for (; n > 0; n--) {
         int32_t res = *symbols++;
 
-        if (res >> k >=  abs_max || res >> k <= -abs_max) {
-            res += res >> k >= abs_max ? high_offset : low_offset;
+        if ((res >> k) >=  abs_max || (res >> k) <= -abs_max) {
+            res += (res >> k) >= abs_max ? high_offset : low_offset;
             if (pb && set_sr_golomb_als(pb, res, s) < 0)
                 return -1;
             count += rice_count(res, s);
@@ -1095,7 +1091,7 @@ static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 {
     ALSLTPInfo *ltp  = &block->ltp_info[block->js_block];
     int32_t *ltp_ptr = block->ltp_ptr;
-    int offset = FFMAX(ltp->lag - 2, 0);
+    int offset       = FFMAX(ltp->lag - 2, 0);
     unsigned int ltp_smp;
     int64_t y;
     int center, end, base;
@@ -1105,8 +1101,8 @@ static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
     center = offset - ltp->lag;
     end    = center + 3;
     for (ltp_smp = offset; ltp_smp < block->length; ltp_smp++,center++,end++) {
-        int begin  = FFMAX(0, center - 2);
-        int tab    = 5 - (end - begin);
+        int begin = FFMAX(0, center - 2);
+        int tab   = 5 - (end - begin);
 
         y = 1 << 6;
 
@@ -1266,7 +1262,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         // for now, all frames are RA frames, so use progressive prediction for
         // the first 3 residual samples, up to opt_order
 
-        res_ptr = block->cur_ptr;
+        res_ptr   = block->cur_ptr;
         sb_length = block->length / ent->sub_blocks;
 
         if (sconf->bgmc)
@@ -1298,9 +1294,9 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
             }
             if (sconf->bgmc) {
                 unsigned int b = av_clip((av_ceil_log2(block->length) - 3) >> 1, 0, 5);
-                k    [sb] = s[sb] > b ? s[sb] - b : 0;
-                delta[sb] = 5 - s[sb] + k[sb];
-                max  [sb] = ff_bgmc_max[sx[sb]] >> delta[sb];
+                k    [sb]      = s[sb] > b ? s[sb] - b : 0;
+                delta[sb]      = 5 - s[sb] + k[sb];
+                max  [sb]      = ff_bgmc_max[sx[sb]] >> delta[sb];
 
                 if (ff_bgmc_encode_msb(pb, res_ptr, sb_length - i,
                                        k[sb], delta[sb], max[sb],
@@ -1456,7 +1452,7 @@ static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
     for (i = 0; i < next_max_order; i++) {
         int rice_param = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][1];
         int offset     = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][0];
-        bit_count += rice_count(block->q_parcor_coeff[i] - offset, rice_param);
+        bit_count     += rice_count(block->q_parcor_coeff[i] - offset, rice_param);
     }
     next_max_order = FFMIN(order, 127);
     for (; i < next_max_order; i++) {
@@ -1535,7 +1531,7 @@ static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
         int i;
         for (i = len; i < sb_length; i++) {
             int32_t v = *res_ptr++;
-            count += rice_count(v, s);
+            count    += rice_count(v, s);
         }
     }
 
@@ -1548,7 +1544,7 @@ static unsigned int block_ec_param_count(ALSEncContext *ctx, ALSBlock *block,
                                          int bgmc)
 {
     unsigned int count = 0;
-    int k = bgmc ? 2 : 0;
+    int k              = bgmc ? 2 : 0;
     int sb;
 
     count += (4 << bgmc) + (ctx->max_rice_param > 15);
@@ -1574,7 +1570,7 @@ static unsigned int block_ec_count_exact(ALSEncContext *ctx, ALSBlock *block,
                                          int sub_blocks, int *s, int *sx,
                                          int order, int bgmc)
 {
-    int32_t *res_ptr = block->cur_ptr;
+    int32_t *res_ptr   = block->cur_ptr;
     unsigned int count = 0;
     int sb_length, sb;
 
@@ -1606,11 +1602,11 @@ static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
 
     if (max_param > 15) {
         sum = FFMAX((sum - (length >> 1)) / length, 1);
-        k = (int)floor(log2(sum));
+        k   = (int)floor(log2(sum));
     } else {
         unsigned int sum1 = sum;
         sum1 = sum1 - (length >> 1);
-        k = av_log2(length < 256 ? FASTDIV(sum1, length) : sum1 / length);
+        k    = av_log2(length < 256 ? FASTDIV(sum1, length) : sum1 / length);
     }
 
     return FFMIN(k, max_param);
@@ -1630,23 +1626,23 @@ static inline void estimate_bgmc_params(uint64_t sum, unsigned int n, int *s,
         *sx = *s = 0;
     } else {
         int tmp = (int)(16.0 * (log2(sum) - log2(n) + OFFSET));
-        tmp = FFMAX(tmp, 0);
-        *sx = tmp & 0x0F;
-        *s  = tmp >> 4;
+        tmp     = FFMAX(tmp, 0);
+        *sx     = tmp & 0x0F;
+        *s      = tmp >> 4;
     }
 }
 
 
 static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
-                                      int order)
+                                       int order)
 {
     int i, sb, sb_max, sb_length, p0;
     uint64_t sum[5] = {0,};
     int param[5];
     unsigned int count1, count4;
-    ALSEncStage *stage = ctx->cur_stage;
-    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
-    ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
+    ALSEncStage *stage     = ctx->cur_stage;
+    ALSLTPInfo *ltp        = &block->ltp_info[block->js_block];
+    ALSEntropyInfo *ent    = &block->ent_info[ltp->use_ltp];
     const int32_t *res_ptr = block->cur_ptr;
 
     if (!stage->sb_part || block->length & 0x3 || block->length < 16)
@@ -1658,7 +1654,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     for (sb = 0; sb < sb_max; sb++) {
         for (i = 0; i < sb_length; i++) {
             int32_t v = *res_ptr++;
-            sum[sb] += (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
+            sum[sb]  += (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
         }
         sum[4] += sum[sb];
 
@@ -1670,15 +1666,15 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     if (stage->count_algorithm == EC_BIT_COUNT_ALGORITHM_EXACT) {
         count1 = block_ec_count_exact(ctx, block, 1, &param[4], NULL, order, 0);
     } else {
-        count1 = rice_encode_count(sum[4], block->length, param[4]);
+        count1  = rice_encode_count(sum[4], block->length, param[4]);
         count1 += 4 + (ctx->max_rice_param > 15);
     }
 
     p0 = param[0];
     if (sb_max == 1 || ((p0 == param[1]) && (p0 == param[2]) &&
         (p0 == param[3]))) {
-        ent->sub_blocks = 1;
-        ent->rice_param[0] = param[4];
+        ent->sub_blocks            = 1;
+        ent->rice_param[0]         = param[4];
         ent->bits_ec_param_and_res = count1;
         return;
     }
@@ -1698,11 +1694,11 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
     }
 
     if (count1 <= count4) {
-        ent->sub_blocks = 1;
+        ent->sub_blocks    = 1;
         ent->rice_param[0] = param[4];
         ent->bits_ec_param_and_res = count1;
     } else {
-        ent->sub_blocks = 4;
+        ent->sub_blocks    = 4;
         ent->rice_param[0] = param[0];
         ent->rice_param[1] = param[1];
         ent->rice_param[2] = param[2];
@@ -1744,7 +1740,7 @@ static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
         for (sb = 0; sb < num_subblocks; sb++) {
             if (p == p_max) {
                 int32_t *r_ptr = res_ptr;
-                sum[p][sb] = 0;
+                sum[p][sb]     = 0;
                 for (i = 0; i < sb_length; i++)
                     sum[p][sb] += abs(*r_ptr++);
             } else {
@@ -1790,14 +1786,14 @@ static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
 
 
 static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
-                                        int order)
+                                         int order)
 {
     unsigned int count[4] = {0,};
     int param[4], p0;
     int k, step, sb, sb_max, sb_length;
     int best_k;
     unsigned int count1, count4;
-    ALSEncStage *stage = ctx->cur_stage;
+    ALSEncStage *stage  = ctx->cur_stage;
     ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
@@ -1814,34 +1810,34 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
         unsigned int c1, c2;
         k = FFMIN(best_k, ctx->max_rice_param-1);
         c1 = subblock_ec_count_exact(res_ptr,
-                                               block->length, sb_length, k, 0,
-                                               ctx->max_rice_param,
-                                               !sb && block->ra_block, order, 0);
+                                     block->length, sb_length, k, 0,
+                                     ctx->max_rice_param,
+                                     !sb && block->ra_block, order, 0);
         k++;
         c2 = subblock_ec_count_exact(res_ptr,
-                                               block->length, sb_length, k, 0,
-                                               ctx->max_rice_param,
-                                               !sb && block->ra_block, order, 0);
+                                     block->length, sb_length, k, 0,
+                                     ctx->max_rice_param,
+                                     !sb && block->ra_block, order, 0);
         if (c2 < c1) {
             best_k = k;
-            step = 1;
+            step   = 1;
             k++;
         } else {
             best_k = k - 1;
-            c2 = c1;
-            step = -1;
-            k -= 2;
+            c2     = c1;
+            step   = -1;
+            k     -= 2;
         }
 
         for (; k >= 0 && k <= ctx->max_rice_param; k += step) {
             c1 = subblock_ec_count_exact(res_ptr,
-                                                   block->length, sb_length, k, 0,
-                                                   ctx->max_rice_param,
-                                                   !sb && block->ra_block, order, 0);
+                                         block->length, sb_length, k, 0,
+                                         ctx->max_rice_param,
+                                         !sb && block->ra_block, order, 0);
 
             if (c1 < c2) {
                 best_k = k;
-                c2 = c1;
+                c2     = c1;
             } else {
                 break;
             }
@@ -1853,7 +1849,7 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     /* if sub-block partitioning is not used, stop here */
     p0 = param[0];
     if (sb_max == 1 || (p0 == param[1] && p0 == param[2] && p0 == param[3])) {
-        ent->sub_blocks = 1;
+        ent->sub_blocks    = 1;
         ent->rice_param[0] = param[0];
         ent->bits_ec_param_and_res = block_ec_count_exact(ctx, block, 1,
                                                           param, NULL, order, 0);
@@ -1866,11 +1862,11 @@ static void find_block_rice_params_exact(ALSEncContext *ctx, ALSBlock *block,
     count4 = count[0] + count[1] + count[2] + count[3] +
              block_ec_param_count(ctx, block, 4, param, NULL, 0);
     if (count1 <= count4) {
-        ent->sub_blocks = 1;
+        ent->sub_blocks    = 1;
         ent->rice_param[0] = p0;
         ent->bits_ec_param_and_res = count1;
     } else {
-        ent->sub_blocks = 4;
+        ent->sub_blocks    = 4;
         ent->rice_param[0] = param[0];
         ent->rice_param[1] = param[1];
         ent->rice_param[2] = param[2];
@@ -1944,7 +1940,7 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
             } else {
                 /* lowest count is likely between s0-4 and s0+4 */
                 int max_s0 = s0 + 5;
-                best_s0 = s0;
+                best_s0    = s0;
                 for (s0 = s0 - 4; s0 < max_s0; s0++) {
                     s0_count[s0] = subblock_ec_count_exact(res_ptr, block->length,
                                         sb_length, s0 >> 4, s0 & 0xF,
@@ -1959,7 +1955,7 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
             /* search for best parameters */
             if (!dc) {
                 best_s0 = s0;
-                s0 += step;
+                s0     += step;
 
                 for (; s0 >= 0 && s0 < 256; s0 += step) {
                     si  = s0 >> 4;
@@ -1970,7 +1966,7 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
                                         order, 1);
                     if (s0_count[s0] < s0_count[best_s0]) {
                         best_s0 = s0;
-                        dc = 0;
+                        dc      = 0;
                     } else {
                         dc++;
                         if (dc > 5)
@@ -1989,7 +1985,7 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
                                      order, 1);
         if (count < count_best) {
             count_best = count;
-            p_best = p;
+            p_best     = p;
         }
     }
 
@@ -2085,9 +2081,9 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 {
     if (ctx->cur_stage->check_constant) {
-        unsigned int n = block->length;
+        unsigned int n   = block->length;
         int32_t *smp_ptr = block->cur_ptr;
-        int32_t val = *smp_ptr++;
+        int32_t val      = *smp_ptr++;
 
         block->constant = 1;
         while (--n > 0) {
@@ -2099,7 +2095,7 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 
         block->bits_const_block = 0;
         if (block->constant) {
-            block->constant_value = val;
+            block->constant_value    = val;
             block->bits_const_block += 6;   // const_block + reserved
             if (block->constant_value) {
                 block->bits_const_block += ctx->sconf.floating ? 24 :
@@ -2157,7 +2153,7 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
 {
     int len          = (int)block->length;
     int32_t *cur_ptr = block->cur_ptr;
-    uint64_t sum      = 0;
+    uint64_t sum     = 0;
     double *corr_ptr = ctx->ltp_corr_samples;
     double mean_quot;
     int i;
@@ -2285,7 +2281,7 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
     }
 
     // 2 (vector quantization, roughly logarithmic)
-    quant = lrint(coeff[2] * 256.0);
+    quant       = lrint(coeff[2] * 256.0);
     ltp_gain[2] = 0;
     for(i = 15; i > 0; i--) {
         uint8_t a = ff_als_ltp_gain_values[ i    >> 2][ i    & 3];
@@ -2306,10 +2302,10 @@ static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
 {
     AVCodecContext *avctx    = ctx->avctx;
 
-    int start   = FFMAX(4, block->opt_order + 1);
-    int end     = FFMIN(ALS_MAX_LTP_LAG, block->length);
-    int lag     = 256 << (  (avctx->sample_rate >=  96000)
-                          + (avctx->sample_rate >= 192000));
+    int start = FFMAX(4, block->opt_order + 1);
+    int end   = FFMIN(ALS_MAX_LTP_LAG, block->length);
+    int lag   = 256 << (  (avctx->sample_rate >=  96000)
+                        + (avctx->sample_rate >= 192000));
     int lag_max;
     if (lag + start > end - 3)
         lag = end - start - 3;
@@ -2332,7 +2328,7 @@ static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
 
 static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
 {
-    ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
+    ALSLTPInfo *ltp = &block->ltp_info[block->js_block];
     int bit_count_ltp;
     int32_t *save_ptr  = block->cur_ptr;
     int ltp_lag_length = 8 + (ctx->avctx->sample_rate >=  96000) +
@@ -2343,7 +2339,7 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
 
     // generate bit count for LTP signal
     block->cur_ptr = block->ltp_ptr;
-    ltp->use_ltp = 1;
+    ltp->use_ltp   = 1;
     find_block_entropy_params(ctx, block, block->opt_order);
 
     ltp->bits_ltp = 1 + ltp_lag_length +
@@ -2361,10 +2357,10 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
     bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
 
     if (bit_count_ltp < *bit_count) {
-        *bit_count     = bit_count_ltp;
+        *bit_count = bit_count_ltp;
     } else {
-        ltp->use_ltp  = 0;
-        ltp->bits_ltp = 1;
+        ltp->use_ltp   = 0;
+        ltp->bits_ltp  = 1;
         block->cur_ptr = save_ptr;
     }
 }
@@ -2374,7 +2370,7 @@ static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
 {
     int32_t count;
-    int32_t *save_ptr = block->cur_ptr;
+    int32_t *save_ptr   = block->cur_ptr;
     ALSLTPInfo *ltp     = &block->ltp_info[block->js_block];
     ALSEntropyInfo *ent = &block->ent_info[ltp->use_ltp];
 
@@ -2405,12 +2401,12 @@ static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
 {
     int i;
     int32_t count[max_order+1];
-    int best = 0;
-    int valley_detect = (ctx->cur_stage->adapt_search_algorithm ==
-                         ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT);
+    int best             = 0;
+    int valley_detect    = (ctx->cur_stage->adapt_search_algorithm ==
+                            ADAPT_SEARCH_ALGORITHM_VALLEY_DETECT);
     int valley_threshold = FFMAX(2, max_order/6);
-    int exact_count = (ctx->cur_stage->adapt_count_algorithm ==
-                       ADAPT_COUNT_ALGORITHM_EXACT);
+    int exact_count      = (ctx->cur_stage->adapt_count_algorithm ==
+                            ADAPT_COUNT_ALGORITHM_EXACT);
 
     count[0] = INT32_MAX;
 
@@ -2420,10 +2416,10 @@ static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
         } else {
             if (i && ctx->parcor_error[i-1] >= 1.0) {
                 calc_parcor_coeff_bit_size(ctx, block, i);
-                count[i] = block->bits_misc + block->bits_parcor_coeff;
+                count[i]  = block->bits_misc + block->bits_parcor_coeff;
                 count[i] += 0.5 * log2(ctx->parcor_error[i-1]) * block->length;
             } else {
-                count[i] = INT32_MAX;
+                count[i]  = INT32_MAX;
             }
         }
 
@@ -2542,9 +2538,9 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     find_block_entropy_params(ctx, block, block->opt_order);
 
     ltp->bits_ltp = !!sconf->long_term_prediction;
-    bit_count = block->bits_misc + block->bits_parcor_coeff +
-                ent->bits_ec_param_and_res + ltp->bits_ltp;
-    bit_count += (8 - (bit_count & 7)) & 7; // byte align
+    bit_count     = block->bits_misc + block->bits_parcor_coeff +
+                    ent->bits_ec_param_and_res + ltp->bits_ltp;
+    bit_count    += (8 - (bit_count & 7)) & 7; // byte align
 
     // determine lag and gain values for long-term prediction and
     // check if long-term prediction pays off for this block
@@ -2583,11 +2579,11 @@ static void gen_block_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
         // count residuals + block overhead
         block->js_block = 0;
-        bs_sizes[b] = find_block_params(ctx, block);
+        bs_sizes[b]     = find_block_params(ctx, block);
 
         if (sconf->joint_stereo && !(channel & 1)) {
             block->js_block = 1;
-            js_sizes[b]    = find_block_params(ctx, block);
+            js_sizes[b]     = find_block_params(ctx, block);
             block->js_block = 0;
         }
 
@@ -3010,8 +3006,7 @@ static void frame_partitioning(ALSEncContext *ctx)
     // frame length - 1 in ALSSpecificConfig is 16-bit, so max value is 65536
     // frame size == 1 is not allowed because it is used in ffmpeg as a
     // special-case value to indicate PCM audio
-    avctx->frame_size = av_clip(avctx->frame_size, 2, 65536);
-
+    avctx->frame_size   = av_clip(avctx->frame_size, 2, 65536);
     sconf->frame_length = avctx->frame_size;
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
@@ -3074,7 +3069,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     }
 
     avctx->bits_per_raw_sample = (sconf->resolution + 1) << 3;
-    ctx->max_rice_param = sconf->resolution > 1 ? 31 : 15;
+    ctx->max_rice_param        = sconf->resolution > 1 ? 31 : 15;
 
 
     // user-override for block switching using AVCodecContext.max_partition_order
@@ -3113,7 +3108,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
     // determine manual channel configuration
     // using avctx->channel_layout
     // to be implemented
-    sconf->chan_config = 0;
+    sconf->chan_config      = 0;
     sconf->chan_config_info = 0;
 
     // determine channel sorting
@@ -3201,7 +3196,7 @@ static void init_hannrect_window(double *window, int len, double param)
         return;
 
     for (i = 0; i < side_len; i++) {
-        double w = 0.5 - 0.5 * cos(phi * i);
+        double w        = 0.5 - 0.5 * cos(phi * i);
         window[i]       = w;
         window[len-i-1] = w;
     }
@@ -3220,7 +3215,7 @@ static void init_sinerect_window(double *window, int len, double param)
         return;
 
     for (i = 0; i < side_len; i++) {
-        double w = sin(phi * i);
+        double w        = sin(phi * i);
         window[i]       = w;
         window[len-i-1] = w;
     }
@@ -3253,7 +3248,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     sconf->samples = 0;
 
     channel_offset = sconf->long_term_prediction ? ALS_MAX_LTP_LAG : sconf->max_order;
-    channel_size = sconf->frame_length + channel_offset;
+    channel_size   = sconf->frame_length + channel_offset;
 
     // set up stage options
     ctx->stages = av_malloc(sizeof(*ctx->stages) * NUM_STAGES);
@@ -3264,9 +3259,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     /* fill stage options based on compression level */
-    ctx->stages[STAGE_JOINT_STEREO]     = *stage_js_settings[avctx->compression_level];
-    ctx->stages[STAGE_BLOCK_SWITCHING]  = *stage_bs_settings[avctx->compression_level];
-    ctx->stages[STAGE_FINAL]            = *stage_final_settings[avctx->compression_level];
+    ctx->stages[STAGE_JOINT_STEREO]    = *stage_js_settings[avctx->compression_level];
+    ctx->stages[STAGE_BLOCK_SWITCHING] = *stage_bs_settings[avctx->compression_level];
+    ctx->stages[STAGE_FINAL]           = *stage_final_settings[avctx->compression_level];
 
     /* joint-stereo stage sconf overrides */
     ctx->stages[STAGE_JOINT_STEREO].adapt_order = sconf->adapt_order;
@@ -3374,10 +3369,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
-        ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
-        ctx->res_samples[c] = ctx->res_samples[c - 1] + channel_size;
+        ctx->raw_samples    [c] = ctx->raw_samples[c - 1] + channel_size;
+        ctx->res_samples    [c] = ctx->res_samples[c - 1] + channel_size;
         ctx->raw_lsb_samples[c] = ctx->raw_lsb_samples[c - 1] + channel_size;
-        ctx->blocks     [c] = ctx->blocks     [c - 1] + 32;
+        ctx->blocks         [c] = ctx->blocks     [c - 1] + 32;
     }
 
     for (c = 1; c < (avctx->channels >> 1); c++) {
@@ -3427,7 +3422,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->js_infos[c + 1] = ctx->js_infos_buffer + (c + 1) * num_bs_sizes;
     }
 
-    avctx->coded_frame = avcodec_alloc_frame();
+    avctx->coded_frame            = avcodec_alloc_frame();
     avctx->coded_frame->key_frame = 1;
 
     dsputil_init(&ctx->dsp, avctx);
