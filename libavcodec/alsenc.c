@@ -517,15 +517,15 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
  * sums up all block sizes according to *bs_sizes
  * to get the overall bit count
  */
-static void parse_bs_size(const uint32_t bs_info, unsigned int n,
+static void bs_get_size(const uint32_t bs_info, unsigned int n,
                           unsigned int *bs_sizes, unsigned int *bit_count)
 {
     if (n < 31 && ((bs_info << n) & 0x40000000)) {
         // if the level is valid and the investigated bit n is set
         // then recursively check both children at bits (2n+1) and (2n+2)
         n   *= 2;
-        parse_bs_size(bs_info, n + 1, bs_sizes, bit_count);
-        parse_bs_size(bs_info, n + 2, bs_sizes, bit_count);
+        bs_get_size(bs_info, n + 1, bs_sizes, bit_count);
+        bs_get_size(bs_info, n + 2, bs_sizes, bit_count);
     } else {
         // else the bit is not set or the last level has been reached
         // (bit implicitly not set)
@@ -538,15 +538,15 @@ static void parse_bs_size(const uint32_t bs_info, unsigned int n,
  * Recursively parses a given block partitioning and
  * sets all node bits to zero
  */
-static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
+static void bs_set_zero(uint32_t *bs_info, unsigned int n)
 {
     if (n < 31) {
         // if the level is valid set this bit and
         // all children to zero
         *bs_info &= ~(1 << (30 - n));
         n        *= 2;
-        parse_bs_zero(bs_info, n + 1);
-        parse_bs_zero(bs_info, n + 2);
+        bs_set_zero(bs_info, n + 1);
+        bs_set_zero(bs_info, n + 2);
     }
 }
 
@@ -555,7 +555,7 @@ static void parse_bs_zero(uint32_t *bs_info, unsigned int n)
  * Recursively parses a given block partitioning and
  * sets all joint-stereo block flags according to *js_info
  */
-static void parse_bs_js(const uint32_t bs_info, unsigned int n,
+static void bs_set_js(const uint32_t bs_info, unsigned int n,
                         uint8_t *js_info,
                         ALSBlock **block_c1, ALSBlock **block_c2)
 {
@@ -563,8 +563,8 @@ static void parse_bs_js(const uint32_t bs_info, unsigned int n,
         // if the level is valid and the investigated bit n is set
         // then recursively check both children at bits (2n+1) and (2n+2)
         n   *= 2;
-        parse_bs_js(bs_info, n + 1, js_info, block_c1, block_c2);
-        parse_bs_js(bs_info, n + 2, js_info, block_c1, block_c2);
+        bs_set_js(bs_info, n + 1, js_info, block_c1, block_c2);
+        bs_set_js(bs_info, n + 2, js_info, block_c1, block_c2);
     } else {
         // else the bit is not set or the last level has been reached
         // (bit implicitly not set)
@@ -580,7 +580,7 @@ static void parse_bs_js(const uint32_t bs_info, unsigned int n,
  * Recursively sets all block sizes to joint-stereo sizes
  * where difference coding pays off for a block
  */
-static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
+static void set_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
@@ -602,14 +602,14 @@ static void use_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
     }
 
     if (sconf->block_switching && stage < sconf->block_switching)
-        use_js_sizes(ctx, channel, stage + 1);
+        set_js_sizes(ctx, channel, stage + 1);
 }
 
 
 /**
  * Recursively resets all block sizes to independent sizes
  */
-static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
+static void reset_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int num_blocks  = sconf->block_switching ? (1 << stage) : 1;
@@ -636,7 +636,7 @@ static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
     }
 
     if (sconf->block_switching && stage < sconf->block_switching)
-        reset_js(ctx, channel, stage + 1);
+        reset_js_sizes(ctx, channel, stage + 1);
 }
 
 
@@ -645,7 +645,7 @@ static void reset_js(ALSEncContext *ctx, unsigned int channel, int stage)
  * the minimal bit count is found.
  * Using Full-Search strategy.
  */
-static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
+static void bs_merge_fullsearch(ALSEncContext *ctx, unsigned int n,
                                  unsigned int c1, unsigned int c2)
 {
     uint32_t *bs_info = &ctx->bs_info[c1];
@@ -662,28 +662,28 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
         unsigned int sum_n     = sizes_c1[n];
 
         if (GET_BS_BIT(bs_info, a)) {
-            merge_bs_fullsearch(ctx, a, c1, c2);
+            bs_merge_fullsearch(ctx, a, c1, c2);
         }
 
         if (GET_BS_BIT(bs_info, b)) {
-            merge_bs_fullsearch(ctx, b, c1, c2);
+            bs_merge_fullsearch(ctx, b, c1, c2);
         }
 
         // calculate sizes of both children
-        parse_bs_size(*bs_info, a, sizes_c1, &sum_a);
-        parse_bs_size(*bs_info, b, sizes_c1, &sum_b);
+        bs_get_size(*bs_info, a, sizes_c1, &sum_a);
+        bs_get_size(*bs_info, b, sizes_c1, &sum_b);
 
         if (c1 != c2) {
             // for joint-stereo, also calculate size of
             // the children of the buddy channel
             sum_n += sizes_c2[n];
-            parse_bs_size(*bs_info, a, sizes_c2, &sum_a);
-            parse_bs_size(*bs_info, b, sizes_c2, &sum_b);
+            bs_get_size(*bs_info, a, sizes_c2, &sum_a);
+            bs_get_size(*bs_info, b, sizes_c2, &sum_b);
         }
 
         // test for merging
         if (sum_a + sum_b > sum_n) {
-            parse_bs_zero(bs_info, n);
+            bs_set_zero(bs_info, n);
             if (c1 != c2) {
                 ctx->bs_info[c2] = *bs_info;
             }
@@ -697,7 +697,7 @@ static void merge_bs_fullsearch(ALSEncContext *ctx, unsigned int n,
  * the minimal bit count is found.
  * Using Bottom-Up strategy.
  */
-static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
+static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
                                  unsigned int c1, unsigned int c2)
 {
     uint32_t *bs_info = &ctx->bs_info[c1];
@@ -714,8 +714,8 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
         unsigned int sum_n     = sizes_c1[n];
 
         if (GET_BS_BIT(bs_info, a) && GET_BS_BIT(bs_info, b)) {
-            merge_bs_bottomup(ctx, a, c1, c2);
-            merge_bs_bottomup(ctx, b, c1, c2);
+            bs_merge_bottomup(ctx, a, c1, c2);
+            bs_merge_bottomup(ctx, b, c1, c2);
         }
 
         // test if both children are leaves of the tree only
@@ -734,7 +734,7 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
 
             // test for merging
             if (sum_a + sum_b > sum_n) {
-                parse_bs_zero(bs_info, n);
+                bs_set_zero(bs_info, n);
                 if (c1 != c2) {
                     ctx->bs_info[c2] = *bs_info;
                 }
@@ -749,7 +749,7 @@ static void merge_bs_bottomup(ALSEncContext *ctx, unsigned int n,
  * Also assures that the block sizes of the last frame correspond to the
  * actual number of samples.
  */
-static void get_block_sizes(ALSEncContext *ctx,
+static void set_blocks(ALSEncContext *ctx,
                             uint32_t *bs_info,
                             unsigned int c1, unsigned int c2)
 {
@@ -858,24 +858,24 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
 
     // find best partitioning
     if(stage->merge_algorithm == BS_ALGORITHM_BOTTOM_UP) {
-        merge_bs_bottomup(ctx, 0, c1, c2);
+        bs_merge_bottomup(ctx, 0, c1, c2);
     } else {
-        merge_bs_fullsearch(ctx, 0, c1, c2);
+        bs_merge_fullsearch(ctx, 0, c1, c2);
     }
 
-    get_block_sizes(ctx, &ctx->bs_info[c1], c1, c2);
+    set_blocks(ctx, &ctx->bs_info[c1], c1, c2);
 
     if (c1 != c2) {
         // set joint-stereo sizes
         ALSBlock *ptr_blocks_c1 = ctx->blocks[c1];
         ALSBlock *ptr_blocks_c2 = ctx->blocks[c2];
-        parse_bs_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
+        bs_set_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
     }
 
     // get bit count for the chosen partitioning
-    parse_bs_size(ctx->bs_info[c1], 0, sizes_c1, &bit_count);
+    bs_get_size(ctx->bs_info[c1], 0, sizes_c1, &bit_count);
     if (c1 != c2)
-        parse_bs_size(ctx->bs_info[c1], 0, sizes_c2, &bit_count);
+        bs_get_size(ctx->bs_info[c1], 0, sizes_c2, &bit_count);
 
     return bit_count;
 }
@@ -912,18 +912,18 @@ static void block_partitioning(ALSEncContext *ctx)
 
                 // get bit count and bs_info fields
                 // for joint-stereo
-                use_js_sizes(ctx, c, 0);
+                set_js_sizes(ctx, c, 0);
                 bits_dep = get_partition(ctx, c, c + 1);
 
                 // set to independent coding if necessary
                 if (bits_ind + bs_info_len < bits_dep) {
-                    reset_js(ctx, c, 0);
+                    reset_js_sizes(ctx, c, 0);
                     ctx->independent_bs[c    ] = 1;
                     ctx->independent_bs[c + 1] = 1;
                     ctx->bs_info       [c    ] = bs_info_c1;
                     ctx->bs_info       [c + 1] = bs_info_c2;
-                    get_block_sizes(ctx, &ctx->bs_info[c    ], c    , c    );
-                    get_block_sizes(ctx, &ctx->bs_info[c + 1], c + 1, c + 1);
+                    set_blocks(ctx, &ctx->bs_info[c    ], c    , c    );
+                    set_blocks(ctx, &ctx->bs_info[c + 1], c + 1, c + 1);
                 }
             } else {
                 get_partition(ctx, c    , c    );
@@ -2572,7 +2572,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 /**
  * Generates all possible block sizes for all possible block-switching stages
  */
-static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
+static void gen_block_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
     ALSSpecificConfig *sconf = &ctx->sconf;
     ALSBlock *block          = ctx->blocks[channel];
@@ -2588,7 +2588,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
         }
     }
 
-    get_block_sizes(ctx, &bs_info_tmp, channel, channel);
+    set_blocks(ctx, &bs_info_tmp, channel, channel);
 
     for (b = 0; b < num_blocks; b++) {
         unsigned int *bs_sizes = ctx->bs_sizes[channel     ] + num_blocks - 1;
@@ -2608,7 +2608,7 @@ static void gen_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
     }
 
     if (sconf->block_switching && stage < sconf->block_switching)
-        gen_sizes(ctx, channel, stage + 1);
+        gen_block_sizes(ctx, channel, stage + 1);
     else
         ctx->bs_info[channel] = bs_info_tmp;
 }
@@ -2720,7 +2720,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
 
     // generate all block sizes for this frame
     for (c = 0; c < avctx->channels; c++) {
-        gen_sizes(ctx, c, 0);
+        gen_block_sizes(ctx, c, 0);
     }
 
 
