@@ -61,6 +61,16 @@
     #define av_alloc_size(n)
 #endif
 
+#define AV_PMALLOC(ptr, num)                \
+{                                           \
+    ptr = av_malloc(sizeof(*ptr) * (num));  \
+}
+
+#define AV_PMALLOCZ(ptr, num)               \
+{                                           \
+    ptr = av_mallocz(sizeof(*ptr) * (num)); \
+}
+
 /**
  * Allocates a block of size bytes with alignment suitable for all
  * memory accesses (including vectors if available on the CPU).
