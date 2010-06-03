@@ -3260,7 +3260,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
     channel_size   = sconf->frame_length + channel_offset;
 
     // set up stage options
-//    ctx->stages = av_malloc(sizeof(*ctx->stages) * NUM_STAGES);
     AV_MALLOC(ctx->stages, NUM_STAGES);
     if (!ctx->stages) {
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
