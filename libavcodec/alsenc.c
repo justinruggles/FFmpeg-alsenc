@@ -2903,7 +2903,8 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
 {
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
-    int f, num, last, fsize;
+    int f, num, last, fsize, src_frame_size;
+    uint8_t *src;
     int read = 0;
 
     // last frame has been encoded, update extradata
@@ -2940,25 +2941,19 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
 
     avctx->frame_size = sconf->frame_length;
 
-    #define ENCODE_FRAMES(bps)                           \
-    {                                                    \
-        int##bps##_t *src = (int##bps##_t*) data;        \
-        for (f = 0; f < num; f++) {                      \
-            read += encode_frame(avctx, frame + read, buf_size - read, src);\
-            src  += avctx->frame_size * avctx->channels; \
-        }                                                \
-        if (last) {                                      \
-            avctx->frame_size = last;                    \
-            read += encode_frame(avctx, frame + read, buf_size - read, src);\
-        } else                                           \
-            avctx->frame_size *= sconf->ra_distance;     \
-    }                                                    \
+    src_frame_size  = avctx->bits_per_raw_sample <= 16 ? 2 : 4;
+    src_frame_size *= avctx->frame_size * avctx->channels;
+    src = data;
 
-    if (avctx->bits_per_raw_sample <= 16) {
-        ENCODE_FRAMES(16)
-    } else {
-        ENCODE_FRAMES(32)
+    for (f = 0; f < num; f++) {
+        read += encode_frame(avctx, frame + read, buf_size - read, src);
+        src  += src_frame_size;
     }
+    if (last) {
+        avctx->frame_size = last;
+        read += encode_frame(avctx, frame + read, buf_size - read, src);
+    } else
+        avctx->frame_size *= sconf->ra_distance;
 
     return read;
 }
