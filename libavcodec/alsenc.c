@@ -951,6 +951,9 @@ static void block_partitioning(ALSEncContext *ctx)
 }
 
 
+/**
+ * Counts bits needed to write value v using signed Rice coding with parameter k.
+ */
 static inline int rice_count(int v, int k)
 {
     unsigned int v0 = (unsigned int)((2LL*v) ^ (int64_t)(v>>31));
@@ -958,12 +961,21 @@ static inline int rice_count(int v, int k)
 }
 
 
+/**
+ * Counts bits needed to write value v using unsigned Rice coding with parameter k.
+ */
 static inline int urice_count(unsigned int v, int k)
 {
     return (v >> k) + 1 + k;
 }
 
 
+/**
+ * Writes the quotient part of a Rice code.
+ * This is the same for signed and unsigned Rice coding.
+ * @param[out] q0 quotient
+ * @return        0 on success, -1 on error
+ */
 static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
                                         int k, int *q0)
 {
@@ -985,6 +997,10 @@ static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
 }
 
 
+/**
+ * Writes a signed Rice code.
+ * @return 0 on success, -1 on error
+ */
 static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
 {
     int q0;
@@ -1001,6 +1017,10 @@ static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
 }
 
 
+/**
+ * Writes an unsigned Rice code to the bitstream.
+ * @return 0 on success, -1 on error
+ */
 static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 {
     unsigned int v0;
@@ -1469,7 +1489,6 @@ static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
 /**
  * Counts bits needed to encode all symbols of a given subblock
  * using given parameters
- * @return Overall bit count for the subblock on success, -1 otherwise
  */
 static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
                                             int b_length, int sb_length,
@@ -1539,6 +1558,9 @@ static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
 }
 
 
+/**
+ * Counts bits needed to encode all the entropy coding parameters for a block.
+ */
 static unsigned int block_ec_param_count(ALSEncContext *ctx, ALSBlock *block,
                                          int sub_blocks, int *s, int *sx,
                                          int bgmc)
@@ -1566,6 +1588,10 @@ static unsigned int block_ec_param_count(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+/**
+ * Counts bits needed to encode all symbols and entropy coding parameters of a
+ * given block using given parameters.
+ */
 static unsigned int block_ec_count_exact(ALSEncContext *ctx, ALSBlock *block,
                                          int sub_blocks, int *s, int *sx,
                                          int order, int bgmc)
@@ -1593,6 +1619,9 @@ static unsigned int block_ec_count_exact(ALSEncContext *ctx, ALSBlock *block,
 #define rice_encode_count(sum, n, k) (((n)*((k)+1))+((sum-(n>>1))>>(k)))
 
 
+/**
+ * Estimates the best Rice parameter using the sum of unsigned residual samples.
+ */
 static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
 {
     int k;
@@ -1708,7 +1737,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Full search for optimal BGMC parameters and sub-block devision
+ * Full search for optimal BGMC parameters and sub-block division
  */
 static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
@@ -2218,6 +2247,9 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
 }
 
 
+/**
+ * Sets fixed values for LTP coefficients.
+ */
 static void get_ltp_coeffs_fixed(ALSEncContext *ctx, ALSBlock *block)
 {
     int *ltp_gain = block->ltp_info[block->js_block].gain;
