@@ -2274,9 +2274,9 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
     int *ltp_gain    = block->ltp_info[block->js_block].gain;
     double *corr_ptr = ctx->ltp_corr_samples;
     double *corr_ptr_lag;
-    double coeff[5];
     LLSModel m;
     double *c = &m.covariance[0][1];
+    double *coeff = m.coeff[4];
 
     av_init_lls(&m, 5);
 
@@ -2297,8 +2297,6 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
     }
 
     av_solve_lls(&m, 0.0, 0);
-    for (icc = 0; icc < 5; icc++)
-        coeff[icc] = m.coeff[4][icc];
 
     // quantize coefficients
 
