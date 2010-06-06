@@ -3085,14 +3085,19 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
         sconf->floating   = 1;
         av_log_missing_feature(avctx, "floating-point samples\n", 0);
     case SAMPLE_FMT_S32:
-        sconf->resolution = 3; break;
+        if (avctx->bits_per_raw_sample <= 24)
+            sconf->resolution = 2;
+        else
+            sconf->resolution = 3;
+        break;
     default:
         av_log(avctx, AV_LOG_ERROR, "unsupported sample format: %s\n",
                avcodec_get_sample_fmt_name(avctx->sample_fmt));
         return -1;
     }
 
-    avctx->bits_per_raw_sample = (sconf->resolution + 1) << 3;
+    if (!avctx->bits_per_raw_sample)
+        avctx->bits_per_raw_sample = (sconf->resolution + 1) << 3;
     ctx->max_rice_param        = sconf->resolution > 1 ? 31 : 15;
 
 
@@ -3488,4 +3493,5 @@ AVCodec als_encoder = {
     NULL,
     .capabilities = CODEC_CAP_SMALL_LAST_FRAME | CODEC_CAP_DELAY,
     .long_name = NULL_IF_CONFIG_SMALL("MPEG-4 Audio Lossless Coding (ALS)"),
+    .sample_fmts = (const enum SampleFormat[]){SAMPLE_FMT_S16,SAMPLE_FMT_S32,SAMPLE_FMT_NONE},
 };
