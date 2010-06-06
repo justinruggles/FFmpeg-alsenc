@@ -1629,7 +1629,7 @@ static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
     if (sum <= length >> 1)
         return 0;
 
-    if (max_param > 15) {
+    if (sum > UINT32_MAX) {
         sum = FFMAX((sum - (length >> 1)) / length, 1);
         k   = (int)floor(log2(sum));
     } else {
