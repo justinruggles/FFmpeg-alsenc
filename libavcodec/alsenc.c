@@ -513,7 +513,7 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
         shift = bps - ctx->avctx->bits_per_raw_sample;             \
         for (sample = 0; sample < ctx->cur_frame_length; sample++) \
             for (c = 0; c < ctx->avctx->channels; c++)             \
-                ctx->raw_samples[c][sample] = (*src++) << shift;   \
+                ctx->raw_samples[c][sample] = (*src++) >> shift;   \
     }
 
     if (ctx->avctx->bits_per_raw_sample <= 16) {
