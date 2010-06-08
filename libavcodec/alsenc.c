@@ -2863,10 +2863,22 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     // update CRC
     if (sconf->crc_enabled) {
-        frame_data_size = (ctx->avctx->bits_per_raw_sample > 16) ? 4 : 2;
+        if (ctx->avctx->bits_per_raw_sample == 16 || ctx->avctx->bits_per_raw_sample == 32) {
+        frame_data_size = ctx->avctx->bits_per_raw_sample >> 3;
         ctx->crc        = av_crc(ctx->crc_table, ctx->crc, data,
                                  ctx->cur_frame_length * avctx->channels *
                                  frame_data_size);
+        } else if (ctx->avctx->bits_per_raw_sample == 24) {
+            int i;
+            int frame_values = ctx->cur_frame_length * avctx->channels;
+            int32_t *samples = data;
+            for (i = 0; i < frame_values; i++) {
+                int32_t v = *samples++;
+                if (!HAVE_BIGENDIAN)
+                    v >>= 8;
+                ctx->crc = av_crc(ctx->crc_table, ctx->crc, (uint8_t *)(&v), 3);
+            }
+        }
     }
 
     // preprocessing
