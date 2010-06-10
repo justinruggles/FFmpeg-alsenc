@@ -30,8 +30,8 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 52
-#define LIBAVCODEC_VERSION_MINOR 66
-#define LIBAVCODEC_VERSION_MICRO  0
+#define LIBAVCODEC_VERSION_MINOR 75
+#define LIBAVCODEC_VERSION_MICRO  1
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
                                                LIBAVCODEC_VERSION_MINOR, \
@@ -210,6 +210,8 @@ enum CodecID {
     CODEC_ID_IFF_BYTERUN1,
     CODEC_ID_KGV1,
     CODEC_ID_YOP,
+    CODEC_ID_VP8,
+    CODEC_ID_PICTOR,
 
     /* various PCM "codecs" */
     CODEC_ID_PCM_S16LE= 0x10000,
@@ -597,6 +599,7 @@ typedef struct RcOverride{
 #define CODEC_FLAG2_MBTREE        0x00040000 ///< Use macroblock tree ratecontrol (x264 only)
 #define CODEC_FLAG2_PSY           0x00080000 ///< Use psycho visual optimizations.
 #define CODEC_FLAG2_SSIM          0x00100000 ///< Compute SSIM during encoding, error[] values are undefined.
+#define CODEC_FLAG2_INTRA_REFRESH 0x00200000 ///< Use periodic insertion of intra blocks instead of keyframes.
 
 /* Unsupported options :
  *              Syntax Arithmetic coding (SAC)
@@ -643,6 +646,11 @@ typedef struct RcOverride{
  * as a last resort.
  */
 #define CODEC_CAP_SUBFRAMES        0x0100
+/**
+ * Codec is experimental and is thus avoided in favor of non experimental
+ * encoders
+ */
+#define CODEC_CAP_EXPERIMENTAL     0x0200
 
 //The following defines may change, don't expect compatibility if you use them.
 #define MB_TYPE_INTRA4x4   0x0001
@@ -1113,8 +1121,10 @@ typedef struct AVCodecContext {
 
     /**
      * Pixel format, see PIX_FMT_xxx.
+     * May be set by the demuxer if known from headers.
+     * May be overriden by the decoder if it knows better.
      * - encoding: Set by user.
-     * - decoding: Set by libavcodec.
+     * - decoding: Set by user if known, overridden by libavcodec if known
      */
     enum PixelFormat pix_fmt;
 
@@ -1340,15 +1350,15 @@ typedef struct AVCodecContext {
      * - encoding: Set by user.
      * - decoding: Set by user.
      * Setting this to STRICT or higher means the encoder and decoder will
-     * generally do stupid things. While setting it to inofficial or lower
-     * will mean the encoder might use things that are not supported by all
-     * spec compliant decoders. Decoders make no difference between normal,
-     * inofficial and experimental, that is they always try to decode things
-     * when they can unless they are explicitly asked to behave stupid
+     * generally do stupid things, whereas setting it to inofficial or lower
+     * will mean the encoder might produce output that is not supported by all
+     * spec-compliant decoders. Decoders don't differentiate between normal,
+     * inofficial and experimental (that is, they always try to decode things
+     * when they can) unless they are explicitly asked to behave stupidly
      * (=strictly conform to the specs)
      */
     int strict_std_compliance;
-#define FF_COMPLIANCE_VERY_STRICT   2 ///< Strictly conform to a older more strict version of the spec or reference software.
+#define FF_COMPLIANCE_VERY_STRICT   2 ///< Strictly conform to an older more strict version of the spec or reference software.
 #define FF_COMPLIANCE_STRICT        1 ///< Strictly conform to all the things in the spec no matter what consequences.
 #define FF_COMPLIANCE_NORMAL        0
 #define FF_COMPLIANCE_INOFFICIAL   -1 ///< Allow inofficial extensions.
@@ -2651,6 +2661,17 @@ typedef struct AVCodecContext {
     int rc_lookahead;
 
     /**
+     * Constant rate factor maximum
+     * With CRF encoding mode and VBV restrictions enabled, prevents quality from being worse
+     * than crf_max, even if doing so would violate VBV restrictions.
+     * - encoding: Set by user.
+     * - decoding: unused
+     */
+    float crf_max;
+
+    int log_level_offset;
+
+    /*
      * Sets which LPC analysis algorithm to use.
      * - encoding: Set by user.
      * - decoding: unused
@@ -3092,6 +3113,15 @@ attribute_deprecated enum PixelFormat avcodec_get_pix_fmt(const char* name);
  */
 unsigned int avcodec_pix_fmt_to_codec_tag(enum PixelFormat pix_fmt);
 
+/**
+ * Puts a string representing the codec tag codec_tag in buf.
+ *
+ * @param buf_size size in bytes of buf
+ * @return the length of the string that would have been generated if
+ * enough space had been available, excluding the trailing null
+ */
+size_t av_get_codec_tag_string(char *buf, size_t buf_size, unsigned int codec_tag);
+
 #define FF_LOSS_RESOLUTION  0x0001 /**< loss due to resolution change */
 #define FF_LOSS_DEPTH       0x0002 /**< loss due to color depth change */
 #define FF_LOSS_COLORSPACE  0x0004 /**< loss due to color space conversion */
@@ -3320,12 +3350,20 @@ unsigned avcodec_get_edge_width(void);
  * Modifies width and height values so that they will result in a memory
  * buffer that is acceptable for the codec if you do not use any horizontal
  * padding.
+ *
+ * May only be used if a codec with CODEC_CAP_DR1 has been opened.
+ * If CODEC_FLAG_EMU_EDGE is not set, the dimensions must have been increased
+ * according to avcodec_get_edge_width() before.
  */
 void avcodec_align_dimensions(AVCodecContext *s, int *width, int *height);
 /**
  * Modifies width and height values so that they will result in a memory
  * buffer that is acceptable for the codec if you also ensure that all
  * line sizes are a multiple of the respective linesize_align[i].
+ *
+ * May only be used if a codec with CODEC_CAP_DR1 has been opened.
+ * If CODEC_FLAG_EMU_EDGE is not set, the dimensions must have been increased
+ * according to avcodec_get_edge_width() before.
  */
 void avcodec_align_dimensions2(AVCodecContext *s, int *width, int *height,
                                int linesize_align[4]);
@@ -3481,6 +3519,13 @@ attribute_deprecated int avcodec_decode_video(AVCodecContext *avctx, AVFrame *pi
  *
  * @param avctx the codec context
  * @param[out] picture The AVFrame in which the decoded video frame will be stored.
+ *             Use avcodec_alloc_frame to get an AVFrame, the codec will
+ *             allocate memory for the actual bitmap.
+ *             with default get/release_buffer(), the decoder frees/reuses the bitmap as it sees fit.
+ *             with overridden get/release_buffer() (needs CODEC_CAP_DR1) the user decides into what buffer the decoder
+ *                   decodes and the decoder tells the user once it does not need the data anymore,
+ *                   the user app can at this point free/reuse/keep the memory as it sees fit.
+ *
  * @param[in] avpkt The input AVpacket containing the input buffer.
  *            You can create such packet with av_init_packet() and by then setting
  *            data and size, some decoders might in addition need other fields like
@@ -3643,6 +3688,7 @@ typedef struct AVCodecParserContext {
 
     int flags;
 #define PARSER_FLAG_COMPLETE_FRAMES           0x0001
+#define PARSER_FLAG_ONCE                      0x0002
 
     int64_t offset;      ///< byte offset from starting packet start
     int64_t cur_frame_end[AV_PARSER_PTS_NB];

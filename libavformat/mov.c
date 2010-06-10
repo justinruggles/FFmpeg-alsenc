@@ -86,7 +86,7 @@ static int mov_metadata_trkn(MOVContext *c, ByteIOContext *pb, unsigned len)
 
     get_be16(pb); // unknown
     snprintf(buf, sizeof(buf), "%d", get_be16(pb));
-    av_metadata_set(&c->fc->metadata, "track", buf);
+    av_metadata_set2(&c->fc->metadata, "track", buf, 0);
 
     get_be16(pb); // total tracks
 
@@ -144,7 +144,7 @@ static int mov_read_udta_string(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     switch (atom.type) {
     case MKTAG(0xa9,'n','a','m'): key = "title";     break;
     case MKTAG(0xa9,'a','u','t'):
-    case MKTAG(0xa9,'A','R','T'): key = "author";    break;
+    case MKTAG(0xa9,'A','R','T'): key = "artist";    break;
     case MKTAG(0xa9,'w','r','t'): key = "composer";  break;
     case MKTAG( 'c','p','r','t'):
     case MKTAG(0xa9,'c','p','y'): key = "copyright"; break;
@@ -204,10 +204,10 @@ static int mov_read_udta_string(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
             get_buffer(pb, str, str_size);
             str[str_size] = 0;
         }
-        av_metadata_set(&c->fc->metadata, key, str);
+        av_metadata_set2(&c->fc->metadata, key, str, 0);
         if (*language && strcmp(language, "und")) {
             snprintf(key2, sizeof(key2), "%s-%s", key, language);
-            av_metadata_set(&c->fc->metadata, key2, str);
+            av_metadata_set2(&c->fc->metadata, key2, str, 0);
         }
     }
 #ifdef DEBUG_METADATA
@@ -216,6 +216,36 @@ static int mov_read_udta_string(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
            key, str, (char*)&atom.type, str_size, atom.size);
 #endif
 
+    return 0;
+}
+
+static int mov_read_chpl(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
+{
+    int64_t start;
+    int i, nb_chapters, str_len;
+    char str[256+1];
+
+    if ((atom.size -= 5) < 0)
+        return 0;
+
+    get_be32(pb); // version + flags
+    get_be32(pb); // ???
+    nb_chapters = get_byte(pb);
+
+    for (i = 0; i < nb_chapters; i++) {
+        if (atom.size < 9)
+            return 0;
+
+        start = get_be64(pb);
+        str_len = get_byte(pb);
+
+        if ((atom.size -= 9+str_len) < 0)
+            return 0;
+
+        get_buffer(pb, str, str_len);
+        str[str_len] = 0;
+        ff_new_chapter(c->fc, i, (AVRational){1,10000000}, start, AV_NOPTS_VALUE, str);
+    }
     return 0;
 }
 
@@ -569,10 +599,10 @@ static int mov_read_ftyp(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
     if (strcmp(type, "qt  "))
         c->isom = 1;
     av_log(c->fc, AV_LOG_DEBUG, "ISO: File Type Major Brand: %.4s\n",(char *)&type);
-    av_metadata_set(&c->fc->metadata, "major_brand", type);
+    av_metadata_set2(&c->fc->metadata, "major_brand", type, 0);
     minor_ver = get_be32(pb); /* minor version */
     snprintf(minor_ver_str, sizeof(minor_ver_str), "%d", minor_ver);
-    av_metadata_set(&c->fc->metadata, "minor_version", minor_ver_str);
+    av_metadata_set2(&c->fc->metadata, "minor_version", minor_ver_str, 0);
 
     comp_brand_size = atom.size - 8;
     if (comp_brand_size < 0)
@@ -582,7 +612,7 @@ static int mov_read_ftyp(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
         return AVERROR(ENOMEM);
     get_buffer(pb, comp_brands_str, comp_brand_size);
     comp_brands_str[comp_brand_size] = 0;
-    av_metadata_set(&c->fc->metadata, "compatible_brands", comp_brands_str);
+    av_metadata_set2(&c->fc->metadata, "compatible_brands", comp_brands_str, 0);
     av_freep(&comp_brands_str);
 
     return 0;
@@ -637,7 +667,7 @@ static int mov_read_mdhd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
 
     lang = get_be16(pb); /* language */
     if (ff_mov_lang_to_iso639(lang, language))
-        av_metadata_set(&st->metadata, "language", language);
+        av_metadata_set2(&st->metadata, "language", language, 0);
     get_be16(pb); /* quality */
 
     return 0;
@@ -2166,6 +2196,7 @@ static int mov_read_elst(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
 
 static const MOVParseTableEntry mov_default_parse_table[] = {
 { MKTAG('a','v','s','s'), mov_read_extradata },
+{ MKTAG('c','h','p','l'), mov_read_chpl },
 { MKTAG('c','o','6','4'), mov_read_stco },
 { MKTAG('c','t','t','s'), mov_read_ctts }, /* composition time to sample */
 { MKTAG('d','i','n','f'), mov_read_default },

@@ -807,6 +807,16 @@ static int mpegts_push_data(MpegTSFilter *filter,
                 pes->data_index += buf_size;
             }
             buf_size = 0;
+            /* emit complete packets with known packet size
+             * decreases demuxer delay for infrequent packets like subtitles from
+             * a couple of seconds to milliseconds for properly muxed files.
+             * total_size is the number of bytes following pes_packet_length
+             * in the pes header, i.e. not counting the first 6 bytes */
+            if (pes->total_size < MAX_PES_PAYLOAD &&
+                pes->pes_header_size + pes->data_index == pes->total_size + 6) {
+                ts->stop_parse = 1;
+                new_pes_packet(pes, ts->pkt);
+            }
             break;
         case MPEGTS_SKIP:
             buf_size = 0;
@@ -963,7 +973,7 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
                 language[1] = get8(&p, desc_end);
                 language[2] = get8(&p, desc_end);
                 language[3] = 0;
-                av_metadata_set(&st->metadata, "language", language);
+                av_metadata_set2(&st->metadata, "language", language, 0);
                 break;
             case 0x59: /* subtitling descriptor */
                 language[0] = get8(&p, desc_end);
@@ -974,14 +984,14 @@ static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
                 comp_page = get16(&p, desc_end);
                 anc_page = get16(&p, desc_end);
                 st->codec->sub_id = (anc_page << 16) | comp_page;
-                av_metadata_set(&st->metadata, "language", language);
+                av_metadata_set2(&st->metadata, "language", language, 0);
                 break;
             case 0x0a: /* ISO 639 language descriptor */
                 language[0] = get8(&p, desc_end);
                 language[1] = get8(&p, desc_end);
                 language[2] = get8(&p, desc_end);
                 language[3] = 0;
-                av_metadata_set(&st->metadata, "language", language);
+                av_metadata_set2(&st->metadata, "language", language, 0);
                 break;
             case 0x05: /* registration descriptor */
                 st->codec->codec_tag = bytestream_get_le32(&p);
@@ -1109,8 +1119,8 @@ static void sdt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
                 if (name) {
                     AVProgram *program = av_new_program(ts->stream, sid);
                     if(program) {
-                        av_metadata_set(&program->metadata, "name", name);
-                        av_metadata_set(&program->metadata, "provider_name", provider_name);
+                        av_metadata_set2(&program->metadata, "name", name, 0);
+                        av_metadata_set2(&program->metadata, "provider_name", provider_name, 0);
                     }
                 }
                 av_free(name);
