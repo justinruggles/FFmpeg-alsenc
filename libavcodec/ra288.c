@@ -149,7 +149,7 @@ static void backward_filter(float *hist, float *rec, const float *window,
 
     do_hybrid_window(order, n, non_rec, temp, hist, rec, window);
 
-    if (!compute_lpc_coefs(temp, NULL, order, NULL, lpc, 0, 1, 1))
+    if (!compute_lpc_coefs(temp, order, NULL, lpc, 0, 1, 1, NULL))
         apply_window(lpc, lpc, tab, order);
 
     memmove(hist, hist + n, move_size*sizeof(*hist));

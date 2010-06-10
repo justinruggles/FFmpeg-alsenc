@@ -107,37 +107,32 @@ static inline void compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
  * Levinson-Durbin recursion.
  * Produces LPC coefficients from autocorrelation data or reflection coefficients.
  */
-static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
-                                    int max_order, LPC_TYPE *ref_out,
+static inline int compute_lpc_coefs(const LPC_TYPE *autoc, int max_order,
+                                    LPC_TYPE *ref_out,
                                     LPC_TYPE *lpc, int lpc_stride, int fail,
-                                    int normalize)
+                                    int normalize, LPC_TYPE *error)
 {
     int i, j;
-    LPC_TYPE err = 0;
+    LPC_TYPE err;
     LPC_TYPE *lpc_last = lpc;
 
-    assert(autoc || ref);
-
-    if (autoc && normalize)
+    if (normalize)
         err = *autoc++;
 
-    if (fail && autoc && (autoc[max_order - 1] == 0 || err <= 0))
+    if (fail && (autoc[max_order - 1] == 0 || err <= 0))
         return -1;
 
     for(i=0; i<max_order; i++) {
-        LPC_TYPE r;
-        if (autoc) {
-            r = -autoc[i];
-            if (normalize) {
-                for(j=0; j<i; j++)
-                    r -= lpc_last[j] * autoc[i-j-1];
+        LPC_TYPE r = -autoc[i];
 
-                r /= err;
-                err *= 1.0 - (r * r);
-            }
-        } else {
-            r = ref[i];
+        if (normalize) {
+            for(j=0; j<i; j++)
+                r -= lpc_last[j] * autoc[i-j-1];
+
+            r /= err;
+            err *= 1.0 - (r * r);
         }
+
         if (ref_out)
             ref_out[i] = r;
 
@@ -152,6 +147,9 @@ static inline int compute_lpc_coefs(const LPC_TYPE *autoc, const LPC_TYPE *ref,
 
         if (fail && err < 0)
             return -1;
+
+        if (normalize && error)
+            error[i] = err;
 
         lpc_last = lpc;
         lpc += lpc_stride;

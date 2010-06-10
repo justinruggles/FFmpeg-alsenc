@@ -225,7 +225,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
     double ref[MAX_LPC_ORDER];
     double lpc[MAX_LPC_ORDER][MAX_LPC_ORDER];
     int i;
-    int opt_order = max_order;
+    int opt_order;
 
     assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
            lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
@@ -233,24 +233,16 @@ int ff_lpc_calc_coefs(DSPContext *s,
     if (lpc_type == LPC_TYPE_LEVINSON) {
         s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
 
-        if (omethod == ORDER_METHOD_EST) {
-            compute_ref_coefs(autoc, max_order, ref, NULL);
-            opt_order = estimate_best_order(ref, min_order, max_order);
-            compute_lpc_coefs( NULL,  ref, opt_order, NULL, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
-        } else {
-            compute_lpc_coefs(autoc, NULL, max_order, NULL, &lpc[0][0], MAX_LPC_ORDER, 0, 1);
-        }
+        compute_lpc_coefs(autoc, opt_order, ref, &lpc[0][0], MAX_LPC_ORDER, 0, 1, NULL);
     } else if (lpc_type == LPC_TYPE_CHOLESKY) {
         ff_lpc_calc_coefs_cholesky(samples, blocksize, max_order, lpc_passes,
                                    omethod == ORDER_METHOD_EST ? ref : NULL,
                                    &lpc[0][0], MAX_LPC_ORDER);
-
-        if (omethod == ORDER_METHOD_EST) {
-            opt_order = estimate_best_order(ref, min_order, max_order);
-        }
     }
+    opt_order = max_order;
 
     if(omethod == ORDER_METHOD_EST) {
+        opt_order = estimate_best_order(ref, min_order, max_order);
         i = opt_order-1;
         quantize_lpc_coefs(lpc[i], i+1, precision, coefs[i], &shift[i], max_shift, zero_shift);
     } else {

@@ -1709,7 +1709,7 @@ static void apply_tns(float coef[1024], TemporalNoiseShaping *tns,
                 continue;
 
             // tns_decode_coef
-            compute_lpc_coefs(tns->coef[w][filt], NULL, order, NULL, lpc, 0, 0, 0);
+            compute_lpc_coefs(tns->coef[w][filt], order, NULL, lpc, 0, 0, 0, NULL);
 
             start = ics->swb_offset[FFMIN(bottom, mmm)];
             end   = ics->swb_offset[FFMIN(   top, mmm)];
