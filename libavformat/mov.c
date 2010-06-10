@@ -1130,7 +1130,7 @@ static int mov_read_stsd(MOVContext *c, ByteIOContext *pb, MOVAtom atom)
             sc->audio_cid = get_be16(pb);
             get_be16(pb); /* packet size = 0 */
 
-            st->codec->sample_rate = ((get_be32(pb) >> 16));
+            st->codec->sample_rate = get_be32(pb);
 
             //Read QT version 1 fields. In version 0 these do not exist.
             dprintf(c->fc, "version =%d, isom =%d\n",version,c->isom);
