@@ -635,6 +635,7 @@ need_realloc:
     audio_buf_size= (allocated_for_size + isize*dec->channels - 1) / (isize*dec->channels);
     audio_buf_size= (audio_buf_size*enc->sample_rate + dec->sample_rate) / dec->sample_rate;
     audio_buf_size= audio_buf_size*2 + 10000; //safety factors for the deprecated resampling API
+    audio_buf_size= FFMAX(audio_buf_size, enc->frame_size);
     audio_buf_size*= osize*enc->channels;
 
     audio_out_size= FFMAX(audio_buf_size, enc->frame_size * osize * enc->channels);
@@ -778,13 +779,6 @@ need_realloc:
             AVPacket pkt;
             av_init_packet(&pkt);
 
-            if (allocated_audio_buf_size < frame_bytes) {
-                av_fast_malloc(&audio_buf, &allocated_audio_buf_size, frame_bytes);
-                if (!audio_buf) {
-                    fprintf(stderr, "Out of memory in do_audio_out\n");
-                    av_exit(1);
-                }
-            }
             av_fifo_generic_read(ost->fifo, audio_buf, frame_bytes, NULL);
 
             //FIXME pass ost->sync_opts as AVFrame.pts in avcodec_encode_audio()
