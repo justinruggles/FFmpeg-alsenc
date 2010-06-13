@@ -44,7 +44,7 @@ static void apply_welch_window(const int32_t *data, int len, double *w_data)
     w_data+=n2;
       data+=n2;
     for(i=0; i<n2; i++) {
-        w = c - n2 + i;
+        w = c * (n2 + i) - 1.0;
         w = 1.0 - (w * w);
         w_data[-i-1] = data[-i-1] * w;
         w_data[+i  ] = data[+i  ] * w;
@@ -231,7 +231,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
            lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
 
     if (lpc_type == LPC_TYPE_LEVINSON) {
-        s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
+        ff_lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
 
         compute_lpc_coefs(autoc, max_order, ref, &lpc[0][0], MAX_LPC_ORDER, 0, 1, NULL);
     } else if (lpc_type == LPC_TYPE_CHOLESKY) {
