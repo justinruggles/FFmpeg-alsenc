@@ -31,23 +31,27 @@
  */
 static void apply_welch_window(const int32_t *data, int len, double *w_data)
 {
-    int i, n2;
+    int i, n2, offset;
     double w;
     double c;
-
-    assert(!(len&1)); //the optimization in r11881 does not support odd len
-                      //if someone wants odd len extend the change in r11881
 
     n2 = (len >> 1);
     c = 2.0 / (len - 1.0);
 
     w_data+=n2;
       data+=n2;
+    offset = 1;
+    if (len & 1) {
+        w_data[0] = data[0];
+        w_data++;
+        data++;
+        offset++;
+    }
     for(i=0; i<n2; i++) {
         w = c * (n2 + i) - 1.0;
         w = 1.0 - (w * w);
-        w_data[-i-1] = data[-i-1] * w;
-        w_data[+i  ] = data[+i  ] * w;
+        w_data[-i-offset] = data[-i-offset] * w;
+        w_data[+i       ] = data[+i       ] * w;
     }
 }
 
