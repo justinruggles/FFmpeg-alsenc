@@ -2514,11 +2514,11 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
         // calculate PARCOR coefficients
         if (block->div_block >= 0)
-            ff_lpc_compute_autocorr(block->cur_ptr, ctx->acf_window[block->div_block],
+            ctx->dsp.lpc_compute_autocorr(block->cur_ptr, ctx->acf_window[block->div_block],
                                           block->length, max_order,
                                           ctx->acf_coeff);
         else
-            ff_lpc_compute_autocorr(block->cur_ptr, NULL, block->length,
+            ctx->dsp.lpc_compute_autocorr(block->cur_ptr, NULL, block->length,
                                           max_order, ctx->acf_coeff);
         compute_ref_coefs(ctx->acf_coeff, max_order, ctx->parcor_coeff,
                           ctx->parcor_error);

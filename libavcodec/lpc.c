@@ -231,7 +231,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
            lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
 
     if (lpc_type == LPC_TYPE_LEVINSON) {
-        ff_lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
+        s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
 
         compute_lpc_coefs(autoc, max_order, ref, &lpc[0][0], MAX_LPC_ORDER, 0, 1, NULL);
     } else if (lpc_type == LPC_TYPE_CHOLESKY) {

@@ -22,6 +22,8 @@
 #include "libavutil/x86_cpu.h"
 #include "dsputil_mmx.h"
 
+DECLARE_ALIGNED(16, const double, ff_pd_0_1)[2] = { 0.0, 1.0 };
+
 static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data)
 {
     double c = 2.0 / (len-1.0);
@@ -32,15 +34,16 @@ static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data
         "movsd   %0,     %%xmm7                \n\t"
         "movapd  "MANGLE(ff_pd_1)", %%xmm6     \n\t"
         "movapd  "MANGLE(ff_pd_2)", %%xmm5     \n\t"
+        "movapd  "MANGLE(ff_pd_0_1)", %%xmm4   \n\t"
         "movlhps %%xmm7, %%xmm7                \n\t"
-        "subpd   %%xmm5, %%xmm7                \n\t"
-        "addsd   %%xmm6, %%xmm7                \n\t"
         ::"m"(c)
     );
 #define WELCH(MOVPD, offset)\
     __asm__ volatile(\
         "1:                                    \n\t"\
         "movapd   %%xmm7,  %%xmm1              \n\t"\
+        "mulpd    %%xmm4,  %%xmm1              \n\t"\
+        "subpd    %%xmm6,  %%xmm1              \n\t"\
         "mulpd    %%xmm1,  %%xmm1              \n\t"\
         "movapd   %%xmm6,  %%xmm0              \n\t"\
         "subpd    %%xmm1,  %%xmm0              \n\t"\
@@ -51,7 +54,7 @@ static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data
         "mulpd    %%xmm1,  %%xmm3              \n\t"\
         "movapd   %%xmm2, (%2,%0,2)            \n\t"\
         MOVPD"    %%xmm3, "#offset"*8(%2,%1,2) \n\t"\
-        "subpd    %%xmm5,  %%xmm7              \n\t"\
+        "addpd    %%xmm5,  %%xmm4              \n\t"\
         "sub      $8,      %1                  \n\t"\
         "add      $8,      %0                  \n\t"\
         "jl 1b                                 \n\t"\
