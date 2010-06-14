@@ -68,6 +68,28 @@ static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data
 #undef WELCH
 }
 
+static void apply_generic_window_sse2(const int32_t *input, int len, const double *window, double *output)
+{
+    int len2 = len - (len & 1);
+    x86_reg i = (len2-2) * sizeof(int32_t);
+
+    if (len & 1) {
+        output[len-1] = input[len-1] * window[len-1];
+    }
+
+    __asm__ volatile(
+        "1:                                     \n\t"
+        "movupd     (%2,%0,2),  %%xmm1          \n\t"
+        "cvtpi2pd   (%1,%0),    %%xmm0          \n\t"
+        "mulpd      %%xmm0,     %%xmm1          \n\t"
+        "movapd     %%xmm1,     (%3,%0,2)       \n\t"
+        "sub        $8,         %0              \n\t"
+        "jge 1b                                 \n\t"
+        :"+&r"(i)
+        :"r"(input), "r"(window), "r"(output)
+    );
+}
+
 void ff_lpc_compute_autocorr_sse2(const int32_t *data, const double *window,
                                   int len, int lag, double *autoc)
 {
@@ -79,8 +101,7 @@ void ff_lpc_compute_autocorr_sse2(const int32_t *data, const double *window,
         data1++;
 
     if (window) {
-        for (j = 0; j < len; j++)
-            data1[j] = data[j] * window[j];
+        apply_generic_window_sse2(data, len, window, data1);
     } else {
         apply_welch_window_sse2(data, len, data1);
     }
