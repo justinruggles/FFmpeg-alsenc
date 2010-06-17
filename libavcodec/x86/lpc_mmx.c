@@ -79,10 +79,9 @@ static void apply_generic_window_sse2(const int32_t *input, int len, const doubl
 
     __asm__ volatile(
         "1:                                     \n\t"
-        "movupd     (%2,%0,2),  %%xmm1          \n\t"
         "cvtpi2pd   (%1,%0),    %%xmm0          \n\t"
-        "mulpd      %%xmm0,     %%xmm1          \n\t"
-        "movapd     %%xmm1,     (%3,%0,2)       \n\t"
+        "mulpd      (%2,%0,2),  %%xmm0          \n\t"
+        "movapd     %%xmm0,     (%3,%0,2)       \n\t"
         "sub        $8,         %0              \n\t"
         "jge 1b                                 \n\t"
         :"+&r"(i)
