@@ -70,10 +70,11 @@ static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data
 
 static void apply_generic_window_sse2(const int32_t *input, int len, const double *window, double *output)
 {
-    int len2  = len - (len & 1);
+    int rem   = len & 1;
+    int len2  = len - rem;
     x86_reg i = (len2 - 2) * sizeof(int32_t);
 
-    if (len & 1)
+    if (rem)
         output[len-1] = input[len-1] * window[len-1];
 
 #define GENERIC_WINDOW(MOVPD)\
