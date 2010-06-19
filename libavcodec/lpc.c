@@ -251,7 +251,7 @@ int ff_lpc_calc_coefs(DSPContext *s,
             //        Cholesky factorization.
             opt_order = max_order;
         } else {
-        opt_order = estimate_best_order(ref, min_order, max_order);
+            opt_order = estimate_best_order(ref, min_order, max_order);
         }
         i = opt_order-1;
         quantize_lpc_coefs(lpc[i], i+1, precision, coefs[i], &shift[i], max_shift, zero_shift);
