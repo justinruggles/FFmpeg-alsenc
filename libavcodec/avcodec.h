@@ -2677,6 +2677,11 @@ typedef struct AVCodecContext {
      * - decoding: unused
      */
     int lpc_type;
+#define FF_LPC_TYPE_DEFAULT   -1
+#define FF_LPC_TYPE_NONE       0
+#define FF_LPC_TYPE_FIXED      1
+#define FF_LPC_TYPE_LEVINSON   2
+#define FF_LPC_TYPE_CHOLESKY   3
 
     /**
      * Sets the number of passes to use for Cholesky factorization during LPC analysis.

@@ -232,13 +232,13 @@ int ff_lpc_calc_coefs(DSPContext *s,
     int opt_order;
 
     assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
-           lpc_type > LPC_TYPE_FIXED && lpc_type < LPC_TYPE_CHOLESKY);
+           lpc_type > FF_LPC_TYPE_FIXED && lpc_type < FF_LPC_TYPE_CHOLESKY);
 
-    if (lpc_type == LPC_TYPE_LEVINSON) {
+    if (lpc_type == FF_LPC_TYPE_LEVINSON) {
         s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
 
         compute_lpc_coefs(autoc, max_order, ref, &lpc[0][0], MAX_LPC_ORDER, 0, 1, NULL);
-    } else if (lpc_type == LPC_TYPE_CHOLESKY) {
+    } else if (lpc_type == FF_LPC_TYPE_CHOLESKY) {
         ff_lpc_calc_coefs_cholesky(samples, blocksize, max_order, lpc_passes,
                                    omethod == ORDER_METHOD_EST ? ref : NULL,
                                    &lpc[0][0], MAX_LPC_ORDER);

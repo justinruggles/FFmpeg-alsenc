@@ -32,12 +32,6 @@
 #define ORDER_METHOD_SEARCH  4
 #define ORDER_METHOD_LOG     5
 
-#define LPC_TYPE_DEFAULT   -1
-#define LPC_TYPE_NONE       0
-#define LPC_TYPE_FIXED      1
-#define LPC_TYPE_LEVINSON   2
-#define LPC_TYPE_CHOLESKY   3
-
 #define MIN_LPC_ORDER        1
 #define MAX_LPC_ORDER       32
 

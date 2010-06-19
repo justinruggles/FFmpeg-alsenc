@@ -416,7 +416,11 @@ static const AVOption options[]={
 {"intra_refresh", "use periodic insertion of intra blocks instead of keyframes", 0, FF_OPT_TYPE_CONST, CODEC_FLAG2_INTRA_REFRESH, INT_MIN, INT_MAX, V|E, "flags2"},
 {"crf_max", "in crf mode, prevents vbv from lowering quality beyond this point", OFFSET(crf_max), FF_OPT_TYPE_FLOAT, DEFAULT, 0, 51, V|E},
 {"log_level_offset", "set the log level offset", OFFSET(log_level_offset), FF_OPT_TYPE_INT, 0, INT_MIN, INT_MAX },
-{"lpc_type", "sets which LPC algorithm to use", OFFSET(lpc_type), FF_OPT_TYPE_INT, -1, INT_MIN, INT_MAX, A|E},
+{"lpc_type", "sets which LPC algorithm to use", OFFSET(lpc_type), FF_OPT_TYPE_INT, FF_LPC_TYPE_DEFAULT, INT_MIN, INT_MAX, A|E},
+{"none",     NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_NONE,     INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"fixed",    NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_FIXED,    INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"levinson", NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_LEVINSON, INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"cholesky", NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_CHOLESKY, INT_MIN, INT_MAX, A|E, "lpc_type"},
 {"lpc_passes", "sets the number of passes to use for Cholesky decomposition during LPC analysis", OFFSET(lpc_passes), FF_OPT_TYPE_INT, -1, INT_MIN, INT_MAX, A|E},
 {NULL},
 };
