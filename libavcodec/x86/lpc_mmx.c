@@ -70,20 +70,19 @@ static void apply_welch_window_sse2(const int32_t *data, int len, double *w_data
 
 static void apply_generic_window_sse2(const int32_t *input, int len, const double *window, double *output)
 {
-    int len2 = len - (len & 1);
-    x86_reg i = (len2-2) * sizeof(int32_t);
+    int len2  = len - (len & 1);
+    x86_reg i = (len2 - 2) * sizeof(int32_t);
 
-    if (len & 1) {
+    if (len & 1)
         output[len-1] = input[len-1] * window[len-1];
-    }
 
     __asm__ volatile(
-        "1:                                     \n\t"
-        "cvtpi2pd   (%1,%0),    %%xmm0          \n\t"
-        "mulpd      (%2,%0,2),  %%xmm0          \n\t"
-        "movapd     %%xmm0,     (%3,%0,2)       \n\t"
-        "sub        $8,         %0              \n\t"
-        "jge 1b                                 \n\t"
+        "1:                                 \n\t"
+        "cvtpi2pd   (%1,%0),    %%xmm0      \n\t"
+        "mulpd      (%2,%0,2),  %%xmm0      \n\t"
+        "movapd     %%xmm0,     (%3,%0,2)   \n\t"
+        "sub        $8,         %0          \n\t"
+        "jge 1b                             \n\t"
         :"+&r"(i)
         :"r"(input), "r"(window), "r"(output)
     );
