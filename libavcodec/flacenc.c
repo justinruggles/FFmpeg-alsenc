@@ -245,7 +245,7 @@ static av_cold int flac_encode_init(AVCodecContext *avctx)
         if (s->options.lpc_type == FF_LPC_TYPE_CHOLESKY) {
             if (avctx->lpc_passes < 0) {
                 // default number of passes for Cholesky
-                s->options.lpc_passes = 1;
+                s->options.lpc_passes = 2;
             } else if (avctx->lpc_passes == 0) {
                 av_log(avctx, AV_LOG_ERROR, "invalid number of lpc passes: %d\n",
                        avctx->lpc_passes);
