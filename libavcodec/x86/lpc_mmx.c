@@ -76,16 +76,22 @@ static void apply_generic_window_sse2(const int32_t *input, int len, const doubl
     if (len & 1)
         output[len-1] = input[len-1] * window[len-1];
 
-    __asm__ volatile(
-        "1:                                 \n\t"
-        "cvtpi2pd   (%1,%0),    %%xmm0      \n\t"
-        "mulpd      (%2,%0,2),  %%xmm0      \n\t"
-        "movapd     %%xmm0,     (%3,%0,2)   \n\t"
-        "sub        $8,         %0          \n\t"
-        "jge 1b                             \n\t"
-        :"+&r"(i)
-        :"r"(input), "r"(window), "r"(output)
+#define GENERIC_WINDOW(MOVPD)\
+    __asm__ volatile(\
+        "1:                                 \n\t"\
+        "cvtpi2pd   (%1,%0),    %%xmm0      \n\t"\
+        "mulpd      (%2,%0,2),  %%xmm0      \n\t"\
+        MOVPD"      %%xmm0,     (%3,%0,2)   \n\t"\
+        "sub        $8,         %0          \n\t"\
+        "jge 1b                             \n\t"\
+        :"+&r"(i)\
+        :"r"(input), "r"(window), "r"(output)\
     );
+    if((x86_reg)output & 15)
+        GENERIC_WINDOW("movupd")
+    else
+        GENERIC_WINDOW("movapd")
+#undef GENERIC_WINDOW
 }
 
 void ff_lpc_compute_autocorr_sse2(const int32_t *data, const double *window,
