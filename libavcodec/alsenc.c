@@ -3289,7 +3289,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
     sconf->samples = 0;
 
     channel_offset = sconf->long_term_prediction ? ALS_MAX_LTP_LAG : sconf->max_order;
+    if (channel_offset & 3)
+        channel_offset = (channel_offset & ~3) + 4;
     channel_size   = sconf->frame_length + channel_offset;
+    if (channel_size & 3)
+        channel_size = (channel_size & ~3) + 4;
 
     // set up stage options
     AV_PMALLOC(ctx->stages, NUM_STAGES);
@@ -3367,7 +3371,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     AV_PMALLOC (ctx->lpc_coeff,         sconf->max_order);
     AV_PMALLOC (ctx->parcor_error,      sconf->max_order);
     AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
-    AV_PMALLOC (ctx->acf_window_buffer, sconf->frame_length * 2);
+    AV_PMALLOC (ctx->acf_window_buffer, (sconf->frame_length + 1) * 2);
 
 
     // check buffers
@@ -3385,6 +3389,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     if (sconf->long_term_prediction) {
         int ltp_end          = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
+        if (ltp_end & 3)
+            ltp_end = (ltp_end & ~3) + 4;
         AV_PMALLOC(ctx->ltp_buffer,      avctx->channels * channel_size);
         AV_PMALLOC(ctx->ltp_samples,     avctx->channels);
         AV_PMALLOC(ctx->ltp_corr_buffer, sconf->frame_length + ltp_end);
@@ -3472,6 +3478,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // initialize autocorrelation window for each block size
     for (b = 0; b <= sconf->block_switching; b++) {
         int block_length = sconf->frame_length / (1 << b);
+        if (block_length & 1)
+            block_length++;
         if (!b)
             ctx->acf_window[b] = ctx->acf_window_buffer;
         else
