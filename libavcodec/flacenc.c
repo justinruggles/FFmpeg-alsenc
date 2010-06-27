@@ -1293,6 +1293,7 @@ static av_cold int flac_encode_close(AVCodecContext *avctx)
     if (avctx->priv_data) {
         FlacEncodeContext *s = avctx->priv_data;
         av_freep(&s->md5ctx);
+        ff_window_close(&s->wctx);
     }
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;

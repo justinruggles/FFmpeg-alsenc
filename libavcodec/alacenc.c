@@ -71,6 +71,7 @@ typedef struct AlacEncodeContext {
     RiceContext rc;
     LPCContext lpc[MAX_CHANNELS];
     DSPContext dspctx;
+    WindowContext wctx;
     AVCodecContext *avctx;
 } AlacEncodeContext;
 
@@ -141,12 +142,12 @@ static void calc_predictor_params(AlacEncodeContext *s, int ch)
         s->lpc[ch].lpc_coeff[4] =   80;
         s->lpc[ch].lpc_coeff[5] =  -25;
     } else {
-        opt_order = ff_lpc_calc_coefs(&s->dspctx, s->sample_buf[ch],
+        opt_order = ff_lpc_calc_coefs(&s->dspctx, &s->wctx, s->sample_buf[ch],
                                       s->avctx->frame_size,
                                       s->min_prediction_order,
                                       s->max_prediction_order,
                                       ALAC_MAX_LPC_PRECISION, coefs, shift,
-                                      LPC_TYPE_LEVINSON, 0,
+                                      FF_LPC_TYPE_LEVINSON, 0,
                                       ORDER_METHOD_EST, ALAC_MAX_LPC_SHIFT, 1);
 
         s->lpc[ch].lpc_order = opt_order;
@@ -456,6 +457,7 @@ static av_cold int alac_encode_init(AVCodecContext *avctx)
 
     s->avctx = avctx;
     dsputil_init(&s->dspctx, avctx);
+    ff_window_init(&s->wctx, WINDOW_TYPE_WELCH, avctx->frame_size, 0);
 
     return 0;
 }
@@ -513,6 +515,10 @@ verbatim:
 
 static av_cold int alac_encode_close(AVCodecContext *avctx)
 {
+    if (avctx->priv_data) {
+        AlacEncodeContext *s = avctx->priv_data;
+        ff_window_close(&s->wctx);
+    }
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
     av_freep(&avctx->coded_frame);

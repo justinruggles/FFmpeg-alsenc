@@ -236,7 +236,6 @@ typedef struct {
     double *parcor_error;           ///< error for each order during PARCOR coeff calculation
     unsigned int max_rice_param;    ///< maximum Rice param, depends on sample depth
     WindowContext acf_window[6];    ///< contexts for pre-autocorrelation windows for each block switching depth
-    WindowContext acf_window_last;  ///< contexts for pre-autocorrelation windows for last frame (short frame size)
     int32_t *ltp_buffer;            ///< temporary buffer to store long-term predicted samples
     int32_t **ltp_samples;          ///< pointer to the beginning of the current frame's ltp residuals in the buffer for each channel
     double *corr_buffer;            ///< temporary buffer to store the signal during LTP autocorrelation
@@ -3181,6 +3180,7 @@ static av_cold int get_specific_config(AVCodecContext *avctx)
 
 static av_cold int encode_end(AVCodecContext *avctx)
 {
+    int b;
     ALSEncContext *ctx = avctx->priv_data;
 
     av_freep(&ctx->stages);
@@ -3212,6 +3212,9 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->ltp_buffer);
     av_freep(&ctx->ltp_samples);
     av_freep(&ctx->corr_buffer);
+
+    for (b = 0; b < 6; b++)
+        ff_window_close(&ctx->acf_window[b]);
 
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
@@ -3361,11 +3364,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
     if (sconf->long_term_prediction || sconf->max_order > 0) {
         int corr_pad = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
-        corr_pad     = FFMAX(corr_pad, sconf->max_order);
+        corr_pad     = FFMAX(corr_pad, sconf->max_order + 1);
         if (corr_pad & 1)
             corr_pad++;
 
-        AV_PMALLOC(ctx->corr_buffer, sconf->frame_length + corr_pad);
+        AV_PMALLOCZ(ctx->corr_buffer, sconf->frame_length + 1 + corr_pad);
         if (!ctx->corr_buffer) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
             encode_end(avctx);
@@ -3454,7 +3457,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
         if (!sconf->block_switching)
             break;
     }
-    ff_window_init(&ctx->acf_window_last, WINDOW_TYPE_SINERECT, -1, 4.0);
 
     // initialize CRC calculation
     if (sconf->crc_enabled) {

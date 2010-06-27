@@ -200,7 +200,7 @@ int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
         w_pad = (max_order + 1);
         if (w_pad & 1)
             w_pad++;
-        w_buffer = av_mallocz(sizeof(double) * (blocksize + w_pad));
+        w_buffer = av_mallocz(sizeof(double) * (blocksize + 1 + w_pad));
         if (!w_buffer)
             return max_order;
         w_samples = w_buffer + w_pad;
