@@ -40,6 +40,7 @@ RDFT-OBJS-$(CONFIG_HARDCODED_TABLES)   += sin_tables.o
 OBJS-$(CONFIG_RDFT)                    += rdft.o $(RDFT-OBJS-yes)
 OBJS-$(CONFIG_VAAPI)                   += vaapi.o
 OBJS-$(CONFIG_VDPAU)                   += vdpau.o
+OBJS-$(CONFIG_WINDOW)                  += window.o
 
 # decoders/encoders/hardware accelerators
 OBJS-$(CONFIG_AAC_DECODER)             += aacdec.o aactab.o aacsbr.o
@@ -53,7 +54,7 @@ OBJS-$(CONFIG_AC3_ENCODER)             += ac3enc.o ac3tab.o ac3.o
 OBJS-$(CONFIG_ALAC_DECODER)            += alac.o
 OBJS-$(CONFIG_ALAC_ENCODER)            += alacenc.o
 OBJS-$(CONFIG_ALS_DECODER)             += alsdec.o als_data.o als.o bgmc.o mpeg4audio.o
-OBJS-$(CONFIG_ALS_ENCODER)             += alsenc.o als_data.o als.o
+OBJS-$(CONFIG_ALS_ENCODER)             += alsenc.o als_data.o als.o window.o
 OBJS-$(CONFIG_AMRNB_DECODER)           += amrnbdec.o celp_filters.o   \
                                           celp_math.o acelp_filters.o \
                                           acelp_vectors.o             \

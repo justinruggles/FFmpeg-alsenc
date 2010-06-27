@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include "dsputil.h"
+#include "window.h"
 
 #define ORDER_METHOD_EST     0
 #define ORDER_METHOD_2LEVEL  1
@@ -39,14 +40,14 @@
 /**
  * Calculate LPC coefficients for multiple orders
  */
-int ff_lpc_calc_coefs(DSPContext *s,
+int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
                       int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
                       int lpc_passes, int omethod, int max_shift,
                       int zero_shift);
 
-void ff_lpc_compute_autocorr(const int32_t *data, const double *window,
+void ff_lpc_compute_autocorr(const double *data,
                              int len, int lag, double *autoc);
 
 /**

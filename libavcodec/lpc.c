@@ -26,58 +26,16 @@
 #include "lpc.h"
 
 
-/**
- * Apply Welch window function to audio block
- */
-static void apply_welch_window(const int32_t *data, int len, double *w_data)
-{
-    int i, n2, offset;
-    double w;
-    double c;
-
-    n2 = (len >> 1);
-    c = 2.0 / (len - 1.0);
-
-    w_data+=n2;
-      data+=n2;
-    offset = 1;
-    if (len & 1) {
-        w_data[0] = data[0];
-        w_data++;
-        data++;
-        offset++;
-    }
-    for(i=0; i<n2; i++) {
-        w = c * (n2 + i) - 1.0;
-        w = 1.0 - (w * w);
-        w_data[-i-offset] = data[-i-offset] * w;
-        w_data[+i       ] = data[+i       ] * w;
-    }
-}
-
-void ff_lpc_compute_autocorr(const int32_t *data, const double *window,
+void ff_lpc_compute_autocorr(const double *data,
                              int len, int lag, double *autoc)
 {
     int i, j;
-    double tmp[len + lag + 1];
-    double *data1= tmp + lag;
-
-    if (window) {
-        for (i = 0; i < len; i++)
-            data1[i] = data[i] * window[i];
-    } else {
-        apply_welch_window(data, len, data1);
-    }
-
-    for(j=0; j<lag; j++)
-        data1[j-lag]= 0.0;
-    data1[len] = 0.0;
 
     for(j=0; j<lag; j+=2){
         double sum0 = 1.0, sum1 = 1.0;
         for(i=j; i<len; i++){
-            sum0 += data1[i] * data1[i-j];
-            sum1 += data1[i] * data1[i-j-1];
+            sum0 += data[i] * data[i-j];
+            sum1 += data[i] * data[i-j-1];
         }
         autoc[j  ] = sum0;
         autoc[j+1] = sum1;
@@ -86,8 +44,8 @@ void ff_lpc_compute_autocorr(const int32_t *data, const double *window,
     if(j==lag){
         double sum = 1.0;
         for(i=j-1; i<len; i+=2){
-            sum += data1[i  ] * data1[i-j  ]
-                 + data1[i+1] * data1[i-j+1];
+            sum += data[i  ] * data[i-j  ]
+                 + data[i+1] * data[i-j+1];
         }
         autoc[j] = sum;
     }
@@ -218,7 +176,7 @@ static int estimate_best_order(double *ref, int min_order, int max_order)
  * 3  = LPC with coeffs determined by Cholesky factorization
  * @param lpc_passes Number of passes to use for Cholesky factorization
  */
-int ff_lpc_calc_coefs(DSPContext *s,
+int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
                       int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
@@ -235,9 +193,23 @@ int ff_lpc_calc_coefs(DSPContext *s,
            lpc_type > FF_LPC_TYPE_FIXED && lpc_type < FF_LPC_TYPE_CHOLESKY);
 
     if (lpc_type == FF_LPC_TYPE_LEVINSON) {
-        s->lpc_compute_autocorr(samples, NULL, blocksize, max_order, autoc);
+        int w_pad;
+        double *w_buffer, *w_samples;
+
+        // allocate buffer for windowed samples
+        w_pad = (max_order + 1);
+        if (w_pad & 1)
+            w_pad++;
+        w_buffer = av_mallocz(sizeof(double) * (blocksize + w_pad));
+        if (!w_buffer)
+            return max_order;
+        w_samples = w_buffer + w_pad;
+
+        ff_window_apply(wctx, samples, w_samples, blocksize);
+        s->lpc_compute_autocorr(w_samples, blocksize, max_order, autoc);
 
         compute_lpc_coefs(autoc, max_order, ref, &lpc[0][0], MAX_LPC_ORDER, 0, 1, NULL);
+        av_freep(&w_buffer);
     } else if (lpc_type == FF_LPC_TYPE_CHOLESKY) {
         ff_lpc_calc_coefs_cholesky(samples, blocksize, max_order, lpc_passes,
                                    omethod == ORDER_METHOD_EST ? ref : NULL,

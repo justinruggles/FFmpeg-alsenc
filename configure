@@ -109,6 +109,7 @@ Configuration options:
   --disable-lpc            disable LPC code
   --disable-mdct           disable MDCT code
   --disable-rdft           disable RDFT code
+  --disable-window         disable audio window functions code
   --disable-vaapi          disable VAAPI code
   --disable-vdpau          disable VDPAU code
   --disable-dxva2          disable DXVA2 code
@@ -951,6 +952,7 @@ CONFIG_LIST="
     vaapi
     vdpau
     version3
+    window
     x11grab
     zlib
 "
@@ -1201,6 +1203,7 @@ inline_asm_deps="!tms470"
 # subsystems
 mdct_select="fft"
 rdft_select="fft"
+lpc_select="window"
 
 # decoders / encoders / hardware accelerators
 aac_decoder_select="mdct rdft aac_parser"

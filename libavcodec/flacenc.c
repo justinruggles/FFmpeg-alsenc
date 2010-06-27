@@ -95,6 +95,7 @@ typedef struct FlacEncodeContext {
     CompressionOptions options;
     AVCodecContext *avctx;
     DSPContext dsp;
+    WindowContext wctx;
     struct AVMD5 *md5ctx;
 } FlacEncodeContext;
 
@@ -372,6 +373,9 @@ static av_cold int flac_encode_init(AVCodecContext *avctx)
     }
     s->max_blocksize = s->avctx->frame_size;
     av_log(avctx, AV_LOG_DEBUG, " block size: %d\n", s->avctx->frame_size);
+
+    /* initialize pre-autocorrelation window context */
+    ff_window_init(&s->wctx, WINDOW_TYPE_WELCH, avctx->frame_size, 0);
 
     /* set LPC precision */
     if(avctx->lpc_coeff_precision > 0) {
@@ -823,7 +827,7 @@ static int encode_residual(FlacEncodeContext *ctx, int ch)
     }
 
     /* LPC */
-    opt_order = ff_lpc_calc_coefs(&ctx->dsp, smp, n, min_order, max_order,
+    opt_order = ff_lpc_calc_coefs(&ctx->dsp, &ctx->wctx, smp, n, min_order, max_order,
                                   precision, coefs, shift, ctx->options.lpc_type,
                                   ctx->options.lpc_passes, omethod,
                                   MAX_LPC_SHIFT, 0);

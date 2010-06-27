@@ -167,7 +167,7 @@ void ff_vc1dsp_init_mmx(DSPContext* dsp, AVCodecContext *avctx);
 void ff_put_vc1_mspel_mc00_mmx(uint8_t *dst, const uint8_t *src, int stride, int rnd);
 void ff_avg_vc1_mspel_mc00_mmx2(uint8_t *dst, const uint8_t *src, int stride, int rnd);
 
-void ff_lpc_compute_autocorr_sse2(const int32_t *data, const double *window,
+void ff_lpc_compute_autocorr_sse2(const double *data,
                                   int len, int lag, double *autoc);
 
 void ff_mmx_idct(DCTELEM *block);

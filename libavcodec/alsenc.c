@@ -42,6 +42,7 @@
 #include "mpeg4audio.h"
 #include "audioconvert.h"
 #include "bgmc.h"
+#include "window.h"
 #include "libavutil/crc.h"
 #include "libavutil/lls.h"
 
@@ -234,12 +235,12 @@ typedef struct {
     int32_t *lpc_coeff;             ///< LPC coefficients for the current block
     double *parcor_error;           ///< error for each order during PARCOR coeff calculation
     unsigned int max_rice_param;    ///< maximum Rice param, depends on sample depth
-    double *acf_window_buffer;      ///< buffer containing all pre-calculated autocorrelation windows
-    double *acf_window[6];          ///< pre-calculated autocorrelation windows for each block switching depth
+    WindowContext acf_window[6];    ///< contexts for pre-autocorrelation windows for each block switching depth
+    WindowContext acf_window_last;  ///< contexts for pre-autocorrelation windows for last frame (short frame size)
     int32_t *ltp_buffer;            ///< temporary buffer to store long-term predicted samples
     int32_t **ltp_samples;          ///< pointer to the beginning of the current frame's ltp residuals in the buffer for each channel
-    double *ltp_corr_buffer;        ///< temporary buffer to store the signal during LTP autocorrelation
-    double *ltp_corr_samples;       ///< pointer to the beginning of the block in ltp_corr_buffer
+    double *corr_buffer;            ///< temporary buffer to store the signal during LTP autocorrelation
+    double *corr_samples;           ///< pointer to the beginning of the block in corr_buffer
 } ALSEncContext;
 
 
@@ -2182,7 +2183,7 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
     int len          = (int)block->length;
     int32_t *cur_ptr = block->cur_ptr;
     uint64_t sum     = 0;
-    double *corr_ptr = ctx->ltp_corr_samples;
+    double *corr_ptr = ctx->corr_samples;
     double mean_quot;
     int i;
 
@@ -2231,7 +2232,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
     double autoc_max;
     double autoc[lag_max];
 
-    compute_autocorr_norm(ctx->ltp_corr_samples, block->length, lag_max, 1, autoc);
+    compute_autocorr_norm(ctx->corr_samples, block->length, lag_max, 1, autoc);
 
     autoc_max = autoc[start];
     i_max     = start;
@@ -2272,7 +2273,7 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
     int len          = (int)block->length;
     int taumax       = block->ltp_info[block->js_block].lag;
     int *ltp_gain    = block->ltp_info[block->js_block].gain;
-    double *corr_ptr = ctx->ltp_corr_samples;
+    double *corr_ptr = ctx->corr_samples;
     double *corr_ptr_lag;
     LLSModel m;
     double *c = &m.covariance[0][1];
@@ -2506,6 +2507,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
     max_order = ctx->cur_stage->max_order;
     if (sconf->max_order) {
+        double *corr_ptr;
+
         if (sconf->adapt_order) {
             int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
                                                 2, sconf->max_order + 1));
@@ -2513,13 +2516,15 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
         }
 
         // calculate PARCOR coefficients
-        if (block->div_block >= 0)
-            ctx->dsp.lpc_compute_autocorr(block->cur_ptr, ctx->acf_window[block->div_block],
-                                          block->length, max_order,
-                                          ctx->acf_coeff);
-        else
-            ctx->dsp.lpc_compute_autocorr(block->cur_ptr, NULL, block->length,
-                                          max_order, ctx->acf_coeff);
+        corr_ptr = ctx->corr_buffer;
+        while (corr_ptr < ctx->corr_samples)
+            *corr_ptr++ = 0.0;
+        ff_window_apply(&ctx->acf_window[FFMAX(0, block->div_block)],
+                        block->cur_ptr, corr_ptr, block->length);
+
+        ctx->dsp.lpc_compute_autocorr(corr_ptr, block->length, max_order,
+                                      ctx->acf_coeff);
+
         compute_ref_coefs(ctx->acf_coeff, max_order, ctx->parcor_coeff,
                           ctx->parcor_error);
 
@@ -3204,62 +3209,15 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->r_parcor_coeff);
     av_freep(&ctx->lpc_coeff);
     av_freep(&ctx->parcor_error);
-    av_freep(&ctx->acf_window);
     av_freep(&ctx->ltp_buffer);
     av_freep(&ctx->ltp_samples);
-    av_freep(&ctx->ltp_corr_buffer);
+    av_freep(&ctx->corr_buffer);
 
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
     av_freep(&avctx->coded_frame);
 
     return 0;
-}
-
-
-static void init_rect_window(double *window, int len)
-{
-    int i;
-    for (i = 0; i < len; i++)
-        window[i] = 1.0;
-}
-
-
-static void init_hannrect_window(double *window, int len, double param)
-{
-    int i;
-    int side_len = lrint(len / (2 * param));
-    double phi   = param * 2.0 * M_PI / (len - 1);
-
-    init_rect_window(window, len);
-
-    if (side_len < 4)
-        return;
-
-    for (i = 0; i < side_len; i++) {
-        double w        = 0.5 - 0.5 * cos(phi * i);
-        window[i]       = w;
-        window[len-i-1] = w;
-    }
-}
-
-
-static void init_sinerect_window(double *window, int len, double param)
-{
-    int i;
-    int side_len = lrint(len / (2 * param));
-    double phi   = param * M_PI / (len - 1);
-
-    init_rect_window(window, len);
-
-    if (side_len < 4)
-        return;
-
-    for (i = 0; i < side_len; i++) {
-        double w        = sin(phi * i);
-        window[i]       = w;
-        window[len-i-1] = w;
-    }
 }
 
 
@@ -3371,7 +3329,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
     AV_PMALLOC (ctx->lpc_coeff,         sconf->max_order);
     AV_PMALLOC (ctx->parcor_error,      sconf->max_order);
     AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
-    AV_PMALLOC (ctx->acf_window_buffer, (sconf->frame_length + 1) * 2);
 
 
     // check buffers
@@ -3388,16 +3345,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     if (sconf->long_term_prediction) {
-        int ltp_end          = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
-        if (ltp_end & 3)
-            ltp_end = (ltp_end & ~3) + 4;
         AV_PMALLOC(ctx->ltp_buffer,      avctx->channels * channel_size);
         AV_PMALLOC(ctx->ltp_samples,     avctx->channels);
-        AV_PMALLOC(ctx->ltp_corr_buffer, sconf->frame_length + ltp_end);
 
-        ctx->ltp_corr_samples = ctx->ltp_corr_buffer + ltp_end;
-
-        if (!ctx->ltp_buffer || !ctx->ltp_samples || !ctx->ltp_corr_buffer) {
+        if (!ctx->ltp_buffer || !ctx->ltp_samples) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
             encode_end(avctx);
             return AVERROR(ENOMEM);
@@ -3407,6 +3358,20 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->ltp_samples[0] = ctx->ltp_buffer + channel_offset;
         for (c = 1; c < avctx->channels; c++)
             ctx->ltp_samples[c] = ctx->ltp_samples[c - 1] + channel_size;
+    }
+    if (sconf->long_term_prediction || sconf->max_order > 0) {
+        int corr_pad = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
+        corr_pad     = FFMAX(corr_pad, sconf->max_order);
+        if (corr_pad & 1)
+            corr_pad++;
+
+        AV_PMALLOC(ctx->corr_buffer, sconf->frame_length + corr_pad);
+        if (!ctx->corr_buffer) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            encode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
+        ctx->corr_samples = ctx->corr_buffer + corr_pad;
     }
 
     // assign buffer pointers
@@ -3480,17 +3445,16 @@ static av_cold int encode_init(AVCodecContext *avctx)
         int block_length = sconf->frame_length / (1 << b);
         if (block_length & 1)
             block_length++;
-        if (!b)
-            ctx->acf_window[b] = ctx->acf_window_buffer;
-        else
-            ctx->acf_window[b] = ctx->acf_window[b-1] + block_length;
+
         if (avctx->sample_rate <= 48000)
-            init_sinerect_window(ctx->acf_window[b], block_length, 4);
+            ff_window_init(&ctx->acf_window[b], WINDOW_TYPE_SINERECT, block_length, 4.0);
         else
-            init_hannrect_window(ctx->acf_window[b], block_length, 4);
+            ff_window_init(&ctx->acf_window[b], WINDOW_TYPE_HANNRECT, block_length, 4.0);
+
         if (!sconf->block_switching)
             break;
     }
+    ff_window_init(&ctx->acf_window_last, WINDOW_TYPE_SINERECT, -1, 4.0);
 
     // initialize CRC calculation
     if (sconf->crc_enabled) {

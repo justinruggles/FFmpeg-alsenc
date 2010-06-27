@@ -13,6 +13,9 @@ MMX-OBJS-$(CONFIG_CAVS_DECODER)        += x86/cavsdsp_mmx.o
 MMX-OBJS-$(CONFIG_ENCODERS)            += x86/dsputilenc_mmx.o
 MMX-OBJS-$(CONFIG_GPL)                 += x86/idct_mmx.o
 MMX-OBJS-$(CONFIG_LPC)                 += x86/lpc_mmx.o
+MMX-OBJS-WINDOW-$(HAVE_SSE)            += x86/window_sse2.o
+MMX-OBJS-$(CONFIG_WINDOW)              += x86/window.o                  \
+                                          $(MMX-OBJS-WINDOW-yes)
 MMX-OBJS-$(CONFIG_DWT)                 += x86/snowdsp_mmx.o
 MMX-OBJS-$(CONFIG_VC1_DECODER)         += x86/vc1dsp_mmx.o
 MMX-OBJS-$(CONFIG_VP3_DECODER)         += x86/vp3dsp_mmx.o              \
