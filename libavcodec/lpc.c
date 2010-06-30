@@ -190,25 +190,25 @@ int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
     int opt_order;
 
     assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
-           lpc_type > FF_LPC_TYPE_FIXED && lpc_type < FF_LPC_TYPE_CHOLESKY);
+           lpc_type > FF_LPC_TYPE_FIXED);
 
     if (lpc_type == FF_LPC_TYPE_LEVINSON) {
         int w_pad;
         double *w_buffer, *w_samples;
 
         // allocate buffer for windowed samples
-        w_pad = (max_order + 1);
-        if (w_pad & 1)
-            w_pad++;
-        w_buffer = av_mallocz(sizeof(double) * (blocksize + 1 + w_pad));
+        w_pad = max_order + (max_order & 0x1);
+        w_buffer = av_mallocz(sizeof(*w_buffer) * (blocksize + (blocksize & 0x1) + w_pad));
         if (!w_buffer)
-            return max_order;
+            return AVERROR(ENOMEM);
         w_samples = w_buffer + w_pad;
 
+        // window, autocorrelation, levinson-durbin
         ff_window_apply(wctx, samples, w_samples, blocksize);
         s->lpc_compute_autocorr(w_samples, blocksize, max_order, autoc);
-
         compute_lpc_coefs(autoc, max_order, ref, &lpc[0][0], MAX_LPC_ORDER, 0, 1, NULL);
+
+        // free windowed sample buffer
         av_freep(&w_buffer);
     } else if (lpc_type == FF_LPC_TYPE_CHOLESKY) {
         ff_lpc_calc_coefs_cholesky(samples, blocksize, max_order, lpc_passes,
