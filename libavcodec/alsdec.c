@@ -38,6 +38,7 @@
 #include "mpeg4audio.h"
 #include "bytestream.h"
 #include "bgmc.h"
+#include "dsputil.h"
 #include "libavutil/crc.h"
 
 #include <stdint.h>
@@ -67,6 +68,7 @@ typedef struct {
     AVCodecContext *avctx;
     ALSSpecificConfig sconf;
     GetBitContext gb;
+    DSPContext dsp;
     const AVCRC *crc_table;
     uint32_t crc_org;               ///< CRC value of the original input data
     uint32_t crc;                   ///< CRC value calculated from decoded data
@@ -1257,38 +1259,48 @@ static int decode_frame(AVCodecContext *avctx,
 
     // update CRC
     if (sconf->crc_enabled && avctx->error_recognition >= FF_ER_CAREFUL) {
-        uint8_t *crc_source;
+        int swap = HAVE_BIGENDIAN != sconf->msb_first;
 
-        #define CONVERT_OUTPUT(bps, fun)                            \
-        {                                                           \
-            int##bps##_t *src  = (int##bps##_t*) data;              \
-            int##bps##_t *dest = (int##bps##_t*) ctx->crc_buffer;   \
-            for (sample = 0;                                        \
-                 sample < ctx->cur_frame_length * avctx->channels;  \
-                 sample++)                                          \
-                    *dest++ = fun##_##bps (src[sample]);            \
+        if (ctx->avctx->bits_per_raw_sample == 24) {
+            int32_t *src = data;
+
+            for (sample = 0;
+                 sample < ctx->cur_frame_length * avctx->channels;
+                 sample++) {
+                int32_t v;
+
+                if (swap)
+                    v = bswap_32(src[sample]);
+                else
+                    v = src[sample];
+                if (!HAVE_BIGENDIAN)
+                    v >>= 8;
+
+                ctx->crc = av_crc(ctx->crc_table, ctx->crc, (uint8_t*)(&v), 3);
+            }
+        } else {
+            uint8_t *crc_source;
+
+            if (swap) {
+                if (ctx->avctx->bits_per_raw_sample <= 16) {
+                    int16_t *src  = (int16_t*) data;
+                    int16_t *dest = (int16_t*) ctx->crc_buffer;
+                    for (sample = 0;
+                         sample < ctx->cur_frame_length * avctx->channels;
+                         sample++)
+                        *dest++ = bswap_16(src[sample]);
+                } else {
+                    ctx->dsp.bswap_buf((uint32_t*)ctx->crc_buffer, data,
+                                       ctx->cur_frame_length * avctx->channels);
+                }
+                crc_source = ctx->crc_buffer;
+            } else {
+                crc_source = data;
+            }
+
+            ctx->crc = av_crc(ctx->crc_table, ctx->crc, crc_source, size);
         }
 
-        #define COND_CONVERT(cond, func)                   \
-        {                                                  \
-            if (cond) {                                    \
-                if (ctx->avctx->bits_per_raw_sample <= 16) \
-                    CONVERT_OUTPUT(16, func)               \
-                else                                       \
-                    CONVERT_OUTPUT(32, func)               \
-                crc_source = ctx->crc_buffer;              \
-            } else {                                       \
-                crc_source = data;                         \
-            }                                              \
-        }
-
-#if HAVE_BIGENDIAN
-        COND_CONVERT(!sconf->msb_first, le2me);
-#else
-        COND_CONVERT( sconf->msb_first, be2me);
-#endif
-
-        ctx->crc = av_crc(ctx->crc_table, ctx->crc, crc_source, size);
 
         // check CRC sums if this is the last frame
         if (ctx->cur_frame_length != sconf->frame_length &&
@@ -1468,27 +1480,20 @@ static av_cold int decode_init(AVCodecContext *avctx)
         ctx->raw_samples[c] = ctx->raw_samples[c - 1] + channel_size;
 
     // allocate crc buffer
-    #define COND_MALLOC(cond)                                       \
-    {                                                               \
-        if ((cond) &&  sconf->crc_enabled &&                        \
-            avctx->error_recognition >= FF_ER_CAREFUL) {            \
-            ctx->crc_buffer = av_malloc(sizeof(*ctx->crc_buffer) *  \
-                                        ctx->cur_frame_length *     \
-                                        avctx->channels *           \
-                                        (av_get_bits_per_sample_format(avctx->sample_fmt) >> 3)); \
-            if (!ctx->crc_buffer) {                                 \
-                av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n"); \
-                decode_end(avctx);                                  \
-                return AVERROR(ENOMEM);                             \
-            }                                                       \
-        }                                                           \
+    if (HAVE_BIGENDIAN != sconf->msb_first && sconf->crc_enabled &&
+        avctx->error_recognition >= FF_ER_CAREFUL) {
+        ctx->crc_buffer = av_malloc(sizeof(*ctx->crc_buffer) *
+                                    ctx->cur_frame_length *
+                                    avctx->channels *
+                                    (av_get_bits_per_sample_format(avctx->sample_fmt) >> 3));
+        if (!ctx->crc_buffer) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            decode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
     }
 
-#if HAVE_BIGENDIAN
-    COND_MALLOC(!sconf->msb_first);
-#else
-    COND_MALLOC( sconf->msb_first);
-#endif
+    dsputil_init(&ctx->dsp, avctx);
 
     return 0;
 }
