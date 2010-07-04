@@ -2963,7 +2963,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
     }
 
     // no need to take special care of always/never using ra-frames
-    // jsut encode frame-by-frame
+    // just encode frame-by-frame
     if (sconf->ra_distance < 2)
         return encode_frame(avctx, frame, buf_size, data);
 
