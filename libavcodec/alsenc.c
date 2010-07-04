@@ -206,7 +206,6 @@ typedef struct {
     uint32_t crc;                   ///< CRC value calculated from decoded data
     ALSEncStage *stages;            ///< array containing all grouped encoding and algorithm options for each possible stage
     ALSEncStage *cur_stage;         ///< points to the currently used encoding stage
-    unsigned int cur_frame_length;  ///< length of the current frame, in samples
     int ra_counter;                 ///< counts from zero to ra_distance, equals zero for ra-frames
     int js_switch;                  ///< force joint-stereo in case of MCC
     int *independent_bs;            ///< array containing independent_bs flag for each channel
@@ -240,6 +239,8 @@ typedef struct {
     int32_t **ltp_samples;          ///< pointer to the beginning of the current frame's ltp residuals in the buffer for each channel
     double *corr_buffer;            ///< temporary buffer to store the signal during LTP autocorrelation
     double *corr_samples;           ///< pointer to the beginning of the block in corr_buffer
+    uint8_t *frame_buffer;          ///< buffer containing all already encoded frames of an RA-unit
+    uint8_t *cur_frame;             ///< pointer into frame_buffer to encode the next frame of an RA-unit to
 } ALSEncContext;
 
 
@@ -511,7 +512,7 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
     {                                                              \
         int##bps##_t *src = (int##bps##_t*) data;                  \
         shift = bps - ctx->avctx->bits_per_raw_sample;             \
-        for (sample = 0; sample < ctx->cur_frame_length; sample++) \
+        for (sample = 0; sample < ctx->avctx->frame_size; sample++) \
             for (c = 0; c < ctx->avctx->channels; c++)             \
                 ctx->raw_samples[c][sample] = (*src++) >> shift;   \
     }
@@ -762,6 +763,7 @@ static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
 static void set_blocks(ALSEncContext *ctx, uint32_t *bs_info,
                        unsigned int c1, unsigned int c2)
 {
+    AVCodecContext *avctx    = ctx->avctx;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int div_blocks[32];
     unsigned int *ptr_div_blocks = div_blocks;
@@ -810,8 +812,8 @@ static void set_blocks(ALSEncContext *ctx, uint32_t *bs_info,
         block++;
     }
 
-    if (ctx->cur_frame_length != sconf->frame_length) {
-        unsigned int remaining = ctx->cur_frame_length;
+    if (avctx->frame_size != sconf->frame_length) {
+        unsigned int remaining = avctx->frame_size;
 
         for (b = 0; b < ctx->num_blocks[c1]; b++) {
             if (remaining <= div_blocks[b]) {
@@ -2677,7 +2679,7 @@ static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
     int32_t *c2 = ctx->raw_samples    [channel  + 1] - max_order;
     int32_t *d  = ctx->raw_dif_samples[channel >> 1] - max_order;
 
-    for (n = 0; n < ctx->cur_frame_length + max_order; n++) {
+    for (n = 0; n < ctx->avctx->frame_size + max_order; n++) {
         *d++ = *c2 - *c1;
         c1++;
         c2++;
@@ -2852,8 +2854,6 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
     unsigned int b, c;
     int frame_data_size;
 
-    ctx->cur_frame_length = avctx->frame_size;
-
     // determine if this is an RA frame
     if (sconf->ra_distance) {
         for (c = 0; c < avctx->channels; c++)
@@ -2870,11 +2870,11 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
         if (ctx->avctx->bits_per_raw_sample == 16 || ctx->avctx->bits_per_raw_sample == 32) {
             frame_data_size = ctx->avctx->bits_per_raw_sample >> 3;
             ctx->crc        = av_crc(ctx->crc_table, ctx->crc, data,
-                                     ctx->cur_frame_length * avctx->channels *
+                                     avctx->frame_size * avctx->channels *
                                      frame_data_size);
         } else if (ctx->avctx->bits_per_raw_sample == 24) {
             int i;
-            int frame_values = ctx->cur_frame_length * avctx->channels;
+            int frame_values = avctx->frame_size * avctx->channels;
             int32_t *samples = data;
             for (i = 0; i < frame_values; i++) {
                 int32_t v = *samples++;
@@ -2925,13 +2925,13 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     // update sample count
     if (frame_data_size >= 0)
-        sconf->samples += ctx->cur_frame_length;
+        sconf->samples += avctx->frame_size;
 
     // store previous samples
     if (ctx->ra_counter || !sconf->ra_distance) {
         for (c = 0; c < avctx->channels; c++) {
             memcpy(ctx->raw_samples[c] - sconf->max_order,
-                   ctx->raw_samples[c] + ctx->cur_frame_length - sconf->max_order,
+                   ctx->raw_samples[c] + avctx->frame_size - sconf->max_order,
                    sizeof(*ctx->raw_samples[c]) * sconf->max_order);
         }
     }
@@ -2949,9 +2949,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
 {
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
-    int f, num, last, fsize, src_frame_size;
-    uint8_t *src;
-    int read = 0;
+    unsigned int encoded;
 
     // last frame has been encoded, update extradata
     if (!data) {
@@ -2968,40 +2966,22 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
     // jsut encode frame-by-frame
     if (sconf->ra_distance < 2)
         return encode_frame(avctx, frame, buf_size, data);
-    else
-        fsize = avctx->frame_size / sconf->ra_distance;
 
-    // encode the whole ra-unit
-    if (fsize != sconf->frame_length) {
-        unsigned int remaining = avctx->frame_size;
-        num = 0;
-        while (remaining >= sconf->frame_length) {
-            num++;
-            remaining -= sconf->frame_length;
-        }
-        last = remaining;
+    encoded = ctx->cur_frame - ctx->frame_buffer;
+
+    if (ctx->ra_counter + 1 == sconf->ra_distance ||
+        avctx->frame_size   != sconf->frame_length) {
+        memcpy(frame, ctx->frame_buffer, encoded);
+        encoded                 += encode_frame(avctx, frame + encoded,
+                                                buf_size - encoded, data);
+        avctx->coded_frame->pts += sconf->ra_distance;
+        ctx->cur_frame           = ctx->frame_buffer;
+        return encoded;
     } else {
-        num  = sconf->ra_distance;
-        last = 0;
+        ctx->cur_frame += encode_frame(avctx, ctx->cur_frame,
+                                       buf_size - encoded, data);
+        return 0;
     }
-
-    avctx->frame_size = sconf->frame_length;
-
-    src_frame_size  = avctx->bits_per_raw_sample <= 16 ? 2 : 4;
-    src_frame_size *= avctx->frame_size * avctx->channels;
-    src = data;
-
-    for (f = 0; f < num; f++) {
-        read += encode_frame(avctx, frame + read, buf_size - read, src);
-        src  += src_frame_size;
-    }
-    if (last) {
-        avctx->frame_size = last;
-        read += encode_frame(avctx, frame + read, buf_size - read, src);
-    } else
-        avctx->frame_size *= sconf->ra_distance;
-
-    return read;
 }
 
 
@@ -3051,7 +3031,7 @@ static void frame_partitioning(ALSEncContext *ctx)
 
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
     // defaults to 10s intervals for random access
-    sconf->ra_distance = 10 * avctx->sample_rate / sconf->frame_length;
+    sconf->ra_distance = avctx->gop_size;
     sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
 
     // setting avctx->frame_size to ra_unit_size
@@ -3064,8 +3044,6 @@ static void frame_partitioning(ALSEncContext *ctx)
                                  (avctx->frame_size * sample_size);
             sconf->ra_distance = FFMAX(1, sconf->ra_distance);
         }
-
-        avctx->frame_size *= sconf->ra_distance;
     }
 }
 
@@ -3212,6 +3190,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->ltp_buffer);
     av_freep(&ctx->ltp_samples);
     av_freep(&ctx->corr_buffer);
+    av_freep(&ctx->frame_buffer);
 
     for (b = 0; b < 6; b++)
         ff_window_close(&ctx->acf_window[b]);
@@ -3462,6 +3441,20 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (sconf->crc_enabled) {
         ctx->crc_table = av_crc_get_table(AV_CRC_32_IEEE_LE);
         ctx->crc       = 0xFFFFFFFF;
+    }
+
+    // initialize local frame buffer if necessary
+    if (sconf->ra_distance > 1) {
+        int frame_buffer_size = sconf->frame_length * (avctx->channels * avctx->bits_per_raw_sample / 8);
+        AV_PMALLOC(ctx->frame_buffer, frame_buffer_size);
+
+        if (!ctx->frame_buffer) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            encode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
+
+        ctx->cur_frame = ctx->frame_buffer;
     }
 
     return 0;
