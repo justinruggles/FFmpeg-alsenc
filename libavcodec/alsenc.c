@@ -508,13 +508,13 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
     unsigned int sample, c, shift;
 
     // transform input into internal format
-    #define DEINTERLEAVE_INPUT(bps)                                \
-    {                                                              \
-        int##bps##_t *src = (int##bps##_t*) data;                  \
-        shift = bps - ctx->avctx->bits_per_raw_sample;             \
+    #define DEINTERLEAVE_INPUT(bps)                                 \
+    {                                                               \
+        int##bps##_t *src = (int##bps##_t*) data;                   \
+        shift = bps - ctx->avctx->bits_per_raw_sample;              \
         for (sample = 0; sample < ctx->avctx->frame_size; sample++) \
-            for (c = 0; c < ctx->avctx->channels; c++)             \
-                ctx->raw_samples[c][sample] = (*src++) >> shift;   \
+            for (c = 0; c < ctx->avctx->channels; c++)              \
+                ctx->raw_samples[c][sample] = (*src++) >> shift;    \
     }
 
     if (ctx->avctx->bits_per_raw_sample <= 16) {
