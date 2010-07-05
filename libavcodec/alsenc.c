@@ -2974,7 +2974,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
         memcpy(frame, ctx->frame_buffer, encoded);
         encoded                 += encode_frame(avctx, frame + encoded,
                                                 buf_size - encoded, data);
-        avctx->coded_frame->pts += sconf->ra_distance;
+        avctx->coded_frame->pts  = sconf->samples;
         ctx->cur_frame           = ctx->frame_buffer;
         return encoded;
     } else {
