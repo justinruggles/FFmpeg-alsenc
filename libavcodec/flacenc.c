@@ -1213,7 +1213,7 @@ static void update_md5_sum(FlacEncodeContext *s, int16_t *samples)
 #if HAVE_BIGENDIAN
     int i;
     for(i = 0; i < s->frame.blocksize*s->channels; i++) {
-        int16_t smp = le2me_16(samples[i]);
+        int16_t smp = le2ne_16(samples[i]);
         av_md5_update(s->md5ctx, (uint8_t *)&smp, 2);
     }
 #else
