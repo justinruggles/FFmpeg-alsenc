@@ -27,30 +27,12 @@
 #endif
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include "os_support.h"
 
 
 /* standard file protocol */
-
-static int file_read(URLContext *h, unsigned char *buf, int size)
-{
-    int fd = (intptr_t) h->priv_data;
-    return read(fd, buf, size);
-}
-
-static int file_write(URLContext *h, const unsigned char *buf, int size)
-{
-    int fd = (intptr_t) h->priv_data;
-    return write(fd, buf, size);
-}
-
-static int file_get_handle(URLContext *h)
-{
-    return (intptr_t) h->priv_data;
-}
-
-#if CONFIG_FILE_PROTOCOL
 
 static int file_open(URLContext *h, const char *filename, int flags)
 {
@@ -76,6 +58,18 @@ static int file_open(URLContext *h, const char *filename, int flags)
     return 0;
 }
 
+static int file_read(URLContext *h, unsigned char *buf, int size)
+{
+    int fd = (intptr_t) h->priv_data;
+    return read(fd, buf, size);
+}
+
+static int file_write(URLContext *h, const unsigned char *buf, int size)
+{
+    int fd = (intptr_t) h->priv_data;
+    return write(fd, buf, size);
+}
+
 /* XXX: use llseek */
 static int64_t file_seek(URLContext *h, int64_t pos, int whence)
 {
@@ -94,6 +88,11 @@ static int file_close(URLContext *h)
     return close(fd);
 }
 
+static int file_get_handle(URLContext *h)
+{
+    return (intptr_t) h->priv_data;
+}
+
 URLProtocol file_protocol = {
     "file",
     file_open,
@@ -104,9 +103,7 @@ URLProtocol file_protocol = {
     .url_get_file_handle = file_get_handle,
 };
 
-#endif /* CONFIG_FILE_PROTOCOL */
-
-#if CONFIG_PIPE_PROTOCOL
+/* pipe protocol */
 
 static int pipe_open(URLContext *h, const char *filename, int flags)
 {
@@ -137,5 +134,3 @@ URLProtocol pipe_protocol = {
     file_write,
     .url_get_file_handle = file_get_handle,
 };
-
-#endif /* CONFIG_PIPE_PROTOCOL */

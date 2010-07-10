@@ -24,7 +24,7 @@
 
 /**
  * @file
- * Interface to Dirac Decoder/Encoder
+ * Interfaces to Dirac Decoder/Encoder
  * @author Marco Gerards <marco@gnu.org>
  */
 

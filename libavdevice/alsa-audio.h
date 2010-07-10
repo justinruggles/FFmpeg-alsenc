@@ -50,7 +50,7 @@ typedef struct {
 } AlsaData;
 
 /**
- * Open an ALSA PCM.
+ * Opens an ALSA PCM.
  *
  * @param s media file handle
  * @param mode either SND_PCM_STREAM_CAPTURE or SND_PCM_STREAM_PLAYBACK
@@ -68,7 +68,7 @@ int ff_alsa_open(AVFormatContext *s, snd_pcm_stream_t mode,
                  int channels, enum CodecID *codec_id);
 
 /**
- * Close the ALSA PCM.
+ * Closes the ALSA PCM.
  *
  * @param s1 media file handle
  *
@@ -77,7 +77,7 @@ int ff_alsa_open(AVFormatContext *s, snd_pcm_stream_t mode,
 int ff_alsa_close(AVFormatContext *s1);
 
 /**
- * Try to recover from ALSA buffer underrun.
+ * Tries to recover from ALSA buffer underrun.
  *
  * @param s1 media file handle
  * @param err error code reported by the previous ALSA call

@@ -119,7 +119,7 @@ typedef struct {
 } ALSBlockData;
 
 
-/** Read an ALSSpecificConfig from a buffer into the output struct.
+/** Reads an ALSSpecificConfig from a buffer into the output struct.
  */
 static av_cold int read_specific_config(ALSDecContext *ctx)
 {
@@ -254,7 +254,7 @@ static av_cold int read_specific_config(ALSDecContext *ctx)
 }
 
 
-/** Check the ALSSpecificConfig for unsupported features.
+/** Checks the ALSSpecificConfig for unsupported features.
  */
 static int check_specific_config(ALSDecContext *ctx)
 {
@@ -278,7 +278,7 @@ static int check_specific_config(ALSDecContext *ctx)
 }
 
 
-/** Read and decode a Rice codeword.
+/** Reads and decodes a Rice codeword.
  */
 static int32_t decode_rice(GetBitContext *gb, unsigned int k)
 {
@@ -296,8 +296,8 @@ static int32_t decode_rice(GetBitContext *gb, unsigned int k)
 }
 
 
-/** Read block switching field if necessary and set actual block sizes.
- *  Also assure that the block sizes of the last frame correspond to the
+/** Reads block switching field if necessary and sets actual block sizes.
+ *  Also assures that the block sizes of the last frame correspond to the
  *  actual number of samples.
  */
 static void get_block_sizes(ALSDecContext *ctx, unsigned int *div_blocks,
@@ -351,7 +351,7 @@ static void get_block_sizes(ALSDecContext *ctx, unsigned int *div_blocks,
 }
 
 
-/** Read the block data for a constant block
+/** Reads the block data for a constant block
  */
 static void read_const_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -376,7 +376,7 @@ static void read_const_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Decode the block data for a constant block
+/** Decodes the block data for a constant block
  */
 static void decode_const_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -390,7 +390,7 @@ static void decode_const_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Read the block data for a non-constant block
+/** Reads the block data for a non-constant block
  */
 static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -554,8 +554,8 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 
     // read all residuals
     if (sconf->bgmc) {
-        unsigned int delta[8];
-        unsigned int k    [8];
+        unsigned int delta[sub_blocks];
+        unsigned int k    [sub_blocks];
         unsigned int b = av_clip((av_ceil_log2(bd->block_length) - 3) >> 1, 0, 5);
         unsigned int i = start;
 
@@ -637,7 +637,7 @@ static int read_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Decode the block data for a non-constant block
+/** Decodes the block data for a non-constant block
  */
 static int decode_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -746,7 +746,7 @@ static int decode_var_block_data(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Read the block data.
+/** Reads the block data.
  */
 static int read_block(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -764,7 +764,7 @@ static int read_block(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Decode the block data.
+/** Decodes the block data.
  */
 static int decode_block(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -786,7 +786,7 @@ static int decode_block(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Read and decode block data successively.
+/** Reads and decodes block data successively.
  */
 static int read_decode_block(ALSDecContext *ctx, ALSBlockData *bd)
 {
@@ -803,7 +803,7 @@ static int read_decode_block(ALSDecContext *ctx, ALSBlockData *bd)
 }
 
 
-/** Compute the number of samples left to decode for the current frame and
+/** Computes the number of samples left to decode for the current frame and
  *  sets these samples to zero.
  */
 static void zero_remaining(unsigned int b, unsigned int b_max,
@@ -819,7 +819,7 @@ static void zero_remaining(unsigned int b, unsigned int b_max,
 }
 
 
-/** Decode blocks independently.
+/** Decodes blocks independently.
  */
 static int decode_blocks_ind(ALSDecContext *ctx, unsigned int ra_frame,
                              unsigned int c, const unsigned int *div_blocks,
@@ -857,7 +857,7 @@ static int decode_blocks_ind(ALSDecContext *ctx, unsigned int ra_frame,
 }
 
 
-/** Decode blocks dependently.
+/** Decodes blocks dependently.
  */
 static int decode_blocks(ALSDecContext *ctx, unsigned int ra_frame,
                          unsigned int c, const unsigned int *div_blocks,
@@ -938,7 +938,7 @@ static int decode_blocks(ALSDecContext *ctx, unsigned int ra_frame,
 }
 
 
-/** Read the channel data.
+/** Reads the channel data.
   */
 static int read_channel_data(ALSDecContext *ctx, ALSChannelData *cd, int c)
 {
@@ -1066,7 +1066,7 @@ static int revert_channel_correlation(ALSDecContext *ctx, ALSBlockData *bd,
 }
 
 
-/** Read the frame data.
+/** Reads the frame data.
  */
 static int read_frame_data(ALSDecContext *ctx, unsigned int ra_frame)
 {
@@ -1195,7 +1195,7 @@ static int read_frame_data(ALSDecContext *ctx, unsigned int ra_frame)
 }
 
 
-/** Decode an ALS frame.
+/** Decodes an ALS frame.
  */
 static int decode_frame(AVCodecContext *avctx,
                         void *data, int *data_size,
@@ -1317,7 +1317,7 @@ static int decode_frame(AVCodecContext *avctx,
 }
 
 
-/** Uninitialize the ALS decoder.
+/** Uninitializes the ALS decoder.
  */
 static av_cold int decode_end(AVCodecContext *avctx)
 {
@@ -1347,7 +1347,7 @@ static av_cold int decode_end(AVCodecContext *avctx)
 }
 
 
-/** Initialize the ALS decoder.
+/** Initializes the ALS decoder.
  */
 static av_cold int decode_init(AVCodecContext *avctx)
 {
@@ -1499,7 +1499,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
 }
 
 
-/** Flush (reset) the frame ID after seeking.
+/** Flushes (resets) the frame ID after seeking.
  */
 static av_cold void flush(AVCodecContext *avctx)
 {

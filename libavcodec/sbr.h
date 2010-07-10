@@ -31,7 +31,6 @@
 
 #include <stdint.h>
 #include "fft.h"
-#include "aacps.h"
 
 /**
  * Spectral Band Replication header - spectrum parameters that invoke a reset if they differ from the previous header.
@@ -58,7 +57,7 @@ typedef struct {
  */
 typedef struct {
     /**
-     * @defgroup aac_bitstream     Main bitstream data variables
+     * @defgroup bitstream     Main bitstream data variables
      * @{
      */
     unsigned           bs_frame_class;
@@ -134,7 +133,6 @@ typedef struct {
     ///The number of frequency bands in f_master
     unsigned           n_master;
     SBRData            data[2];
-    PSContext          ps;
     ///N_Low and N_High respectively, the number of frequency bands for low and high resolution
     unsigned           n[2];
     ///Number of noise floor bands
@@ -159,7 +157,7 @@ typedef struct {
     ///QMF output of the HF generator
     float              X_high[64][40][2];
     ///QMF values of the reconstructed signal
-    DECLARE_ALIGNED(16, float, X)[2][2][38][64];
+    DECLARE_ALIGNED(16, float, X)[2][2][32][64];
     ///Zeroth coefficient used to filter the subband signals
     float              alpha0[64][2];
     ///First coefficient used to filter the subband signals

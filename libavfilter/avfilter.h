@@ -25,7 +25,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVFILTER_VERSION_MAJOR  1
-#define LIBAVFILTER_VERSION_MINOR 22
+#define LIBAVFILTER_VERSION_MINOR 20
 #define LIBAVFILTER_VERSION_MICRO  0
 
 #define LIBAVFILTER_VERSION_INT AV_VERSION_INT(LIBAVFILTER_VERSION_MAJOR, \
@@ -40,17 +40,17 @@
 #include "libavcodec/avcodec.h"
 
 /**
- * Return the LIBAVFILTER_VERSION_INT constant.
+ * Returns the LIBAVFILTER_VERSION_INT constant.
  */
 unsigned avfilter_version(void);
 
 /**
- * Return the libavfilter build-time configuration.
+ * Returns the libavfilter build-time configuration.
  */
 const char *avfilter_configuration(void);
 
 /**
- * Return the libavfilter license.
+ * Returns the libavfilter license.
  */
 const char *avfilter_license(void);
 
@@ -121,20 +121,7 @@ typedef struct AVFilterPicRef
 } AVFilterPicRef;
 
 /**
- * Copy properties of src to dst, without copying the actual video
- * data.
- */
-static inline void avfilter_copy_picref_props(AVFilterPicRef *dst, AVFilterPicRef *src)
-{
-    dst->pts             = src->pts;
-    dst->pos             = src->pos;
-    dst->pixel_aspect    = src->pixel_aspect;
-    dst->interlaced      = src->interlaced;
-    dst->top_field_first = src->top_field_first;
-}
-
-/**
- * Add a new reference to a picture.
+ * Adds a new reference to a picture.
  * @param ref   an existing reference to the picture
  * @param pmask a bitmask containing the allowable permissions in the new
  *              reference
@@ -144,7 +131,7 @@ static inline void avfilter_copy_picref_props(AVFilterPicRef *dst, AVFilterPicRe
 AVFilterPicRef *avfilter_ref_pic(AVFilterPicRef *ref, int pmask);
 
 /**
- * Remove a reference to a picture. If this is the last reference to the
+ * Removes a reference to a picture. If this is the last reference to the
  * picture, the picture itself is also automatically freed.
  * @param ref reference to the picture
  */
@@ -201,15 +188,15 @@ struct AVFilterFormats
 };
 
 /**
- * Create a list of supported formats. This is intended for use in
+ * Creates a list of supported formats. This is intended for use in
  * AVFilter->query_formats().
- * @param pix_fmts list of pixel formats, terminated by PIX_FMT_NONE
+ * @param pix_fmt list of pixel formats, terminated by PIX_FMT_NONE
  * @return the format list, with no existing references
  */
 AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts);
 
 /**
- * Add pix_fmt to the list of pixel formats contained in *avff.
+ * Adds pix_fmt to the list of pixel formats contained in *avff.
  * If *avff is NULL the function allocates the filter formats struct
  * and puts its pointer in *avff.
  *
@@ -219,12 +206,12 @@ AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts);
 int avfilter_add_colorspace(AVFilterFormats **avff, enum PixelFormat pix_fmt);
 
 /**
- * Return a list of all colorspaces supported by FFmpeg.
+ * Returns a list of all colorspaces supported by FFmpeg.
  */
 AVFilterFormats *avfilter_all_colorspaces(void);
 
 /**
- * Return a format list which contains the intersection of the formats of
+ * Returns a format list which contains the intersection of the formats of
  * a and b. Also, all the references of a, all the references of b, and
  * a and b themselves will be deallocated.
  *
@@ -234,7 +221,7 @@ AVFilterFormats *avfilter_all_colorspaces(void);
 AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b);
 
 /**
- * Add *ref as a new reference to formats.
+ * Adds *ref as a new reference to formats.
  * That is the pointers will point like in the ascii art below:
  *   ________
  *  |formats |<--------.
@@ -248,7 +235,7 @@ AVFilterFormats *avfilter_merge_formats(AVFilterFormats *a, AVFilterFormats *b);
 void avfilter_formats_ref(AVFilterFormats *formats, AVFilterFormats **ref);
 
 /**
- * If *ref is non-NULL, remove *ref as a reference to the format list
+ * If *ref is non-NULL, removes *ref as a reference to the format list
  * it currently points to, deallocates that list if this was the last
  * reference, and sets *ref to NULL.
  *
@@ -537,7 +524,7 @@ struct AVFilterLink
 };
 
 /**
- * Link two filters together.
+ * Links two filters together.
  * @param src    the source filter
  * @param srcpad index of the output pad on the source filter
  * @param dst    the destination filter
@@ -548,14 +535,14 @@ int avfilter_link(AVFilterContext *src, unsigned srcpad,
                   AVFilterContext *dst, unsigned dstpad);
 
 /**
- * Negotiate the colorspace, dimensions, etc of all inputs to a filter.
+ * Negotiates the colorspace, dimensions, etc of all inputs to a filter.
  * @param filter the filter to negotiate the properties for its inputs
  * @return       zero on successful negotiation
  */
 int avfilter_config_links(AVFilterContext *filter);
 
 /**
- * Request a picture buffer with a specific set of permissions.
+ * Requests a picture buffer with a specific set of permissions.
  * @param link  the output link to the filter from which the picture will
  *              be requested
  * @param perms the required access permissions
@@ -568,14 +555,14 @@ AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
                                           int w, int h);
 
 /**
- * Request an input frame from the filter at the other end of the link.
+ * Requests an input frame from the filter at the other end of the link.
  * @param link the input link
  * @return     zero on success
  */
 int avfilter_request_frame(AVFilterLink *link);
 
 /**
- * Poll a frame from the filter chain.
+ * Polls a frame from the filter chain.
  * @param  link the input link
  * @return the number of immediately available frames, a negative
  * number in case of error
@@ -583,7 +570,7 @@ int avfilter_request_frame(AVFilterLink *link);
 int avfilter_poll_frame(AVFilterLink *link);
 
 /**
- * Notifie the next filter of the start of a frame.
+ * Notifies the next filter of the start of a frame.
  * @param link   the output link the frame will be sent over
  * @param picref A reference to the frame about to be sent. The data for this
  *               frame need only be valid once draw_slice() is called for that
@@ -593,13 +580,13 @@ int avfilter_poll_frame(AVFilterLink *link);
 void avfilter_start_frame(AVFilterLink *link, AVFilterPicRef *picref);
 
 /**
- * Notifie the next filter that the current frame has finished.
+ * Notifies the next filter that the current frame has finished.
  * @param link the output link the frame was sent over
  */
 void avfilter_end_frame(AVFilterLink *link);
 
 /**
- * Send a slice to the next filter.
+ * Sends a slice to the next filter.
  *
  * Slices have to be provided in sequential order, either in
  * top-bottom or bottom-top order. If slices are provided in
@@ -615,14 +602,14 @@ void avfilter_end_frame(AVFilterLink *link);
  */
 void avfilter_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 
-/** Initialize the filter system. Register all builtin filters. */
+/** Initializes the filter system. Registers all builtin filters. */
 void avfilter_register_all(void);
 
-/** Uninitialize the filter system. Unregister all filters. */
+/** Uninitializes the filter system. Unregisters all filters. */
 void avfilter_uninit(void);
 
 /**
- * Register a filter. This is only needed if you plan to use
+ * Registers a filter. This is only needed if you plan to use
  * avfilter_get_by_name later to lookup the AVFilter structure by name. A
  * filter can still by instantiated with avfilter_open even if it is not
  * registered.
@@ -633,7 +620,7 @@ void avfilter_uninit(void);
 int avfilter_register(AVFilter *filter);
 
 /**
- * Get a filter definition matching the given name.
+ * Gets a filter definition matching the given name.
  * @param name the filter name to find
  * @return     the filter definition, if any matching one is registered.
  *             NULL if none found.
@@ -649,7 +636,7 @@ AVFilter *avfilter_get_by_name(const char *name);
 AVFilter **av_filter_next(AVFilter **filter);
 
 /**
- * Create a filter instance.
+ * Creates a filter instance.
  * @param filter    the filter to create an instance of
  * @param inst_name Name to give to the new instance. Can be NULL for none.
  * @return          Pointer to the new instance on success. NULL on failure.
@@ -657,7 +644,7 @@ AVFilter **av_filter_next(AVFilter **filter);
 AVFilterContext *avfilter_open(AVFilter *filter, const char *inst_name);
 
 /**
- * Initialize a filter.
+ * Initializes a filter.
  * @param filter the filter to initialize
  * @param args   A string of parameters to use when initializing the filter.
  *               The format and meaning of this string varies by filter.
@@ -668,13 +655,13 @@ AVFilterContext *avfilter_open(AVFilter *filter, const char *inst_name);
 int avfilter_init_filter(AVFilterContext *filter, const char *args, void *opaque);
 
 /**
- * Destroy a filter.
+ * Destroys a filter.
  * @param filter the filter to destroy
  */
 void avfilter_destroy(AVFilterContext *filter);
 
 /**
- * Insert a filter in the middle of an existing link.
+ * Inserts a filter in the middle of an existing link.
  * @param link the link into which the filter should be inserted
  * @param filt the filter to be inserted
  * @param in   the input pad on the filter to connect
@@ -685,7 +672,7 @@ int avfilter_insert_filter(AVFilterLink *link, AVFilterContext *filt,
                            unsigned in, unsigned out);
 
 /**
- * Insert a new pad.
+ * Inserts a new pad.
  * @param idx Insertion point. Pad is inserted at the end if this point
  *            is beyond the end of the list of pads.
  * @param count Pointer to the number of pads in the list
@@ -700,7 +687,7 @@ void avfilter_insert_pad(unsigned idx, unsigned *count, size_t padidx_off,
                          AVFilterPad **pads, AVFilterLink ***links,
                          AVFilterPad *newpad);
 
-/** Insert a new input pad for the filter. */
+/** Inserts a new input pad for the filter. */
 static inline void avfilter_insert_inpad(AVFilterContext *f, unsigned index,
                                          AVFilterPad *p)
 {
@@ -708,7 +695,7 @@ static inline void avfilter_insert_inpad(AVFilterContext *f, unsigned index,
                         &f->input_pads, &f->inputs, p);
 }
 
-/** Insert a new output pad for the filter. */
+/** Inserts a new output pad for the filter. */
 static inline void avfilter_insert_outpad(AVFilterContext *f, unsigned index,
                                           AVFilterPad *p)
 {

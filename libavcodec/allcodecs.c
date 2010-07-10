@@ -1,5 +1,5 @@
 /*
- * Provide registration of all codecs, parsers and bitstream filters for libavcodec.
+ * Provides registration of all codecs, parsers and bitstream filters for libavcodec.
  * Copyright (c) 2002 Fabrice Bellard
  *
  * This file is part of FFmpeg.
@@ -21,7 +21,7 @@
 
 /**
  * @file
- * Provide registration of all codecs, parsers and bitstream filters for libavcodec.
+ * Provides registration of all codecs, parsers and bitstream filters for libavcodec.
  */
 
 #include "avcodec.h"
@@ -57,7 +57,6 @@ void avcodec_register_all(void)
     REGISTER_HWACCEL (H263_VAAPI, h263_vaapi);
     REGISTER_HWACCEL (H264_DXVA2, h264_dxva2);
     REGISTER_HWACCEL (H264_VAAPI, h264_vaapi);
-    REGISTER_HWACCEL (MPEG2_DXVA2, mpeg2_dxva2);
     REGISTER_HWACCEL (MPEG2_VAAPI, mpeg2_vaapi);
     REGISTER_HWACCEL (MPEG4_VAAPI, mpeg4_vaapi);
     REGISTER_HWACCEL (VC1_DXVA2, vc1_dxva2);
@@ -201,7 +200,6 @@ void avcodec_register_all(void)
     REGISTER_DECODER (VP6, vp6);
     REGISTER_DECODER (VP6A, vp6a);
     REGISTER_DECODER (VP6F, vp6f);
-    REGISTER_DECODER (VP8, vp8);
     REGISTER_DECODER (VQA, vqa);
     REGISTER_ENCDEC  (WMV1, wmv1);
     REGISTER_ENCDEC  (WMV2, wmv2);
@@ -230,8 +228,6 @@ void avcodec_register_all(void)
     REGISTER_DECODER (DSICINAUDIO, dsicinaudio);
     REGISTER_DECODER (EAC3, eac3);
     REGISTER_ENCDEC  (FLAC, flac);
-    REGISTER_DECODER (GSM, gsm);
-    REGISTER_DECODER (GSM_MS, gsm_ms);
     REGISTER_DECODER (IMC, imc);
     REGISTER_DECODER (MACE3, mace3);
     REGISTER_DECODER (MACE6, mace6);
@@ -251,7 +247,7 @@ void avcodec_register_all(void)
     REGISTER_ENCDEC  (NELLYMOSER, nellymoser);
     REGISTER_DECODER (QCELP, qcelp);
     REGISTER_DECODER (QDM2, qdm2);
-    REGISTER_ENCDEC  (RA_144, ra_144);
+    REGISTER_DECODER (RA_144, ra_144);
     REGISTER_DECODER (RA_288, ra_288);
     REGISTER_DECODER (SHORTEN, shorten);
     REGISTER_DECODER (SIPR, sipr);
@@ -343,6 +339,7 @@ void avcodec_register_all(void)
     /* external libraries */
     REGISTER_ENCDEC  (LIBDIRAC, libdirac);
     REGISTER_ENCODER (LIBFAAC, libfaac);
+    REGISTER_DECODER (LIBFAAD, libfaad);
     REGISTER_ENCDEC  (LIBGSM, libgsm);
     REGISTER_ENCDEC  (LIBGSM_MS, libgsm_ms);
     REGISTER_ENCODER (LIBMP3LAME, libmp3lame);

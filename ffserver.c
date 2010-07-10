@@ -740,7 +740,7 @@ static void http_send_too_busy_reply(int fd)
 {
     char buffer[300];
     int len = snprintf(buffer, sizeof(buffer),
-                       "HTTP/1.0 503 Server too busy\r\n"
+                       "HTTP/1.0 200 Server too busy\r\n"
                        "Content-type: text/html\r\n"
                        "\r\n"
                        "<html><head><title>Too busy</title></head><body>\r\n"
@@ -1589,10 +1589,10 @@ static int http_parse_request(HTTPContext *c)
     }
 
     if (c->post == 0 && max_bandwidth < current_bandwidth) {
-        c->http_error = 503;
+        c->http_error = 200;
         q = c->buffer;
         q += snprintf(q, c->buffer_size,
-                      "HTTP/1.0 503 Server too busy\r\n"
+                      "HTTP/1.0 200 Server too busy\r\n"
                       "Content-type: text/html\r\n"
                       "\r\n"
                       "<html><head><title>Too busy</title></head><body>\r\n"
@@ -2306,16 +2306,12 @@ static int http_prepare_data(HTTPContext *c)
         else {
             AVPacket pkt;
         redo:
-            ret = av_read_frame(c->fmt_in, &pkt);
-            if (ret < 0) {
-                if (c->stream->feed) {
+            if (av_read_frame(c->fmt_in, &pkt) < 0) {
+                if (c->stream->feed && c->stream->feed->feed_opened) {
                     /* if coming from feed, it means we reached the end of the
                        ffm file, so must wait for more data */
                     c->state = HTTPSTATE_WAIT_FEED;
                     return 1; /* state changed */
-                } else if (ret == AVERROR(EAGAIN)) {
-                    /* input not ready, come back later */
-                    return 0;
                 } else {
                     if (c->stream->loop) {
                         av_close_input_file(c->fmt_in);
@@ -2748,7 +2744,14 @@ static int http_receive_data(HTTPContext *c)
             for (i = 0; i < s->nb_streams; i++) {
                 AVStream *fst = feed->streams[i];
                 AVStream *st = s->streams[i];
-                avcodec_copy_context(fst->codec, st->codec);
+                memcpy(fst->codec, st->codec, sizeof(AVCodecContext));
+                if (fst->codec->extradata_size) {
+                    fst->codec->extradata = av_malloc(fst->codec->extradata_size);
+                    if (!fst->codec->extradata)
+                        goto fail;
+                    memcpy(fst->codec->extradata, st->codec->extradata,
+                           fst->codec->extradata_size);
+                }
             }
 
             av_close_input_stream(s);
@@ -2978,7 +2981,7 @@ static void rtsp_cmd_describe(HTTPContext *c, const char *url)
     struct sockaddr_in my_addr;
 
     /* find which url is asked */
-    av_url_split(NULL, 0, NULL, 0, NULL, 0, NULL, path1, sizeof(path1), url);
+    ff_url_split(NULL, 0, NULL, 0, NULL, 0, NULL, path1, sizeof(path1), url);
     path = path1;
     if (*path == '/')
         path++;
@@ -3055,7 +3058,7 @@ static void rtsp_cmd_setup(HTTPContext *c, const char *url,
     RTSPActionServerSetup setup;
 
     /* find which url is asked */
-    av_url_split(NULL, 0, NULL, 0, NULL, 0, NULL, path1, sizeof(path1), url);
+    ff_url_split(NULL, 0, NULL, 0, NULL, 0, NULL, path1, sizeof(path1), url);
     path = path1;
     if (*path == '/')
         path++;
@@ -3198,7 +3201,7 @@ static HTTPContext *find_rtp_session_with_url(const char *url,
         return NULL;
 
     /* find which url is asked */
-    av_url_split(NULL, 0, NULL, 0, NULL, 0, NULL, path1, sizeof(path1), url);
+    ff_url_split(NULL, 0, NULL, 0, NULL, 0, NULL, path1, sizeof(path1), url);
     path = path1;
     if (*path == '/')
         path++;

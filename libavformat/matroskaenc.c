@@ -193,7 +193,7 @@ static void put_ebml_string(ByteIOContext *pb, unsigned int elementid, const cha
 }
 
 /**
- * Write a void element of a given size. Useful for reserving space in
+ * Writes a void element of a given size. Useful for reserving space in
  * the file to be written to later.
  *
  * @param size The number of bytes to reserve, which must be at least 2.

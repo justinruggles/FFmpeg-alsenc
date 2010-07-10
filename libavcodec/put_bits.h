@@ -52,7 +52,7 @@ typedef struct PutBitContext {
 } PutBitContext;
 
 /**
- * Initialize the PutBitContext s.
+ * Initializes the PutBitContext s.
  *
  * @param buffer the buffer where to put bits
  * @param buffer_size the size in bytes of buffer
@@ -79,7 +79,7 @@ static inline void init_put_bits(PutBitContext *s, uint8_t *buffer, int buffer_s
 }
 
 /**
- * @return the total number of bits written to the bitstream.
+ * Returns the total number of bits written to the bitstream.
  */
 static inline int put_bits_count(PutBitContext *s)
 {
@@ -91,7 +91,7 @@ static inline int put_bits_count(PutBitContext *s)
 }
 
 /**
- * Pad the end of the output stream with zeros.
+ * Pads the end of the output stream with zeros.
  */
 static inline void flush_put_bits(PutBitContext *s)
 {
@@ -123,19 +123,19 @@ static inline void flush_put_bits(PutBitContext *s)
 #define ff_copy_bits ff_copy_bits_unsupported_here
 #else
 /**
- * Pad the bitstream with zeros up to the next byte boundary.
+ * Pads the bitstream with zeros up to the next byte boundary.
  */
 void align_put_bits(PutBitContext *s);
 
 /**
- * Put the string string in the bitstream.
+ * Puts the string string in the bitstream.
  *
  * @param terminate_string 0-terminates the written string if value is 1
  */
 void ff_put_string(PutBitContext *pb, const char *string, int terminate_string);
 
 /**
- * Copy the content of src to the bitstream.
+ * Copies the content of src to the bitstream.
  *
  * @param length the number of bits of src to copy
  */
@@ -143,7 +143,7 @@ void ff_copy_bits(PutBitContext *pb, const uint8_t *src, int length);
 #endif
 
 /**
- * Write up to 31 bits into a bitstream.
+ * Writes up to 31 bits into a bitstream.
  * Use put_bits32 to write 32 bits.
  */
 static inline void put_bits(PutBitContext *s, int n, unsigned int value)
@@ -270,7 +270,7 @@ static inline void put_sbits(PutBitContext *pb, int n, int32_t value)
 }
 
 /**
- * Write exactly 32 bits into a bitstream.
+ * Writes exactly 32 bits into a bitstream.
  */
 static void av_unused put_bits32(PutBitContext *s, uint32_t value)
 {
@@ -286,7 +286,7 @@ static void av_unused put_bits32(PutBitContext *s, uint32_t value)
 }
 
 /**
- * Return the pointer to the byte where the bitstream writer will put
+ * Returns the pointer to the byte where the bitstream writer will put
  * the next bit.
  */
 static inline uint8_t* put_bits_ptr(PutBitContext *s)
@@ -299,7 +299,7 @@ static inline uint8_t* put_bits_ptr(PutBitContext *s)
 }
 
 /**
- * Skip the given number of bytes.
+ * Skips the given number of bytes.
  * PutBitContext must be flushed & aligned to a byte boundary before calling this.
  */
 static inline void skip_put_bytes(PutBitContext *s, int n)
@@ -315,7 +315,7 @@ static inline void skip_put_bytes(PutBitContext *s, int n)
 }
 
 /**
- * Skip the given number of bits.
+ * Skips the given number of bits.
  * Must only be used if the actual values in the bitstream do not matter.
  * If n is 0 the behavior is undefined.
  */
@@ -331,7 +331,7 @@ static inline void skip_put_bits(PutBitContext *s, int n)
 }
 
 /**
- * Change the end of the buffer.
+ * Changes the end of the buffer.
  *
  * @param size the new size in bytes of the buffer where to put bits
  */

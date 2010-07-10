@@ -71,7 +71,7 @@ struct x11_grab
 };
 
 /**
- * Initialize the x11 grab device demuxer (public device demuxer API).
+ * Initializes the x11 grab device demuxer (public device demuxer API).
  *
  * @param s1 Context from avformat core
  * @param ap Parameters from avformat core
@@ -238,11 +238,13 @@ x11grab_read_header(AVFormatContext *s1, AVFormatParameters *ap)
 }
 
 /**
- * Paint a mouse pointer in an X11 image.
+ * Paints a mouse pointer in an X11 image.
  *
  * @param image image to paint the mouse pointer to
  * @param s context used to retrieve original grabbing rectangle
  *          coordinates
+ * @param x Mouse pointer coordinate
+ * @param y Mouse pointer coordinate
  */
 static void
 paint_mouse_pointer(XImage *image, struct x11_grab *s)
@@ -258,7 +260,7 @@ paint_mouse_pointer(XImage *image, struct x11_grab *s)
     int to_line, to_column;
     int image_addr, xcim_addr;
 
-    xcim = XFixesGetCursorImage(dpy);
+    xcim = XFixesGetCursorImage(dpy);;
 
     x = xcim->x - xcim->xhot;
     y = xcim->y - xcim->yhot;
@@ -286,7 +288,7 @@ paint_mouse_pointer(XImage *image, struct x11_grab *s)
 
 
 /**
- * Read new data in the image structure.
+ * Reads new data in the image structure.
  *
  * @param dpy X11 display to grab from
  * @param d
@@ -333,7 +335,7 @@ xget_zpixmap(Display *dpy, Drawable d, XImage *image, int x, int y)
 }
 
 /**
- * Grab a frame from x11 (public device demuxer API).
+ * Grabs a frame from x11 (public device demuxer API).
  *
  * @param s1 Context from avformat core
  * @param pkt Packet holding the brabbed frame
@@ -396,7 +398,7 @@ x11grab_read_packet(AVFormatContext *s1, AVPacket *pkt)
 }
 
 /**
- * Close x11 frame grabber (public device demuxer API).
+ * Closes x11 frame grabber (public device demuxer API).
  *
  * @param s1 Context from avformat core
  * @return 0 success, !0 failure

@@ -55,7 +55,7 @@ static int rtmp_close(URLContext *s)
 }
 
 /**
- * Open RTMP connection and verify that the stream can be played.
+ * Opens RTMP connection and verifies that the stream can be played.
  *
  * URL syntax: rtmp://server[:port][/app][/playpath][ keyword=value]...
  *             where 'app' is first one or two directories in the path
@@ -94,7 +94,7 @@ static int rtmp_open(URLContext *s, const char *uri, int flags)
     }
 
     if (flags & URL_WRONLY)
-        RTMP_EnableWrite(r);
+        r->Link.protocol |= RTMP_FEATURE_WRITE;
 
     if (!RTMP_Connect(r, NULL) || !RTMP_ConnectStream(r, 0)) {
         rc = -1;
@@ -127,7 +127,10 @@ static int rtmp_read_pause(URLContext *s, int pause)
 {
     RTMP *r = s->priv_data;
 
-    if (!RTMP_Pause(r, pause))
+    if (pause)
+        r->m_pauseStamp =
+            r->m_channelTimestamp[r->m_mediaChannel];
+    if (!RTMP_SendPause(r, pause, r->m_pauseStamp))
         return -1;
     return 0;
 }
@@ -154,7 +157,7 @@ static int rtmp_get_file_handle(URLContext *s)
 {
     RTMP *r = s->priv_data;
 
-    return RTMP_Socket(r);
+    return r->m_sb.sb_socket;
 }
 
 URLProtocol rtmp_protocol = {

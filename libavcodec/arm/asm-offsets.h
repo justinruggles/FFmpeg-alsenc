@@ -29,7 +29,7 @@
 #endif
 
 /* MpegEncContext */
-#if defined(__ARM_EABI__) || defined(__eabi__)
+#ifdef __ARM_EABI__
 #define Y_DC_SCALE               0xa54
 #define C_DC_SCALE               0xa58
 #define AC_PRED                  0xa80

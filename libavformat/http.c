@@ -28,7 +28,6 @@
 #include "http.h"
 #include "os_support.h"
 #include "httpauth.h"
-#include "libavcodec/opt.h"
 
 /* XXX: POST protocol is not completely implemented because ffmpeg uses
    only a subset of it. */
@@ -39,7 +38,6 @@
 #define MAX_REDIRECTS 8
 
 typedef struct {
-    const AVClass *class;
     URLContext *hd;
     unsigned char buffer[BUFFER_SIZE], *buf_ptr, *buf_end;
     int line_count;
@@ -48,20 +46,14 @@ typedef struct {
     int64_t off, filesize;
     char location[URL_SIZE];
     HTTPAuthState auth_state;
+    int init;
     unsigned char headers[BUFFER_SIZE];
+    int is_chunked;
 } HTTPContext;
-
-#define OFFSET(x) offsetof(HTTPContext, x)
-static const AVOption options[] = {
-{"chunksize", "use chunked transfer-encoding for posts, -1 disables it, 0 enables it", OFFSET(chunksize), FF_OPT_TYPE_INT64, 0, -1, 0 }, /* Default to 0, for chunked POSTs */
-{NULL}
-};
-static const AVClass httpcontext_class = {
-    "HTTP", av_default_item_name, options, LIBAVUTIL_VERSION_INT
-};
 
 static int http_connect(URLContext *h, const char *path, const char *hoststr,
                         const char *auth, int *new_location);
+static int http_write(URLContext *h, const uint8_t *buf, int size);
 
 void ff_http_set_headers(URLContext *h, const char *headers)
 {
@@ -76,13 +68,7 @@ void ff_http_set_headers(URLContext *h, const char *headers)
 
 void ff_http_set_chunked_transfer_encoding(URLContext *h, int is_chunked)
 {
-    ((HTTPContext*)h->priv_data)->chunksize = is_chunked ? 0 : -1;
-}
-
-void ff_http_init_auth_state(URLContext *dest, const URLContext *src)
-{
-    memcpy(&((HTTPContext*)dest->priv_data)->auth_state,
-           &((HTTPContext*)src->priv_data)->auth_state, sizeof(HTTPAuthState));
+    ((HTTPContext*)h->priv_data)->is_chunked = is_chunked;
 }
 
 /* return non zero if error */
@@ -98,6 +84,7 @@ static int http_open_cnx(URLContext *h)
     HTTPContext *s = h->priv_data;
     URLContext *hd = NULL;
 
+    s->init = 1;
     proxy_path = getenv("http_proxy");
     use_proxy = (proxy_path != NULL) && !getenv("no_proxy") &&
         av_strstart(proxy_path, "http://", NULL);
@@ -105,12 +92,12 @@ static int http_open_cnx(URLContext *h)
     /* fill the dest addr */
  redo:
     /* needed in any case to build the host string */
-    av_url_split(NULL, 0, auth, sizeof(auth), hostname, sizeof(hostname), &port,
+    ff_url_split(NULL, 0, auth, sizeof(auth), hostname, sizeof(hostname), &port,
                  path1, sizeof(path1), s->location);
     ff_url_join(hoststr, sizeof(hoststr), NULL, NULL, hostname, port, NULL);
 
     if (use_proxy) {
-        av_url_split(NULL, 0, auth, sizeof(auth), hostname, sizeof(hostname), &port,
+        ff_url_split(NULL, 0, auth, sizeof(auth), hostname, sizeof(hostname), &port,
                      NULL, 0, proxy_path);
         path = s->location;
     } else {
@@ -156,14 +143,26 @@ static int http_open_cnx(URLContext *h)
 
 static int http_open(URLContext *h, const char *uri, int flags)
 {
-    HTTPContext *s = h->priv_data;
+    HTTPContext *s;
 
     h->is_streamed = 1;
 
+    s = av_malloc(sizeof(HTTPContext));
+    if (!s) {
+        return AVERROR(ENOMEM);
+    }
+    h->priv_data = s;
     s->filesize = -1;
+    s->chunksize = -1;
+    s->is_chunked = 1;
+    s->off = 0;
+    s->init = 0;
+    s->hd = NULL;
+    *s->headers = '\0';
+    memset(&s->auth_state, 0, sizeof(s->auth_state));
     av_strlcpy(s->location, uri, URL_SIZE);
 
-    return http_open_cnx(h);
+    return 0;
 }
 static int http_getc(HTTPContext *s)
 {
@@ -319,12 +318,12 @@ static int http_connect(URLContext *h, const char *path, const char *hoststr,
              "\r\n",
              post ? "POST" : "GET",
              path,
-             post && s->chunksize >= 0 ? "Transfer-Encoding: chunked\r\n" : "",
+             post && s->is_chunked ? "Transfer-Encoding: chunked\r\n" : "",
              headers,
              authstr ? authstr : "");
 
     av_freep(&authstr);
-    if (url_write(s->hd, s->buffer, strlen(s->buffer)) < 0)
+    if (http_write(h, s->buffer, strlen(s->buffer)) < 0)
         return AVERROR(EIO);
 
     /* init input buffer */
@@ -334,13 +333,14 @@ static int http_connect(URLContext *h, const char *path, const char *hoststr,
     s->off = 0;
     s->filesize = -1;
     if (post) {
+        /* always use chunked encoding for upload data */
+        s->chunksize = 0;
         /* Pretend that it did work. We didn't read any header yet, since
          * we've still to send the POST data, but the code calling this
          * function will check http_code after we return. */
         s->http_code = 200;
         return 0;
     }
-    s->chunksize = -1;
 
     /* wait for header */
     for(;;) {
@@ -365,6 +365,19 @@ static int http_read(URLContext *h, uint8_t *buf, int size)
 {
     HTTPContext *s = h->priv_data;
     int len;
+
+    if (!s->init) {
+        int ret = http_open_cnx(h);
+        if (ret != 0)
+            return ret;
+    }
+    if (!s->hd)
+        return AVERROR(EIO);
+
+    /* A size of zero can be used to force
+     * initializaton of the connection. */
+    if (!size)
+        return 0;
 
     if (s->chunksize >= 0) {
         if (!s->chunksize) {
@@ -413,8 +426,16 @@ static int http_write(URLContext *h, const uint8_t *buf, int size)
     char crlf[] = "\r\n";
     HTTPContext *s = h->priv_data;
 
+    if (!s->init) {
+        int ret = http_open_cnx(h);
+        if (ret != 0)
+            return ret;
+    }
+    if (!s->hd)
+        return AVERROR(EIO);
+
     if (s->chunksize == -1) {
-        /* non-chunked data is sent without any special encoding */
+        /* headers are sent without any special encoding */
         return url_write(s->hd, buf, size);
     }
 
@@ -422,11 +443,16 @@ static int http_write(URLContext *h, const uint8_t *buf, int size)
      * signal EOF */
     if (size > 0) {
         /* upload data using chunked encoding */
-        snprintf(temp, sizeof(temp), "%x\r\n", size);
+        if(s->is_chunked) {
+            snprintf(temp, sizeof(temp), "%x\r\n", size);
+            if ((ret = url_write(s->hd, temp, strlen(temp))) < 0)
+                return ret;
+        }
 
-        if ((ret = url_write(s->hd, temp, strlen(temp))) < 0 ||
-            (ret = url_write(s->hd, buf, size)) < 0 ||
-            (ret = url_write(s->hd, crlf, sizeof(crlf) - 1)) < 0)
+        if ((ret = url_write(s->hd, buf, size)) < 0)
+            return ret;
+
+        if (s->is_chunked && (ret = url_write(s->hd, crlf, sizeof(crlf) - 1)) < 0)
             return ret;
     }
     return size;
@@ -446,6 +472,7 @@ static int http_close(URLContext *h)
 
     if (s->hd)
         url_close(s->hd);
+    av_free(s);
     return ret;
 }
 
@@ -456,6 +483,14 @@ static int64_t http_seek(URLContext *h, int64_t off, int whence)
     int64_t old_off = s->off;
     uint8_t old_buf[BUFFER_SIZE];
     int old_buf_size;
+
+    if (!s->init) {
+        int ret = http_open_cnx(h);
+        if (ret != 0)
+            return ret;
+    }
+    if (!s->hd)
+        return AVERROR(EIO);
 
     if (whence == AVSEEK_SIZE)
         return s->filesize;
@@ -500,6 +535,4 @@ URLProtocol http_protocol = {
     http_seek,
     http_close,
     .url_get_file_handle = http_get_file_handle,
-    .priv_data_size = sizeof(HTTPContext),
-    .priv_data_class = &httpcontext_class,
 };

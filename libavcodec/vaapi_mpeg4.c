@@ -21,7 +21,6 @@
  */
 
 #include "vaapi_internal.h"
-#include "h263.h"
 
 /** Reconstruct bitstream intra_dc_vlc_thr */
 static int mpeg4_get_intra_dc_vlc_thr(MpegEncContext *s)

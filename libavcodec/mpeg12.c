@@ -1440,7 +1440,7 @@ static void mpeg_decode_sequence_display_extension(Mpeg1Context *s1)
     w= get_bits(&s->gb, 14);
     skip_bits(&s->gb, 1); //marker
     h= get_bits(&s->gb, 14);
-    // remaining 3 bits are zero padding
+    skip_bits(&s->gb, 1); //marker
 
     s1->pan_scan.width= 16*w;
     s1->pan_scan.height=16*h;
@@ -1920,7 +1920,7 @@ static int slice_decode_thread(AVCodecContext *c, void *arg){
 }
 
 /**
- * Handle slice ends.
+ * Handles slice ends.
  * @return 1 if it seems to be the last slice
  */
 static int slice_end(AVCodecContext *avctx, AVFrame *pict)
@@ -2155,7 +2155,7 @@ static void mpeg_decode_gop(AVCodecContext *avctx,
             time_code_pictures, s->closed_gop, broken_link);
 }
 /**
- * Find the end of the current frame in the bitstream.
+ * Finds the end of the current frame in the bitstream.
  * @return the position of the first byte of the next frame, or -1
  */
 int ff_mpeg1_find_frame_end(ParseContext *pc, const uint8_t *buf, int buf_size, AVCodecParserContext *s)
@@ -2511,7 +2511,6 @@ AVCodec mpeg1video_decoder = {
     mpeg_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1 | CODEC_CAP_TRUNCATED | CODEC_CAP_DELAY,
     .flush= flush,
-    .max_lowres= 3,
     .long_name= NULL_IF_CONFIG_SMALL("MPEG-1 video"),
 };
 
@@ -2526,7 +2525,6 @@ AVCodec mpeg2video_decoder = {
     mpeg_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1 | CODEC_CAP_TRUNCATED | CODEC_CAP_DELAY,
     .flush= flush,
-    .max_lowres= 3,
     .long_name= NULL_IF_CONFIG_SMALL("MPEG-2 video"),
 };
 
@@ -2542,7 +2540,6 @@ AVCodec mpegvideo_decoder = {
     mpeg_decode_frame,
     CODEC_CAP_DRAW_HORIZ_BAND | CODEC_CAP_DR1 | CODEC_CAP_TRUNCATED | CODEC_CAP_DELAY,
     .flush= flush,
-    .max_lowres= 3,
     .long_name= NULL_IF_CONFIG_SMALL("MPEG-1 video"),
 };
 

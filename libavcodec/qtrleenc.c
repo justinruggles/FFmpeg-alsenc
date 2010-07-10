@@ -104,7 +104,7 @@ static av_cold int qtrle_encode_init(AVCodecContext *avctx)
 }
 
 /**
- * Compute the best RLE sequence for a line
+ * Computes the best RLE sequence for a line
  */
 static void qtrle_encode_line(QtrleEncContext *s, AVFrame *p, int line, uint8_t **buf)
 {
@@ -235,7 +235,7 @@ static void qtrle_encode_line(QtrleEncContext *s, AVFrame *p, int line, uint8_t 
     bytestream_put_byte(buf, -1); // end RLE line
 }
 
-/** Encode frame including header */
+/** Encodes frame including header */
 static int encode_frame(QtrleEncContext *s, AVFrame *p, uint8_t *buf)
 {
     int i;

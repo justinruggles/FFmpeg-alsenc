@@ -84,7 +84,7 @@ static const uint8_t wrong_run[102] = {
 };
 
 /**
- * Return the 4 bit value that specifies the given aspect ratio.
+ * Returns the 4 bit value that specifies the given aspect ratio.
  * This may be one of the standard aspect ratios or it specifies
  * that the aspect will be stored explicitly later.
  */
@@ -245,7 +245,7 @@ void h263_encode_picture_header(MpegEncContext * s, int picture_number)
 }
 
 /**
- * Encode a group of blocks header.
+ * Encodes a group of blocks header.
  */
 void h263_encode_gob_header(MpegEncContext * s, int mb_line)
 {

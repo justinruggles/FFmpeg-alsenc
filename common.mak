@@ -26,18 +26,15 @@ SILENT = DEPCC YASMDEP RM RANLIB
 MSG    = $@
 M      = @$(call ECHO,$(TAG),$@);
 $(foreach VAR,$(BRIEF), \
-    $(eval override $(VAR) = @$$(call ECHO,$(VAR),$$(MSG)); $($(VAR))))
-$(foreach VAR,$(SILENT),$(eval override $(VAR) = @$($(VAR))))
+    $(eval $(VAR) = @$$(call ECHO,$(VAR),$$(MSG)); $($(VAR))))
+$(foreach VAR,$(SILENT),$(eval $(VAR) = @$($(VAR))))
 $(eval INSTALL = @$(call ECHO,INSTALL,$$(^:$(SRC_DIR)/%=%)); $(INSTALL))
 endif
 
 ALLFFLIBS = avcodec avdevice avfilter avformat avutil postproc swscale
 
-IFLAGS   := -I$(BUILD_ROOT_REL) -I$(SRC_PATH)
-CPPFLAGS := $(IFLAGS) $(CPPFLAGS)
+CPPFLAGS := -I$(BUILD_ROOT_REL) -I$(SRC_PATH) $(CPPFLAGS)
 CFLAGS   += $(ECFLAGS)
-
-HOSTCFLAGS += $(IFLAGS)
 
 %.o: %.c
 	$(CCDEP)
@@ -56,10 +53,6 @@ HOSTCFLAGS += $(IFLAGS)
 	$(Q)sed 's/$$MAJOR/$($(basename $(@F))_VERSION_MAJOR)/' $^ > $@
 
 %.c %.h: TAG = GEN
-
-# Dummy rule to stop make trying to rebuild removed or renamed headers
-%.h:
-	@:
 
 install: install-libs install-headers
 install-libs: install-libs-yes

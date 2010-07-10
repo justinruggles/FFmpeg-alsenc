@@ -19,15 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include <stdio.h>
-#include <string.h>
 #include "pixfmt.h"
 #include "pixdesc.h"
 
 #include "intreadwrite.h"
 
-void av_read_image_line(uint16_t *dst, const uint8_t *data[4], const int linesize[4],
-                        const AVPixFmtDescriptor *desc, int x, int y, int c, int w, int read_pal_component)
+void read_line(uint16_t *dst, const uint8_t *data[4], const int linesize[4],
+               const AVPixFmtDescriptor *desc, int x, int y, int c, int w, int read_pal_component)
 {
     AVComponentDescriptor comp= desc->comp[c];
     int plane= comp.plane;
@@ -67,8 +65,8 @@ void av_read_image_line(uint16_t *dst, const uint8_t *data[4], const int linesiz
     }
 }
 
-void av_write_image_line(const uint16_t *src, uint8_t *data[4], const int linesize[4],
-                         const AVPixFmtDescriptor *desc, int x, int y, int c, int w)
+void write_line(const uint16_t *src, uint8_t *data[4], const int linesize[4],
+                const AVPixFmtDescriptor *desc, int x, int y, int c, int w)
 {
     AVComponentDescriptor comp = desc->comp[c];
     int plane = comp.plane;

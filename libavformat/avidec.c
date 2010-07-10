@@ -48,7 +48,6 @@ typedef struct AVIStream {
     int prefix_count;
     uint32_t pal[256];
     int has_pal;
-    int dshow_block_align;            ///< block align variable used to emulate bugs in the MS dshow demuxer
 } AVIStream;
 
 typedef struct {
@@ -62,8 +61,6 @@ typedef struct {
     int non_interleaved;
     int stream_index;
     DVDemuxContext* dv_demux;
-    int odml_depth;
-#define MAX_ODML_DEPTH 1000
 } AVIContext;
 
 static const char avi_headers[][8] = {
@@ -89,15 +86,6 @@ static void print_tag(const char *str, unsigned int tag, int size)
            size);
 }
 #endif
-
-static inline int get_duration(AVIStream *ast, int len){
-    if(ast->sample_size){
-        return len;
-    }else if (ast->dshow_block_align){
-        return (len + ast->dshow_block_align - 1)/ast->dshow_block_align;
-    }else
-        return 1;
-}
 
 static int get_riff(AVFormatContext *s, ByteIOContext *pb)
 {
@@ -185,7 +173,10 @@ static int read_braindead_odml_indx(AVFormatContext *s, int frame_num){
             if(last_pos != pos && (len || !ast->sample_size))
                 av_add_index_entry(st, pos, ast->cum_len, len, 0, key ? AVINDEX_KEYFRAME : 0);
 
-            ast->cum_len += get_duration(ast, len);
+            if(ast->sample_size)
+                ast->cum_len += len;
+            else
+                ast->cum_len ++;
             last_pos= pos;
         }else{
             int64_t offset, pos;
@@ -199,15 +190,8 @@ static int read_braindead_odml_indx(AVFormatContext *s, int frame_num){
 
             pos = url_ftell(pb);
 
-            if(avi->odml_depth > MAX_ODML_DEPTH){
-                av_log(s, AV_LOG_ERROR, "Too deeply nested ODML indexes\n");
-                return -1;
-            }
-
             url_fseek(pb, offset+8, SEEK_SET);
-            avi->odml_depth++;
             read_braindead_odml_indx(s, frame_num);
-            avi->odml_depth--;
             frame_num += duration;
 
             url_fseek(pb, pos, SEEK_SET);
@@ -572,7 +556,6 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
                     break;
                 case AVMEDIA_TYPE_AUDIO:
                     ff_get_wav_header(pb, st->codec, size);
-                    ast->dshow_block_align= st->codec->block_align;
                     if(ast->sample_size && st->codec->block_align && ast->sample_size != st->codec->block_align){
                         av_log(s, AV_LOG_WARNING, "sample size (%d) != block align (%d)\n", ast->sample_size, st->codec->block_align);
                         ast->sample_size= st->codec->block_align;
@@ -593,10 +576,8 @@ static int avi_read_header(AVFormatContext *s, AVFormatParameters *ap)
                         st->codec->codec_id  = CODEC_ID_XAN_DPCM;
                         st->codec->codec_tag = 0;
                     }
-                    if (amv_file_format){
+                    if (amv_file_format)
                         st->codec->codec_id  = CODEC_ID_ADPCM_IMA_AMV;
-                        ast->dshow_block_align = 0;
-                    }
                     break;
                 default:
                     st->codec->codec_type = AVMEDIA_TYPE_DATA;
@@ -831,7 +812,10 @@ resync:
             } else {
                 pkt->flags |= AV_PKT_FLAG_KEY;
             }
-            ast->frame_offset += get_duration(ast, pkt->size);
+            if(ast->sample_size)
+                ast->frame_offset += pkt->size;
+            else
+                ast->frame_offset++;
         }
         ast->remaining -= size;
         if(!ast->remaining){
@@ -913,7 +897,8 @@ resync:
             if(   (st->discard >= AVDISCARD_DEFAULT && size==0)
                /*|| (st->discard >= AVDISCARD_NONKEY && !(pkt->flags & AV_PKT_FLAG_KEY))*/ //FIXME needs a little reordering
                || st->discard >= AVDISCARD_ALL){
-                ast->frame_offset += get_duration(ast, size);
+                if(ast->sample_size) ast->frame_offset += size;
+                else                 ast->frame_offset++;
                 url_fskip(pb, size);
                 goto resync;
             }
@@ -1006,7 +991,10 @@ static int avi_read_idx1(AVFormatContext *s, int size)
             avi->non_interleaved= 1;
         else if(len || !ast->sample_size)
             av_add_index_entry(st, pos, ast->cum_len, len, 0, (flags&AVIIF_INDEX) ? AVINDEX_KEYFRAME : 0);
-        ast->cum_len += get_duration(ast, len);
+        if(ast->sample_size)
+            ast->cum_len += len;
+        else
+            ast->cum_len ++;
         last_pos= pos;
     }
     return 0;

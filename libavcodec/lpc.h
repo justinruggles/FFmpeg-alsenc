@@ -100,7 +100,7 @@ static inline void compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
 
 /**
  * Levinson-Durbin recursion.
- * Produce LPC coefficients from autocorrelation data or reflection coefficients.
+ * Produces LPC coefficients from autocorrelation data or reflection coefficients.
  */
 static inline int compute_lpc_coefs(const LPC_TYPE *autoc, int max_order,
                                     LPC_TYPE *ref_out,

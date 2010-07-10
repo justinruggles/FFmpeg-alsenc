@@ -38,6 +38,7 @@
  * and rendering (API calls) are done as part of the VDPAU
  * presentation (vo_vdpau.c) module.
  *
+ * @{
  * \defgroup  VDPAU_Decoding VDPAU Decoding
  * \ingroup Decoder
  * @{

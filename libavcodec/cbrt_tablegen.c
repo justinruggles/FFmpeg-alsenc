@@ -31,7 +31,9 @@ int main(void)
 
     write_fileheader();
 
-    WRITE_ARRAY("static const", uint32_t, cbrt_tab);
+    printf("static const uint32_t cbrt_tab[1<<13] = {\n");
+    write_uint32_array(cbrt_tab, 1 << 13);
+    printf("};\n");
 
     return 0;
 }

@@ -284,9 +284,6 @@ static av_cold void init_cplscales_table (COOKContext *q) {
 
 /*************** init functions end ***********/
 
-#define DECODE_BYTES_PAD1(bytes) (3 - ((bytes)+3) % 4)
-#define DECODE_BYTES_PAD2(bytes) ((bytes) % 4 + DECODE_BYTES_PAD1(2 * (bytes)))
-
 /**
  * Cook indata decoding, every 32 bits are XORed with 0x37c511f2.
  * Why? No idea, some checksum/error detection method maybe.
@@ -307,6 +304,8 @@ static av_cold void init_cplscales_table (COOKContext *q) {
  * @param out       pointer to byte array of outdata
  * @param bytes     number of bytes
  */
+#define DECODE_BYTES_PAD1(bytes) (3 - ((bytes)+3) % 4)
+#define DECODE_BYTES_PAD2(bytes) ((bytes) % 4 + DECODE_BYTES_PAD1(2 * (bytes)))
 
 static inline int decode_bytes(const uint8_t* inbuffer, uint8_t* out, int bytes){
     int i, off;
@@ -365,8 +364,8 @@ static av_cold int cook_decode_close(AVCodecContext *avctx)
 /**
  * Fill the gain array for the timedomain quantization.
  *
- * @param gb          pointer to the GetBitContext
- * @param gaininfo[9] array of gain indexes
+ * @param q                 pointer to the COOKContext
+ * @param gaininfo[9]       array of gain indexes
  */
 
 static void decode_gain_info(GetBitContext *gb, int *gaininfo)
@@ -714,7 +713,7 @@ static void interpolate_float(COOKContext *q, float* buffer,
  * @param previous_buffer   pointer to the previous buffer to be used for overlapping
  */
 
-static void imlt_window_float (COOKContext *q, float *inbuffer,
+static void imlt_window_float (COOKContext *q, float *buffer1,
                                cook_gains *gains_ptr, float *previous_buffer)
 {
     const float fc = pow2tab[gains_ptr->previous[0] + 63];
@@ -727,7 +726,7 @@ static void imlt_window_float (COOKContext *q, float *inbuffer,
 
     /* Apply window and overlap */
     for(i = 0; i < q->samples_per_channel; i++){
-        inbuffer[i] = inbuffer[i] * fc * q->mlt_window[i] -
+        buffer1[i] = buffer1[i] * fc * q->mlt_window[i] -
           previous_buffer[i] * q->mlt_window[q->samples_per_channel - 1 - i];
     }
 }
@@ -878,7 +877,7 @@ static void joint_decode(COOKContext *q, COOKSubpacket *p, float* mlt_buffer1,
  *
  * @param q                 pointer to the COOKContext
  * @param inbuffer          pointer to raw stream data
- * @param gains_ptr         array of current/prev gain pointers
+ * @param gain_ptr          array of current/prev gain pointers
  */
 
 static inline void
@@ -924,7 +923,7 @@ saturate_output_float (COOKContext *q, int chan, int16_t *out)
  *
  * @param q                 pointer to the COOKContext
  * @param decode_buffer     pointer to the mlt coefficients
- * @param gains_ptr         array of current/prev gain pointers
+ * @param gain_ptr          array of current/prev gain pointers
  * @param previous_buffer   pointer to the previous buffer to be used for overlapping
  * @param out               pointer to the output buffer
  * @param chan              0: left or single channel, 1: right channel
@@ -932,10 +931,10 @@ saturate_output_float (COOKContext *q, int chan, int16_t *out)
 
 static inline void
 mlt_compensate_output(COOKContext *q, float *decode_buffer,
-                      cook_gains *gains_ptr, float *previous_buffer,
+                      cook_gains *gains, float *previous_buffer,
                       int16_t *out, int chan)
 {
-    imlt_gain(q, decode_buffer, gains_ptr, previous_buffer);
+    imlt_gain(q, decode_buffer, gains, previous_buffer);
     q->saturate_output (q, chan, out);
 }
 
@@ -946,8 +945,11 @@ mlt_compensate_output(COOKContext *q, float *decode_buffer,
  *
  * @param q                 pointer to the COOKContext
  * @param inbuffer          pointer to the inbuffer
+ * @param sub_packet_size   subpacket size
  * @param outbuffer         pointer to the outbuffer
  */
+
+
 static void decode_subpacket(COOKContext *q, COOKSubpacket* p, const uint8_t *inbuffer, int16_t *outbuffer) {
     int sub_packet_size = p->size;
     /* packet dump */

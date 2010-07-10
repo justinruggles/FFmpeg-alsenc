@@ -20,7 +20,7 @@
  */
 
 /**
- * @file
+ * @file libavcodec/picdec.c
  * Pictor/PC Paint decoder
  */
 

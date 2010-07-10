@@ -27,6 +27,6 @@
  */
 
 
-int ff_tempfile(const char *prefix, char **filename);
+int av_tempfile(char *prefix, char **filename);
 
 #endif /* AVCODEC_LIBXVID_INTERNAL_H */

@@ -76,13 +76,6 @@ extern const uint8_t ff_ivi_direct_scan_4x4[16];
 
 
 /**
- *  Declare inverse transform function types
- */
-typedef void (InvTransformPtr)(const int32_t *in, int16_t *out, uint32_t pitch, const uint8_t *flags);
-typedef void (DCTransformPtr) (const int32_t *in, int16_t *out, uint32_t pitch, int blk_size);
-
-
-/**
  *  run-value (RLE) table descriptor
  */
 typedef struct {
@@ -159,8 +152,8 @@ typedef struct {
     RVMapDesc       *rv_map;        ///< ptr to the RLE table for this band
     int             num_tiles;      ///< number of tiles in this band
     IVITile         *tiles;         ///< array of tile descriptors
-    InvTransformPtr *inv_transform;
-    DCTransformPtr  *dc_transform;
+    void (*inv_transform)(const int32_t *in, int16_t *out, uint32_t pitch, const uint8_t *flags); ///< inverse transform function pointer
+    void (*dc_transform) (const int32_t *in, int16_t *out, uint32_t pitch, int blk_size);   ///< dc transform function pointer, it may be NULL
     int             is_2d_trans;    ///< 1 indicates that the two-dimensional inverse transform is used
     int32_t         checksum;       ///< for debug purposes
     int             checksum_present;
@@ -194,7 +187,7 @@ typedef struct {
     uint8_t     chroma_bands;
 } IVIPicConfig;
 
-/** compare some properties of two pictures */
+/** compares some properties of two pictures */
 static inline int ivi_pic_config_cmp(IVIPicConfig *str1, IVIPicConfig *str2)
 {
     return (str1->pic_width    != str2->pic_width    || str1->pic_height    != str2->pic_height    ||
@@ -213,15 +206,15 @@ static inline int ivi_pic_config_cmp(IVIPicConfig *str1, IVIPicConfig *str2)
 /** convert unsigned values into signed ones (the sign is in the LSB) */
 #define IVI_TOSIGNED(val) (-(((val) >> 1) ^ -((val) & 1)))
 
-/** scale motion vector */
+/** scales motion vector */
 static inline int ivi_scale_mv(int mv, int mv_scale)
 {
     return (mv + (mv > 0) + (mv_scale - 1)) >> mv_scale;
 }
 
 /**
- *  Generate a huffman codebook from the given descriptor
- *  and convert it into the FFmpeg VLC table.
+ *  Generates a huffman codebook from the given descriptor
+ *  and converts it into the FFmpeg VLC table.
  *
  *  @param cb   [in]  pointer to codebook descriptor
  *  @param vlc  [out] where to place the generated VLC table
@@ -231,13 +224,13 @@ static inline int ivi_scale_mv(int mv, int mv_scale)
 int  ff_ivi_create_huff_from_desc(const IVIHuffDesc *cb, VLC *vlc, int flag);
 
 /**
- * Initialize static codes used for macroblock and block decoding.
+ * Initializes static codes used for macroblock and block decoding.
  */
 void ff_ivi_init_static_vlc(void);
 
 /**
- *  Decode a huffman codebook descriptor from the bitstream
- *  and select specified huffman table.
+ *  Decodes a huffman codebook descriptor from the bitstream
+ *  and selects specified huffman table.
  *
  *  @param gb           [in,out] the GetBit context
  *  @param desc_coded   [in] flag signalling if table descriptor was coded
@@ -250,7 +243,7 @@ int  ff_ivi_dec_huff_desc(GetBitContext *gb, int desc_coded, int which_tab,
                           IVIHuffTab *huff_tab, AVCodecContext *avctx);
 
 /**
- *  Compare two huffman codebook descriptors.
+ *  Compares two huffman codebook descriptors.
  *
  *  @param desc1    [in] ptr to the 1st descriptor to compare
  *  @param desc2    [in] ptr to the 2nd descriptor to compare
@@ -259,7 +252,7 @@ int  ff_ivi_dec_huff_desc(GetBitContext *gb, int desc_coded, int which_tab,
 int  ff_ivi_huff_desc_cmp(const IVIHuffDesc *desc1, const IVIHuffDesc *desc2);
 
 /**
- *  Copy huffman codebook descriptors.
+ *  Copies huffman codebook descriptors.
  *
  *  @param dst  [out] ptr to the destination descriptor
  *  @param src  [in]  ptr to the source descriptor
@@ -267,7 +260,7 @@ int  ff_ivi_huff_desc_cmp(const IVIHuffDesc *desc1, const IVIHuffDesc *desc2);
 void ff_ivi_huff_desc_copy(IVIHuffDesc *dst, const IVIHuffDesc *src);
 
 /**
- *  Initialize planes (prepares descriptors, allocates buffers etc).
+ *  Initializes planes (prepares descriptors, allocates buffers etc).
  *
  *  @param planes       [in,out] pointer to the array of the plane descriptors
  *  @param cfg          [in] pointer to the ivi_pic_config structure describing picture layout
@@ -276,14 +269,14 @@ void ff_ivi_huff_desc_copy(IVIHuffDesc *dst, const IVIHuffDesc *src);
 int  ff_ivi_init_planes(IVIPlaneDesc *planes, const IVIPicConfig *cfg);
 
 /**
- *  Free planes, bands and macroblocks buffers.
+ *  Frees planes, bands and macroblocks buffers.
  *
  *  @param planes       [in] pointer to the array of the plane descriptors
  */
 void ff_ivi_free_buffers(IVIPlaneDesc *planes);
 
 /**
- *  Initialize tile and macroblock descriptors.
+ *  Initializes tile and macroblock descriptors.
  *
  *  @param planes       [in,out] pointer to the array of the plane descriptors
  *  @param tile_width   [in]     tile width
@@ -293,7 +286,7 @@ void ff_ivi_free_buffers(IVIPlaneDesc *planes);
 int  ff_ivi_init_tiles(IVIPlaneDesc *planes, int tile_width, int tile_height);
 
 /**
- *  Decode size of the tile data.
+ *  Decodes size of the tile data.
  *  The size is stored as a variable-length field having the following format:
  *  if (tile_data_size < 255) than this field is only one byte long
  *  if (tile_data_size >= 255) than this field four is byte long: 0xFF X1 X2 X3
@@ -305,9 +298,9 @@ int  ff_ivi_init_tiles(IVIPlaneDesc *planes, int tile_width, int tile_height);
 int  ff_ivi_dec_tile_data_size(GetBitContext *gb);
 
 /**
- *  Decode block data:
- *  extract huffman-coded transform coefficients from the bitstream,
- *  dequantize them, apply inverse transform and motion compensation
+ *  Decodes block data:
+ *  extracts huffman-coded transform coefficients from the bitstream,
+ *  dequantizes them, applies inverse transform and motion compensation
  *  in order to reconstruct the picture.
  *
  *  @param gb   [in,out] the GetBit context
@@ -318,7 +311,7 @@ int  ff_ivi_dec_tile_data_size(GetBitContext *gb);
 int  ff_ivi_decode_blocks(GetBitContext *gb, IVIBandDesc *band, IVITile *tile);
 
 /**
- *  Handle empty tiles by performing data copying and motion
+ *  Handles empty tiles by performing data copying and motion
  *  compensation respectively.
  *
  *  @param avctx    [in] ptr to the AVCodecContext
@@ -330,7 +323,7 @@ void ff_ivi_process_empty_tile(AVCodecContext *avctx, IVIBandDesc *band,
                                IVITile *tile, int32_t mv_scale);
 
 /**
- *  Convert and output the current plane.
+ *  Converts and outputs the current plane.
  *  This conversion is done by adding back the bias value of 128
  *  (subtracted in the encoder) and clipping the result.
  *
@@ -342,12 +335,12 @@ void ff_ivi_output_plane(IVIPlaneDesc *plane, uint8_t *dst, int dst_pitch);
 
 #if IVI_DEBUG
 /**
- *  Calculate band checksum from band data.
+ *  Calculates band checksum from band data.
  */
 uint16_t ivi_calc_band_checksum (IVIBandDesc *band);
 
 /**
- *  Verify that band data lies in range.
+ *  Verifies that band data lies in range.
  */
 int ivi_check_band (IVIBandDesc *band, const uint8_t *ref, int pitch);
 #endif

@@ -29,7 +29,7 @@
  */
 
 /**
- * Initialize an empty VA API picture.
+ * Initializes an empty VA API picture.
  *
  * VA API requires a fixed-size reference picture array.
  */
@@ -42,7 +42,7 @@ static void init_vaapi_pic(VAPictureH264 *va_pic)
 }
 
 /**
- * Translate an FFmpeg Picture into its VA API form.
+ * Translates an FFmpeg Picture into its VA API form.
  *
  * @param[out] va_pic          A pointer to VA API's own picture struct
  * @param[in]  pic             A pointer to the FFmpeg picture struct to convert
@@ -82,7 +82,7 @@ typedef struct DPB {
 } DPB;
 
 /**
- * Append picture to the decoded picture buffer, in a VA API form that
+ * Appends picture to the decoded picture buffer, in a VA API form that
  * merges the second field picture attributes with the first, if
  * available.  The decoded picture buffer's size must be large enough
  * to receive the new VA API picture object.
@@ -117,7 +117,7 @@ static int dpb_add(DPB *dpb, Picture *pic)
     return 0;
 }
 
-/** Fill in VA API reference frames array. */
+/** Fills in VA API reference frames array. */
 static int fill_vaapi_ReferenceFrames(VAPictureParameterBufferH264 *pic_param,
                                       H264Context                  *h)
 {
@@ -145,7 +145,7 @@ static int fill_vaapi_ReferenceFrames(VAPictureParameterBufferH264 *pic_param,
 }
 
 /**
- * Fill in VA API reference picture lists from the FFmpeg reference
+ * Fills in VA API reference picture lists from the FFmpeg reference
  * picture list.
  *
  * @param[out] RefPicList  VA API internal reference picture list
@@ -166,7 +166,7 @@ static void fill_vaapi_RefPicList(VAPictureH264 RefPicList[32],
 }
 
 /**
- * Fill in prediction weight table.
+ * Fills in prediction weight table.
  *
  * VA API requires a plain prediction weight table as it does not infer
  * any value.
@@ -216,7 +216,7 @@ static void fill_vaapi_plain_pred_weight_table(H264Context   *h,
     }
 }
 
-/** Initialize and start decoding a frame with VA API. */
+/** Initializes and starts decoding a frame with VA API. */
 static int start_frame(AVCodecContext          *avctx,
                        av_unused const uint8_t *buffer,
                        av_unused uint32_t       size)
@@ -284,7 +284,7 @@ static int start_frame(AVCodecContext          *avctx,
     return 0;
 }
 
-/** End a hardware decoding based frame. */
+/** Ends a hardware decoding based frame. */
 static int end_frame(AVCodecContext *avctx)
 {
     H264Context * const h = avctx->priv_data;
@@ -293,7 +293,7 @@ static int end_frame(AVCodecContext *avctx)
     return ff_vaapi_common_end_frame(&h->s);
 }
 
-/** Decode the given H.264 slice with VA API. */
+/** Decodes the given H.264 slice with VA API. */
 static int decode_slice(AVCodecContext *avctx,
                         const uint8_t  *buffer,
                         uint32_t        size)

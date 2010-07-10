@@ -28,7 +28,7 @@ extern const int av_sha1_size;
 struct AVSHA1;
 
 /**
- * Initialize SHA-1 hashing.
+ * Initializes SHA-1 hashing.
  *
  * @param context pointer to the function context (of size av_sha_size)
  * @deprecated use av_sha_init() instead
@@ -36,7 +36,7 @@ struct AVSHA1;
 void av_sha1_init(struct AVSHA1* context);
 
 /**
- * Update hash value.
+ * Updates hash value.
  *
  * @param context hash function context
  * @param data    input data to update hash with
@@ -46,7 +46,7 @@ void av_sha1_init(struct AVSHA1* context);
 void av_sha1_update(struct AVSHA1* context, const uint8_t* data, unsigned int len);
 
 /**
- * Finish hashing and output digest value.
+ * Finishes hashing and output digest value.
  *
  * @param context hash function context
  * @param digest  buffer where output digest value is stored

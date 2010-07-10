@@ -102,7 +102,7 @@ static const uint8_t rtmp_server_key[] = {
 };
 
 /**
- * Generate 'connect' call and send it to the server.
+ * Generates 'connect' call and sends it to the server.
  */
 static void gen_connect(URLContext *s, RTMPContext *rt, const char *proto,
                         const char *host, int port)
@@ -154,7 +154,7 @@ static void gen_connect(URLContext *s, RTMPContext *rt, const char *proto,
 }
 
 /**
- * Generate 'releaseStream' call and send it to the server. It should make
+ * Generates 'releaseStream' call and sends it to the server. It should make
  * the server release some channel for media streams.
  */
 static void gen_release_stream(URLContext *s, RTMPContext *rt)
@@ -177,7 +177,7 @@ static void gen_release_stream(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Generate 'FCPublish' call and send it to the server. It should make
+ * Generates 'FCPublish' call and sends it to the server. It should make
  * the server preapare for receiving media streams.
  */
 static void gen_fcpublish_stream(URLContext *s, RTMPContext *rt)
@@ -200,7 +200,7 @@ static void gen_fcpublish_stream(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Generate 'FCUnpublish' call and send it to the server. It should make
+ * Generates 'FCUnpublish' call and sends it to the server. It should make
  * the server destroy stream.
  */
 static void gen_fcunpublish_stream(URLContext *s, RTMPContext *rt)
@@ -223,7 +223,7 @@ static void gen_fcunpublish_stream(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Generate 'createStream' call and send it to the server. It should make
+ * Generates 'createStream' call and sends it to the server. It should make
  * the server allocate some channel for media streams.
  */
 static void gen_create_stream(URLContext *s, RTMPContext *rt)
@@ -245,7 +245,7 @@ static void gen_create_stream(URLContext *s, RTMPContext *rt)
 
 
 /**
- * Generate 'deleteStream' call and send it to the server. It should make
+ * Generates 'deleteStream' call and sends it to the server. It should make
  * the server remove some channel for media streams.
  */
 static void gen_delete_stream(URLContext *s, RTMPContext *rt)
@@ -267,7 +267,7 @@ static void gen_delete_stream(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Generate 'play' call and send it to the server, then ping the server
+ * Generates 'play' call and sends it to the server, then pings the server
  * to start actual playing.
  */
 static void gen_play(URLContext *s, RTMPContext *rt)
@@ -302,7 +302,7 @@ static void gen_play(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Generate 'publish' call and send it to the server.
+ * Generates 'publish' call and sends it to the server.
  */
 static void gen_publish(URLContext *s, RTMPContext *rt)
 {
@@ -326,7 +326,7 @@ static void gen_publish(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Generate ping reply and send it to the server.
+ * Generates ping reply and sends it to the server.
  */
 static void gen_pong(URLContext *s, RTMPContext *rt, RTMPPacket *ppkt)
 {
@@ -342,7 +342,7 @@ static void gen_pong(URLContext *s, RTMPContext *rt, RTMPPacket *ppkt)
 }
 
 /**
- * Generate report on bytes read so far and send it to the server.
+ * Generates report on bytes read so far and sends it to the server.
  */
 static void gen_bytes_read(URLContext *s, RTMPContext *rt, uint32_t ts)
 {
@@ -361,7 +361,7 @@ static void gen_bytes_read(URLContext *s, RTMPContext *rt, uint32_t ts)
 #define HMAC_OPAD_VAL 0x5C
 
 /**
- * Calculate HMAC-SHA2 digest for RTMP handshake packets.
+ * Calculates HMAC-SHA2 digest for RTMP handshake packets.
  *
  * @param src    input buffer
  * @param len    input buffer length (should be 1536)
@@ -410,7 +410,7 @@ static void rtmp_calc_digest(const uint8_t *src, int len, int gap,
 }
 
 /**
- * Put HMAC-SHA2 digest of packet data (except for the bytes where this digest
+ * Puts HMAC-SHA2 digest of packet data (except for the bytes where this digest
  * will be stored) into that packet.
  *
  * @param buf handshake data (1536 bytes)
@@ -431,7 +431,7 @@ static int rtmp_handshake_imprint_with_digest(uint8_t *buf)
 }
 
 /**
- * Verify that the received server response has the expected digest value.
+ * Verifies that the received server response has the expected digest value.
  *
  * @param buf handshake data received from the server (1536 bytes)
  * @param off position to search digest offset from
@@ -455,7 +455,7 @@ static int rtmp_validate_digest(uint8_t *buf, int off)
 }
 
 /**
- * Perform handshake with the server by means of exchanging pseudorandom data
+ * Performs handshake with the server by means of exchanging pseudorandom data
  * signed with HMAC-SHA2 digest.
  *
  * @return 0 if handshake succeeds, negative value otherwise
@@ -540,7 +540,7 @@ static int rtmp_handshake(URLContext *s, RTMPContext *rt)
 }
 
 /**
- * Parse received packet and possibly perform some action depending on
+ * Parses received packet and may perform some action depending on
  * the packet contents.
  * @return 0 for no errors, negative values for serious errors which prevent
  *         further communications, positive values for uncritical errors
@@ -666,7 +666,7 @@ static int rtmp_parse_result(URLContext *s, RTMPContext *rt, RTMPPacket *pkt)
 }
 
 /**
- * Interact with the server by receiving and sending RTMP packets until
+ * Interacts with the server by receiving and sending RTMP packets until
  * there is some significant data (media data or expected status notification).
  *
  * @param s          reading context
@@ -791,7 +791,7 @@ static int rtmp_close(URLContext *h)
 }
 
 /**
- * Open RTMP connection and verify that the stream can be played.
+ * Opens RTMP connection and verifies that the stream can be played.
  *
  * URL syntax: rtmp://server[:port][/app][/playpath]
  *             where 'app' is first one or two directories in the path
@@ -813,7 +813,7 @@ static int rtmp_open(URLContext *s, const char *uri, int flags)
     s->priv_data = rt;
     rt->is_input = !(flags & URL_WRONLY);
 
-    av_url_split(proto, sizeof(proto), NULL, 0, hostname, sizeof(hostname), &port,
+    ff_url_split(proto, sizeof(proto), NULL, 0, hostname, sizeof(hostname), &port,
                  path, sizeof(path), s->filename);
 
     if (port < 0)
@@ -915,7 +915,6 @@ static int rtmp_read(URLContext *s, uint8_t *buf, int size)
             buf  += data_left;
             size -= data_left;
             rt->flv_off = rt->flv_size;
-            return data_left;
         }
         if ((ret = get_packet(s, 0)) < 0)
            return ret;

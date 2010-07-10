@@ -83,7 +83,7 @@ typedef struct RTMPPacket {
 } RTMPPacket;
 
 /**
- * Create new RTMP packet with given attributes.
+ * Creates new RTMP packet with given attributes.
  *
  * @param pkt        packet
  * @param channel_id packet channel ID
@@ -96,14 +96,14 @@ int ff_rtmp_packet_create(RTMPPacket *pkt, int channel_id, RTMPPacketType type,
                           int timestamp, int size);
 
 /**
- * Free RTMP packet.
+ * Frees RTMP packet.
  *
  * @param pkt packet
  */
 void ff_rtmp_packet_destroy(RTMPPacket *pkt);
 
 /**
- * Read RTMP packet sent by the server.
+ * Reads RTMP packet sent by the server.
  *
  * @param h          reader context
  * @param p          packet
@@ -116,7 +116,7 @@ int ff_rtmp_packet_read(URLContext *h, RTMPPacket *p,
                         int chunk_size, RTMPPacket *prev_pkt);
 
 /**
- * Send RTMP packet to the server.
+ * Sends RTMP packet to the server.
  *
  * @param h          reader context
  * @param p          packet to send
@@ -129,9 +129,9 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *p,
                          int chunk_size, RTMPPacket *prev_pkt);
 
 /**
- * Print information and contents of RTMP packet.
+ * Prints information and contents of RTMP packet.
  *
- * @param ctx        output context
+ * @param h          output context
  * @param p          packet to dump
  */
 void ff_rtmp_packet_dump(void *ctx, RTMPPacket *p);
@@ -143,7 +143,7 @@ void ff_rtmp_packet_dump(void *ctx, RTMPPacket *p);
  */
 
 /**
- * Calculate number of bytes taken by first AMF entry in data.
+ * Calculates number of bytes taken by first AMF entry in data.
  *
  * @param data input data
  * @param data_end input buffer end
@@ -152,7 +152,7 @@ void ff_rtmp_packet_dump(void *ctx, RTMPPacket *p);
 int ff_amf_tag_size(const uint8_t *data, const uint8_t *data_end);
 
 /**
- * Retrieve value of given AMF object field in string form.
+ * Retrieves value of given AMF object field in string form.
  *
  * @param data     AMF object data
  * @param data_end input buffer end
@@ -165,7 +165,7 @@ int ff_amf_get_field_value(const uint8_t *data, const uint8_t *data_end,
                            const uint8_t *name, uint8_t *dst, int dst_size);
 
 /**
- * Write boolean value in AMF format to buffer.
+ * Writes boolean value in AMF format to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  * @param val value to write
@@ -173,7 +173,7 @@ int ff_amf_get_field_value(const uint8_t *data, const uint8_t *data_end,
 void ff_amf_write_bool(uint8_t **dst, int val);
 
 /**
- * Write number in AMF format to buffer.
+ * Writes number in AMF format to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  * @param num value to write
@@ -181,7 +181,7 @@ void ff_amf_write_bool(uint8_t **dst, int val);
 void ff_amf_write_number(uint8_t **dst, double num);
 
 /**
- * Write string in AMF format to buffer.
+ * Writes string in AMF format to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  * @param str string to write
@@ -189,21 +189,21 @@ void ff_amf_write_number(uint8_t **dst, double num);
 void ff_amf_write_string(uint8_t **dst, const char *str);
 
 /**
- * Write AMF NULL value to buffer.
+ * Writes AMF NULL value to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  */
 void ff_amf_write_null(uint8_t **dst);
 
 /**
- * Write marker for AMF object to buffer.
+ * Writes marker for AMF object to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  */
 void ff_amf_write_object_start(uint8_t **dst);
 
 /**
- * Write string used as field name in AMF object to buffer.
+ * Writes string used as field name in AMF object to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  * @param str string to write
@@ -211,7 +211,7 @@ void ff_amf_write_object_start(uint8_t **dst);
 void ff_amf_write_field_name(uint8_t **dst, const char *str);
 
 /**
- * Write marker for end of AMF object to buffer.
+ * Writes marker for end of AMF object to buffer.
  *
  * @param dst pointer to the input buffer (will be modified)
  */

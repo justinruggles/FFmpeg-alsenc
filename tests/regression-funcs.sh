@@ -14,8 +14,7 @@ datadir="./tests/data"
 target_datadir="${target_path}/${datadir}"
 
 this="$test.$test_ref"
-logdir="$datadir/regression/$test_ref"
-logfile="$logdir/$test"
+logfile="$datadir/$this.regression"
 outfile="$datadir/$test_ref/"
 errfile="$datadir/$this.err"
 
@@ -36,7 +35,6 @@ target_crcfile="$target_datadir/$this.crc"
 
 mkdir -p "$datadir"
 mkdir -p "$outfile"
-mkdir -p "$logdir"
 
 [ "${V-0}" -gt 0 ] && echov=echo || echov=:
 [ "${V-0}" -gt 1 ] || exec 2>$errfile

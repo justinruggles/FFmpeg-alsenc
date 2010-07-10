@@ -18,14 +18,11 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
-
 #ifndef AVFORMAT_HTTP_H
 #define AVFORMAT_HTTP_H
 
-#include "avio.h"
-
 /**
- * Set custom HTTP headers.
+ * Sets custom HTTP headers.
  * A trailing CRLF ("\r\n") is required for custom headers.
  * Passing in an empty header string ("\0") will reset to defaults.
  *
@@ -43,22 +40,11 @@
 void ff_http_set_headers(URLContext *h, const char *headers);
 
 /**
- * Enable or disable chunked transfer encoding. (default is enabled)
+ * Enables or disables chunked transfer encoding. (default is enabled)
  *
  * @param h URL context for this HTTP connection
  * @param is_chunked 0 to disable chunking, nonzero otherwise.
  */
 void ff_http_set_chunked_transfer_encoding(URLContext *h, int is_chunked);
-
-/**
- * Initialize the authentication state based on another HTTP URLContext.
- * This can be used to pre-initialize the authentication parameters if
- * they are known beforehand, to avoid having to do an initial failing
- * request just to get the parameters.
- *
- * @param dest URL context whose authentication state gets updated
- * @param src URL context whose authentication state gets copied
- */
-void ff_http_init_auth_state(URLContext *dest, const URLContext *src);
 
 #endif /* AVFORMAT_HTTP_H */

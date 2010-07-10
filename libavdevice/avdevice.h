@@ -34,17 +34,17 @@
 #define LIBAVDEVICE_BUILD       LIBAVDEVICE_VERSION_INT
 
 /**
- * Return the LIBAVDEVICE_VERSION_INT constant.
+ * Returns the LIBAVDEVICE_VERSION_INT constant.
  */
 unsigned avdevice_version(void);
 
 /**
- * Return the libavdevice build-time configuration.
+ * Returns the libavdevice build-time configuration.
  */
 const char *avdevice_configuration(void);
 
 /**
- * Return the libavdevice license.
+ * Returns the libavdevice license.
  */
 const char *avdevice_license(void);
 

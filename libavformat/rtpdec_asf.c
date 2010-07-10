@@ -91,9 +91,8 @@ static void init_packetizer(ByteIOContext *pb, uint8_t *buf, int len)
     pb->buf_end = buf + len;
 }
 
-int ff_wms_parse_sdp_a_line(AVFormatContext *s, const char *p)
+void ff_wms_parse_sdp_a_line(AVFormatContext *s, const char *p)
 {
-    int ret = 0;
     if (av_strstart(p, "pgmpu:data:application/vnd.ms.wms-hdr.asfv1;base64,", &p)) {
         ByteIOContext pb;
         RTSPState *rt = s->priv_data;
@@ -109,14 +108,11 @@ int ff_wms_parse_sdp_a_line(AVFormatContext *s, const char *p)
             av_close_input_stream(rt->asf_ctx);
             rt->asf_ctx = NULL;
         }
-        ret = av_open_input_stream(&rt->asf_ctx, &pb, "", &asf_demuxer, NULL);
-        if (ret < 0)
-            return ret;
+        av_open_input_stream(&rt->asf_ctx, &pb, "", &asf_demuxer, NULL);
         rt->asf_pb_pos = url_ftell(&pb);
         av_free(buf);
         rt->asf_ctx->pb = NULL;
     }
-    return ret;
 }
 
 static int asfrtp_parse_sdp_line(AVFormatContext *s, int stream_index,
@@ -147,7 +143,7 @@ static int asfrtp_parse_sdp_line(AVFormatContext *s, int stream_index,
 
 struct PayloadContext {
     ByteIOContext *pktbuf, pb;
-    uint8_t *buf;
+    char *buf;
 };
 
 /**

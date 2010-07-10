@@ -71,7 +71,7 @@ struct xvmc_pix_fmt {
     */
     int             allocated_data_blocks;
 
-    /** Indicate that the hardware would interpret data_blocks as IDCT
+    /** Indicates that the hardware would interpret data_blocks as IDCT
         coefficients and perform IDCT on them.
         - application - set during initialization
         - libavcodec  - unchanged

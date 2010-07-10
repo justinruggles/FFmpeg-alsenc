@@ -20,7 +20,7 @@
  */
 
 /**
- * @file
+ * @file: dpcm.c
  * Assorted DPCM (differential pulse code modulation) audio codecs
  * by Mike Melanson (melanson@pcisys.net)
  * Xan DPCM decoder by Mario Brito (mbrito@student.dei.uc.pt)

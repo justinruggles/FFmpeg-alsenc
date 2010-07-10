@@ -67,7 +67,7 @@
  * Y (not in this code) Layer-2
  * Y (not in this code) Layer-3
  * N                    SinuSoidal Coding (Transient, Sinusoid, Noise)
- * Y                    Parametric Stereo
+ * N (planned)          Parametric Stereo
  * N                    Direct Stream Transfer
  *
  * Note: - HE AAC v1 comprises LC AAC with Spectral Band Replication.
@@ -200,8 +200,7 @@ static av_cold int che_configure(AACContext *ac,
         ff_aac_sbr_ctx_init(&ac->che[type][id]->sbr);
         if (type != TYPE_CCE) {
             ac->output_data[(*channels)++] = ac->che[type][id]->ch[0].ret;
-            if (type == TYPE_CPE ||
-                (type == TYPE_SCE && ac->m4ac.ps == 1)) {
+            if (type == TYPE_CPE) {
                 ac->output_data[(*channels)++] = ac->che[type][id]->ch[1].ret;
             }
         }
@@ -229,7 +228,6 @@ static av_cold int output_configure(AACContext *ac,
     AVCodecContext *avctx = ac->avctx;
     int i, type, channels = 0, ret;
 
-    if (new_che_pos != che_pos)
     memcpy(che_pos, new_che_pos, 4 * MAX_ELEM_ID * sizeof(new_che_pos[0][0]));
 
     if (channel_config) {
@@ -473,8 +471,6 @@ static int decode_audio_specific_config(AACContext *ac, void *data,
         av_log(ac->avctx, AV_LOG_ERROR, "invalid sampling rate index %d\n", ac->m4ac.sampling_index);
         return -1;
     }
-    if (ac->m4ac.sbr == 1 && ac->m4ac.ps == -1)
-        ac->m4ac.ps = 1;
 
     skip_bits_long(&gb, i);
 
@@ -537,6 +533,7 @@ static void reset_predictor_group(PredictorState *ps, int group_num)
 static av_cold int aac_decode_init(AVCodecContext *avctx)
 {
     AACContext *ac = avctx->priv_data;
+    int i;
 
     ac->avctx = avctx;
     ac->m4ac.sample_rate = avctx->sample_rate;
@@ -580,7 +577,10 @@ static av_cold int aac_decode_init(AVCodecContext *avctx)
         ac->sf_offset = 60;
     }
 
-    ff_aac_tableinit();
+#if !CONFIG_HARDCODED_TABLES
+    for (i = 0; i < 428; i++)
+        ff_aac_pow2sf_tab[i] = pow(2, (i - 200) / 4.);
+#endif /* CONFIG_HARDCODED_TABLES */
 
     INIT_VLC_STATIC(&vlc_scalefactors,7,FF_ARRAY_ELEMS(ff_aac_scalefactor_code),
                     ff_aac_scalefactor_bits, sizeof(ff_aac_scalefactor_bits[0]), sizeof(ff_aac_scalefactor_bits[0]),
@@ -995,6 +995,7 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
     const int c = 1024 / ics->num_windows;
     const uint16_t *offsets = ics->swb_offset;
     float *coef_base = coef;
+    int err_idx;
 
     for (g = 0; g < ics->num_windows; g++)
         memset(coef + g * 128 + offsets[ics->max_sfb], 0, sizeof(float) * (c - offsets[ics->max_sfb]));
@@ -1030,6 +1031,7 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
                 const float *vq = ff_aac_codebook_vector_vals[cbt_m1];
                 const uint16_t *cb_vector_idx = ff_aac_codebook_vector_idx[cbt_m1];
                 VLC_TYPE (*vlc_tab)[2] = vlc_spectral[cbt_m1].table;
+                const int cb_size = ff_aac_spectral_sizes[cbt_m1];
                 OPEN_READER(re, gb);
 
                 switch (cbt_m1 >> 1) {
@@ -1044,6 +1046,12 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
 
                             UPDATE_CACHE(re, gb);
                             GET_VLC(code, re, gb, vlc_tab, 8, 2);
+
+                            if (code >= cb_size) {
+                                err_idx = code;
+                                goto err_cb_overflow;
+                            }
+
                             cb_idx = cb_vector_idx[code];
                             cf = VMUL4(cf, vq, cb_idx, sf + idx);
                         } while (len -= 4);
@@ -1063,6 +1071,12 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
 
                             UPDATE_CACHE(re, gb);
                             GET_VLC(code, re, gb, vlc_tab, 8, 2);
+
+                            if (code >= cb_size) {
+                                err_idx = code;
+                                goto err_cb_overflow;
+                            }
+
 #if MIN_CACHE_BITS < 20
                             UPDATE_CACHE(re, gb);
 #endif
@@ -1086,6 +1100,12 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
 
                             UPDATE_CACHE(re, gb);
                             GET_VLC(code, re, gb, vlc_tab, 8, 2);
+
+                            if (code >= cb_size) {
+                                err_idx = code;
+                                goto err_cb_overflow;
+                            }
+
                             cb_idx = cb_vector_idx[code];
                             cf = VMUL2(cf, vq, cb_idx, sf + idx);
                         } while (len -= 2);
@@ -1106,6 +1126,12 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
 
                             UPDATE_CACHE(re, gb);
                             GET_VLC(code, re, gb, vlc_tab, 8, 2);
+
+                            if (code >= cb_size) {
+                                err_idx = code;
+                                goto err_cb_overflow;
+                            }
+
                             cb_idx = cb_vector_idx[code];
                             nnz = cb_idx >> 8 & 15;
                             sign = SHOW_UBITS(re, gb, nnz) << (cb_idx >> 12);
@@ -1135,6 +1161,11 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
                                 *icf++ = 0;
                                 *icf++ = 0;
                                 continue;
+                            }
+
+                            if (code >= cb_size) {
+                                err_idx = code;
+                                goto err_cb_overflow;
                             }
 
                             cb_idx = cb_vector_idx[code];
@@ -1205,6 +1236,12 @@ static int decode_spectrum_and_dequant(AACContext *ac, float coef[1024],
         }
     }
     return 0;
+
+err_cb_overflow:
+    av_log(ac->avctx, AV_LOG_ERROR,
+           "Read beyond end of ff_aac_codebook_vectors[%d][]. index %d >= %d\n",
+           band_type[idx], err_idx, ff_aac_spectral_sizes[band_type[idx]]);
+    return -1;
 }
 
 static av_always_inline float flt16_round(float pf)
@@ -1416,6 +1453,8 @@ static void apply_intensity_stereo(ChannelElement *cpe, int ms_present)
 /**
  * Decode a channel_pair_element; reference: table 4.4.
  *
+ * @param   elem_id Identifies the instance of a syntax element.
+ *
  * @return  Returns error status. 0 - OK, !0 - error
  */
 static int decode_cpe(AACContext *ac, GetBitContext *gb, ChannelElement *cpe)
@@ -1456,6 +1495,8 @@ static int decode_cpe(AACContext *ac, GetBitContext *gb, ChannelElement *cpe)
 
 /**
  * Decode coupling_channel_element; reference: table 4.8.
+ *
+ * @param   elem_id Identifies the instance of a syntax element.
  *
  * @return  Returns error status. 0 - OK, !0 - error
  */
@@ -1626,10 +1667,6 @@ static int decode_extension_payload(AACContext *ac, GetBitContext *gb, int cnt,
             av_log(ac->avctx, AV_LOG_ERROR, "Implicit SBR was found with a first occurrence after the first frame.\n");
             skip_bits_long(gb, 8 * cnt - 4);
             return res;
-        } else if (ac->m4ac.ps == -1 && ac->output_configured < OC_LOCKED && ac->avctx->channels == 1) {
-            ac->m4ac.sbr = 1;
-            ac->m4ac.ps = 1;
-            output_configure(ac, ac->che_pos, ac->che_pos, ac->m4ac.chan_config, ac->output_configured);
         } else {
             ac->m4ac.sbr = 1;
         }
@@ -1823,6 +1860,7 @@ static void apply_independent_coupling(AACContext *ac,
 /**
  * channel coupling transformation interface
  *
+ * @param   index   index into coupling gain array
  * @param   apply_coupling_method   pointer to (in)dependent coupling function
  */
 static void apply_channel_coupling(AACContext *ac, ChannelElement *cc,
@@ -1908,10 +1946,8 @@ static int parse_adts_frame_header(AACContext *ac, GetBitContext *gb)
         } else if (ac->output_configured != OC_LOCKED) {
             ac->output_configured = OC_NONE;
         }
-        if (ac->output_configured != OC_LOCKED) {
+        if (ac->output_configured != OC_LOCKED)
             ac->m4ac.sbr = -1;
-            ac->m4ac.ps  = -1;
-        }
         ac->m4ac.sample_rate     = hdr_info.sample_rate;
         ac->m4ac.sampling_index  = hdr_info.sampling_index;
         ac->m4ac.object_type     = hdr_info.object_type;
@@ -1939,7 +1975,7 @@ static int aac_decode_frame(AVCodecContext *avctx, void *data,
     enum RawDataBlockType elem_type, elem_type_prev = TYPE_END;
     int err, elem_id, data_size_tmp;
     int buf_consumed;
-    int samples = 0, multiplier;
+    int samples = 1024, multiplier;
     int buf_offset;
 
     init_get_bits(&gb, buf, buf_size * 8);
@@ -1960,13 +1996,9 @@ static int aac_decode_frame(AVCodecContext *avctx, void *data,
     while ((elem_type = get_bits(&gb, 3)) != TYPE_END) {
         elem_id = get_bits(&gb, 4);
 
-        if (elem_type < TYPE_DSE) {
-            if (!(che=get_che(ac, elem_type, elem_id))) {
-                av_log(ac->avctx, AV_LOG_ERROR, "channel element %d.%d is not allocated\n",
-                       elem_type, elem_id);
-                return -1;
-            }
-            samples = 1024;
+        if (elem_type < TYPE_DSE && !(che=get_che(ac, elem_type, elem_id))) {
+            av_log(ac->avctx, AV_LOG_ERROR, "channel element %d.%d is not allocated\n", elem_type, elem_id);
+            return -1;
         }
 
         switch (elem_type) {
@@ -2051,8 +2083,7 @@ static int aac_decode_frame(AVCodecContext *avctx, void *data,
     }
     *data_size = data_size_tmp;
 
-    if (samples)
-        ac->dsp.float_to_int16_interleave(data, (const float **)ac->output_data, samples, avctx->channels);
+    ac->dsp.float_to_int16_interleave(data, (const float **)ac->output_data, samples, avctx->channels);
 
     if (ac->output_configured)
         ac->output_configured = OC_LOCKED;

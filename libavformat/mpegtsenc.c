@@ -387,9 +387,8 @@ static int mpegts_write_header(AVFormatContext *s)
     MpegTSService *service;
     AVStream *st, *pcr_st = NULL;
     AVMetadataTag *title;
-    int i, j;
+    int i;
     const char *service_name;
-    int *pids;
 
     ts->tsid = DEFAULT_TSID;
     ts->onid = DEFAULT_ONID;
@@ -412,10 +411,6 @@ static int mpegts_write_header(AVFormatContext *s)
     ts->sdt.write_packet = section_write_packet;
     ts->sdt.opaque = s;
 
-    pids = av_malloc(s->nb_streams * sizeof(*pids));
-    if (!pids)
-        return AVERROR(ENOMEM);
-
     /* assign pids to each stream */
     for(i = 0;i < s->nb_streams; i++) {
         st = s->streams[i];
@@ -424,26 +419,7 @@ static int mpegts_write_header(AVFormatContext *s)
             goto fail;
         st->priv_data = ts_st;
         ts_st->service = service;
-        /* MPEG pid values < 16 are reserved. Applications which set st->id in
-         * this range are assigned a calculated pid. */
-        if (st->id < 16) {
-            ts_st->pid = DEFAULT_START_PID + i;
-        } else if (st->id < 0x1FFF) {
-            ts_st->pid = st->id;
-        } else {
-            av_log(s, AV_LOG_ERROR, "Invalid stream id %d, must be less than 8191\n", st->id);
-            goto fail;
-        }
-        if (ts_st->pid == service->pmt.pid) {
-            av_log(s, AV_LOG_ERROR, "Duplicate stream id %d\n", ts_st->pid);
-            goto fail;
-        }
-        for (j = 0; j < i; j++)
-            if (pids[j] == ts_st->pid) {
-                av_log(s, AV_LOG_ERROR, "Duplicate stream id %d\n", ts_st->pid);
-                goto fail;
-            }
-        pids[i] = ts_st->pid;
+        ts_st->pid = DEFAULT_START_PID + i;
         ts_st->payload_pts = AV_NOPTS_VALUE;
         ts_st->payload_dts = AV_NOPTS_VALUE;
         ts_st->first_pts_check = 1;
@@ -464,8 +440,6 @@ static int mpegts_write_header(AVFormatContext *s)
                 return -1;
         }
     }
-
-    av_free(pids);
 
     /* if no video stream, use the first stream as PCR */
     if (service->pcr_pid == 0x1fff && s->nb_streams > 0) {
@@ -510,21 +484,18 @@ static int mpegts_write_header(AVFormatContext *s)
     ts->pat_packet_count = ts->pat_packet_period-1;
     ts->sdt_packet_count = ts->sdt_packet_period-1;
 
-    if (ts->mux_rate == 1)
-        av_log(s, AV_LOG_INFO, "muxrate VBR, ");
-    else
-        av_log(s, AV_LOG_INFO, "muxrate %d, ", ts->mux_rate);
-    av_log(s, AV_LOG_INFO, "pcr every %d pkts, "
+    av_log(s, AV_LOG_INFO,
+           "muxrate %d bps, pcr every %d pkts, "
            "sdt every %d, pat/pmt every %d pkts\n",
-           service->pcr_packet_period,
+           ts->mux_rate, service->pcr_packet_period,
            ts->sdt_packet_period, ts->pat_packet_period);
+
 
     put_flush_packet(s->pb);
 
     return 0;
 
  fail:
-    av_free(pids);
     for(i = 0;i < s->nb_streams; i++) {
         st = s->streams[i];
         av_free(st->priv_data);

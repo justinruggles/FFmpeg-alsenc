@@ -270,7 +270,7 @@ static void get_exponent_dynamic(NellyMoserEncodeContext *s, float *cand, int *i
 }
 
 /**
- * Encode NELLY_SAMPLES samples. It assumes, that samples contains 3 * NELLY_BUF_LEN values
+ * Encodes NELLY_SAMPLES samples. It assumes, that samples contains 3 * NELLY_BUF_LEN values
  *  @param s               encoder context
  *  @param output          output buffer
  *  @param output_size     size of output buffer
