@@ -575,7 +575,7 @@ void ff_bgmc_decode(GetBitContext *gb, unsigned int num, int32_t *dst,
 }
 
 
-/** Initializes encoding
+/** Initialize encoding.
  */
 void ff_bgmc_encode_init(unsigned int *h, unsigned int *l, unsigned int *f)
 {
@@ -585,7 +585,7 @@ void ff_bgmc_encode_init(unsigned int *h, unsigned int *l, unsigned int *f)
 }
 
 
-/** Writes bit and a given number of opposite follow bits
+/** Write bit and a given number of opposite follow bits.
  */
 av_always_inline
 static int put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *follow)
@@ -613,7 +613,7 @@ static int put_bits_follow(PutBitContext *pb, unsigned int bit, unsigned int *fo
 }
 
 
-/** Finish encoding
+/** Finish encoding.
  */
 int ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f)
 {
@@ -622,7 +622,7 @@ int ff_bgmc_encode_end(PutBitContext *pb, unsigned int *l, unsigned int *f)
 }
 
 
-/** Encodes and writes the MSB part of a single symbol
+/** Encode and write the MSB part of a single symbol.
  */
 av_always_inline
 int ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
@@ -671,7 +671,7 @@ int ff_bgmc_encode(PutBitContext *pb, int32_t symbol,
 }
 
 
-/** Encodes and writes the MSB part of a given symbol array of length n
+/** Encode and write the MSB part of a given symbol array of length 'n'.
  */
 int ff_bgmc_encode_msb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
                         unsigned int k, unsigned int delta, unsigned int max,
