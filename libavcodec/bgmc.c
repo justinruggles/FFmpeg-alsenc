@@ -433,29 +433,7 @@ static const uint16_t * const cf_table[16] = {
 };
 
 
-/** Tail codes used for arithmetic coding in ALS.
- */
-const uint8_t ff_bgmc_tail_code[16][6] = {
-    { 74, 44, 25, 13,  7, 3},
-    { 68, 42, 24, 13,  7, 3},
-    { 58, 39, 23, 13,  7, 3},
-    {126, 70, 37, 19, 10, 5},
-    {132, 70, 37, 20, 10, 5},
-    {124, 70, 38, 20, 10, 5},
-    {120, 69, 37, 20, 11, 5},
-    {116, 67, 37, 20, 11, 5},
-    {108, 66, 36, 20, 10, 5},
-    {102, 62, 36, 20, 10, 5},
-    { 88, 58, 34, 19, 10, 5},
-    {162, 89, 49, 25, 13, 7},
-    {156, 87, 49, 26, 14, 7},
-    {150, 86, 47, 26, 14, 7},
-    {142, 84, 47, 26, 14, 7},
-    {131, 79, 46, 26, 14, 7}
-};
-
-
-/** Initializes a given lookup table using a given delta
+/** Initialize a given lookup table using a given delta
  */
 static void bgmc_lut_fillp(uint8_t *lut, unsigned int *lut_status,
                            unsigned int delta)
@@ -477,7 +455,7 @@ static void bgmc_lut_fillp(uint8_t *lut, unsigned int *lut_status,
 }
 
 
-/** Retunes the index of a suitable lookup table for a given delta
+/** Retune the index of a suitable lookup table for a given delta
  */
 static uint8_t* bgmc_lut_getp(uint8_t *lut, unsigned int *lut_status,
                               unsigned int delta)
@@ -493,7 +471,7 @@ static uint8_t* bgmc_lut_getp(uint8_t *lut, unsigned int *lut_status,
 }
 
 
-/** Initializes the lookup table arrays
+/** Initialize the lookup table arrays
  */
 int ff_bgmc_init(AVCodecContext *avctx, uint8_t **cf_lut, unsigned int **cf_lut_status)
 {
@@ -510,7 +488,7 @@ int ff_bgmc_init(AVCodecContext *avctx, uint8_t **cf_lut, unsigned int **cf_lut_
 }
 
 
-/** Releases the lookup table arrays
+/** Release the lookup table arrays
  */
 void ff_bgmc_end(uint8_t **cf_lut, unsigned int **cf_lut_status)
 {
@@ -519,7 +497,7 @@ void ff_bgmc_end(uint8_t **cf_lut, unsigned int **cf_lut_status)
 }
 
 
-/** Initializes decoding and reads the first value
+/** Initialize decoding and reads the first value
  */
 void ff_bgmc_decode_init(GetBitContext *gb,
                       unsigned int *h, unsigned int *l, unsigned int *v)
@@ -538,7 +516,7 @@ void ff_bgmc_decode_end(GetBitContext *gb)
 }
 
 
-/** Reads and decodes a block Gilbert-Moore coded symbol
+/** Read and decode a block Gilbert-Moore coded symbol
  */
 void ff_bgmc_decode(GetBitContext *gb, unsigned int num, int32_t *dst,
                  unsigned int delta, unsigned int sx,

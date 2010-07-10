@@ -26,8 +26,8 @@
 #include "lpc.h"
 
 
-void ff_lpc_compute_autocorr(const double *data,
-                             int len, int lag, double *autoc)
+void ff_lpc_compute_autocorr(const double *data, int len, int lag,
+                             double *autoc)
 {
     int i, j;
 

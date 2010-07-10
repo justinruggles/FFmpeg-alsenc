@@ -47,8 +47,8 @@ int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
                       int lpc_passes, int omethod, int max_shift,
                       int zero_shift);
 
-void ff_lpc_compute_autocorr(const double *data,
-                             int len, int lag, double *autoc);
+void ff_lpc_compute_autocorr(const double *data, int len, int lag,
+                             double *autoc);
 
 /**
  * Calculate LPC coefficients for multiple orders using Cholesky factorization
@@ -100,7 +100,7 @@ static inline void compute_ref_coefs(const LPC_TYPE *autoc, int max_order,
 
 /**
  * Levinson-Durbin recursion.
- * Produces LPC coefficients from autocorrelation data or reflection coefficients.
+ * Produce LPC coefficients from autocorrelation data or reflection coefficients.
  */
 static inline int compute_lpc_coefs(const LPC_TYPE *autoc, int max_order,
                                     LPC_TYPE *ref_out,
