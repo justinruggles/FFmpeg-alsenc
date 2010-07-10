@@ -500,8 +500,8 @@ static void dprint_stage_options(AVCodecContext *avctx, ALSEncStage *stage)
 
 
 /**
- * Converts an array of channel-interleaved samples into
- * multiple arrays of samples per channel
+ * Convert an array of channel-interleaved samples into multiple arrays of
+ * samples per channel.
  */
 static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 {
@@ -526,9 +526,8 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
 
 
 /**
- * Recursively parses a given block partitioning and
- * sums up all block sizes according to *bs_sizes
- * to get the overall bit count
+ * Recursively parse a given block partitioning and sum up all block sizes
+ * according to *bs_sizes to get the overall bit count.
  */
 static void bs_get_size(const uint32_t bs_info, unsigned int n,
                         unsigned int *bs_sizes, unsigned int *bit_count)
@@ -548,8 +547,7 @@ static void bs_get_size(const uint32_t bs_info, unsigned int n,
 
 
 /**
- * Recursively parses a given block partitioning and
- * sets all node bits to zero
+ * Recursively parse a given block partitioning and set all node bits to zero.
  */
 static void bs_set_zero(uint32_t *bs_info, unsigned int n)
 {
@@ -565,8 +563,8 @@ static void bs_set_zero(uint32_t *bs_info, unsigned int n)
 
 
 /**
- * Recursively parses a given block partitioning and
- * sets all joint-stereo block flags according to *js_info
+ * Recursively parse a given block partitioning and set all joint-stereo
+ * block flags according to *js_info.
  */
 static void bs_set_js(const uint32_t bs_info, unsigned int n,
                       uint8_t *js_info,
@@ -590,8 +588,8 @@ static void bs_set_js(const uint32_t bs_info, unsigned int n,
 
 
 /**
- * Recursively sets all block sizes to joint-stereo sizes
- * where difference coding pays off for a block
+ * Recursively set all block sizes to joint-stereo sizes where difference
+ * coding pays off for a block.
  */
 static void set_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -620,7 +618,7 @@ static void set_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
 
 /**
- * Recursively resets all block sizes to independent sizes
+ * Recursively reset all block sizes to independent sizes.
  */
 static void reset_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -654,9 +652,9 @@ static void reset_js_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
 
 /**
- * Recursively merges all subblocks of the frame until
- * the minimal bit count is found.
- * Using Full-Search strategy.
+ * Recursively merge all subblocks of the frame until the minimal bit count is
+ * found.
+ * Use Full-Search strategy.
  */
 static void bs_merge_fullsearch(ALSEncContext *ctx, unsigned int n,
                                 unsigned int c1, unsigned int c2)
@@ -705,9 +703,9 @@ static void bs_merge_fullsearch(ALSEncContext *ctx, unsigned int n,
 
 
 /**
- * Recursively merges all subblocks of the frame until
- * the minimal bit count is found.
- * Using Bottom-Up strategy.
+ * Recursively merge all subblocks of the frame until the minimal bit count is
+ * found.
+ * Use Bottom-Up strategy.
  */
 static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
                               unsigned int c1, unsigned int c2)
@@ -756,8 +754,8 @@ static void bs_merge_bottomup(ALSEncContext *ctx, unsigned int n,
 
 
 /**
- * Reads block partitioning and sets actual block sizes and all sample pointers.
- * Also assures that the block sizes of the last frame correspond to the
+ * Read block partitioning and set actual block sizes and all sample pointers.
+ * Also assure that the block sizes of the last frame correspond to the
  * actual number of samples.
  */
 static void set_blocks(ALSEncContext *ctx, uint32_t *bs_info,
@@ -855,9 +853,8 @@ static void set_blocks(ALSEncContext *ctx, uint32_t *bs_info,
 
 
 /**
- * Gets the best block partitioning for the current frame
- * depending on the chosen algorithm and sets the block sizes
- * accordingly
+ * Get the best block partitioning for the current frame depending on the
+ * chosen algorithm and set the block sizes accordingly.
  * @return Overall bit count for the partition
  */
 static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned int c2)
@@ -894,7 +891,7 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
 
 
 /**
- * Subdivides the frame into smaller blocks
+ * Subdivide the frame into smaller blocks.
  */
 static void block_partitioning(ALSEncContext *ctx)
 {
@@ -954,7 +951,8 @@ static void block_partitioning(ALSEncContext *ctx)
 
 
 /**
- * Counts bits needed to write value v using signed Rice coding with parameter k.
+ * Count bits needed to write value 'v' using signed Rice coding with
+ * parameter 'k'.
  */
 static inline int rice_count(int v, int k)
 {
@@ -964,7 +962,8 @@ static inline int rice_count(int v, int k)
 
 
 /**
- * Counts bits needed to write value v using unsigned Rice coding with parameter k.
+ * Count bits needed to write value 'v' using unsigned Rice coding with
+ * parameter 'k'.
  */
 static inline int urice_count(unsigned int v, int k)
 {
@@ -973,7 +972,7 @@ static inline int urice_count(unsigned int v, int k)
 
 
 /**
- * Writes the quotient part of a Rice code.
+ * Write the quotient part of a Rice code.
  * This is the same for signed and unsigned Rice coding.
  * @param[out] q0 quotient
  * @return        0 on success, -1 on error
@@ -1000,7 +999,7 @@ static inline int golomb_write_quotient(PutBitContext *pb, unsigned int v,
 
 
 /**
- * Writes a signed Rice code.
+ * Write a signed Rice code.
  * @return 0 on success, -1 on error
  */
 static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
@@ -1020,7 +1019,7 @@ static inline int set_ur_golomb_als(PutBitContext *pb, unsigned int v, int k)
 
 
 /**
- * Writes an unsigned Rice code to the bitstream.
+ * Write an unsigned Rice code to the bitstream.
  * @return 0 on success, -1 on error
  */
 static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
@@ -1044,7 +1043,7 @@ static inline int set_sr_golomb_als(PutBitContext *pb, int v, int k)
 
 
 /**
- * Encodes the LSB part of the given symbols
+ * Encode the LSB part of the given symbols.
  * @return Overall bit count for all encoded symbols
  */
 static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned int n,
@@ -1078,7 +1077,7 @@ static int bgmc_encode_lsb(PutBitContext *pb, const int32_t *symbols, unsigned i
 
 
 /**
- * Map LTP gain value to nearest flattened array index
+ * Map LTP gain value to nearest flattened array index.
  * @return Nearest array index
  */
 static int map_to_index(int gain)
@@ -1106,8 +1105,8 @@ static int map_to_index(int gain)
 
 
 /**
- * Generates the long-term predicted residuals for a given block
- * using the current set of LTP parameters
+ * Generate the long-term predicted residuals for a given block using the
+ * current set of LTP parameters.
  */
 static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -1137,7 +1136,7 @@ static void gen_ltp_residuals(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Writes a given block
+ * Write a given block.
  * @return 0 on success, -1 otherwise
  */
 static int write_block(ALSEncContext *ctx, ALSBlock *block)
@@ -1358,7 +1357,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Writes the frame
+ * Write the frame.
  * @return Overall bit count for the frame on success, -1 otherwise
  */
 static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
@@ -1489,8 +1488,8 @@ static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Counts bits needed to encode all symbols of a given subblock
- * using given parameters
+ * Count bits needed to encode all symbols of a given subblock using the
+ * given parameters.
  */
 static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
                                             int b_length, int sb_length,
@@ -1561,7 +1560,7 @@ static unsigned int subblock_ec_count_exact(const int32_t *res_ptr,
 
 
 /**
- * Counts bits needed to encode all the entropy coding parameters for a block.
+ * Count bits needed to encode all the entropy coding parameters for a block.
  */
 static unsigned int block_ec_param_count(ALSEncContext *ctx, ALSBlock *block,
                                          int sub_blocks, int *s, int *sx,
@@ -1591,7 +1590,7 @@ static unsigned int block_ec_param_count(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Counts bits needed to encode all symbols and entropy coding parameters of a
+ * Count bits needed to encode all symbols and entropy coding parameters of a
  * given block using given parameters.
  */
 static unsigned int block_ec_count_exact(ALSEncContext *ctx, ALSBlock *block,
@@ -1622,7 +1621,7 @@ static unsigned int block_ec_count_exact(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Estimates the best Rice parameter using the sum of unsigned residual samples.
+ * Estimate the best Rice parameter using the sum of unsigned residual samples.
  */
 static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
 {
@@ -1644,8 +1643,8 @@ static inline int estimate_rice_param(uint64_t sum, int length, int max_param)
 
 
 /**
- * Gets an estimated Rice parameter and splits it into its LSB and MSB
- * for further processing in BGMC
+ * Get an estimated Rice parameter and split it into its LSB and MSB for
+ * further processing in BGMC.
  */
 static inline void estimate_bgmc_params(uint64_t sum, unsigned int n, int *s,
                                         int *sx)
@@ -1739,7 +1738,7 @@ static void find_block_rice_params_est(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Full search for optimal BGMC parameters and sub-block division
+ * Perform full search for optimal BGMC parameters and sub-block division.
  */
 static void find_block_bgmc_params_est(ALSEncContext *ctx, ALSBlock *block,
                                        int order)
@@ -2030,11 +2029,11 @@ static void find_block_bgmc_params_exact(ALSEncContext *ctx, ALSBlock *block, in
 
 
 /**
- * Calculates optimal sub-block division and Rice parameters for a block.
+ * Calculate optimal sub-block division and Rice parameters for a block.
  * @param ctx                   encoder context
  * @param block                 current block
- * @param[in] ra_block          indicates if this is a random access block
- * @param[in] order             LPC order
+ * @param ra_block              indicates if this is a random access block
+ * @param order                 LPC order
  */
 static void find_block_entropy_params(ALSEncContext *ctx, ALSBlock *block,
                                    int order)
@@ -2104,8 +2103,8 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Tests given block samples to be of constant value.
- * Sets block->const_block_bits to the number of bits used for encoding the
+ * Test given block samples to be of constant value.
+ * Set block->const_block_bits to the number of bits used for encoding the
  * constant block, or to zero if the block is not a constant block.
  */
 static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
@@ -2139,8 +2138,8 @@ static void test_const_value(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Tests given block samples to share common zero LSBs.
- * Sets block->shift_lsbs to the number common zero bits
+ * Test given block samples to share common zero LSBs.
+ * Set block->shift_lsbs to the number common zero bits.
  */
 static void test_zero_lsb(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2175,8 +2174,8 @@ static void test_zero_lsb(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Generates a weighted residual signal for autocorrelation detection
- * used in LTP mode
+ * Generate a weighted residual signal for autocorrelation detection used in
+ * LTP mode.
  */
 static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
                                 int lag_max)
@@ -2203,7 +2202,7 @@ static void get_weighted_signal(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Generic autocorrelation with optional normalization.
+ * Calculate a generic autocorrelation with optional normalization.
  * double source data, no windowing, data-lag assumed to be valid pointer.
  */
 static void compute_autocorr_norm(const double *data, int len, int lag,
@@ -2223,8 +2222,8 @@ static void compute_autocorr_norm(const double *data, int len, int lag,
 
 
 /**
- * Generates the autocorrelation function and finds
- * its positive maximum value to be used for LTP lag
+ * Generate the autocorrelation function and find its positive maximum value to
+ * be used for LTP lag.
  */
 static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
                                int lag_max, int start)
@@ -2250,7 +2249,7 @@ static void find_best_autocorr(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Sets fixed values for LTP coefficients.
+ * Set fixed values for LTP coefficients.
  */
 static void get_ltp_coeffs_fixed(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2265,7 +2264,7 @@ static void get_ltp_coeffs_fixed(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Calculates LTP coefficients using Cholesky factorization.
+ * Calculate LTP coefficients using Cholesky factorization.
  */
 static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2327,7 +2326,7 @@ static void get_ltp_coeffs_cholesky(ALSEncContext *ctx, ALSBlock *block)
 
 /**
  * Select the best set of LTP parameters based on maximum autocorrelation
- * value of the weighted residual signal
+ * value of the weighted residual signal.
  */
 static void find_block_ltp_params(ALSEncContext *ctx, ALSBlock *block)
 {
@@ -2464,7 +2463,7 @@ static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
 
 
 /**
- * Encode a given block of a given channel
+ * Encode a given block of a given channel.
  * @return number of bits that will be used to encode the block using the
  *         determined parameters
  */
@@ -2588,7 +2587,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
 
 /**
- * Generates all possible block sizes for all possible block-switching stages
+ * Generate all possible block sizes for all possible block-switching stages.
  */
 static void gen_block_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -2633,7 +2632,8 @@ static void gen_block_sizes(ALSEncContext *ctx, unsigned int channel, int stage)
 
 
 /**
- * Generates all suitable difference coding infos for all possible block-switching stages
+ * Generate all suitable difference coding infos for all possible
+ * block-switching stages.
  */
 static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
 {
@@ -2668,7 +2668,7 @@ static void gen_js_infos(ALSEncContext *ctx, unsigned int channel, int stage)
 
 
 /**
- * Generates the difference signals for each channel pair channel & channel+1
+ * Generate the difference signals for each channel pair channel & channel+1.
  */
 static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
 {
@@ -2688,8 +2688,8 @@ static void gen_dif_signal(ALSEncContext *ctx, unsigned int channel)
 
 
 /**
- * Chooses the appropriate method for difference channel coding
- * for the current frame
+ * Choose the appropriate method for difference channel coding for the current
+ * frame.
  */
 static void select_difference_coding_mode(ALSEncContext *ctx)
 {
@@ -2747,7 +2747,7 @@ static void select_difference_coding_mode(ALSEncContext *ctx)
 
 
 /**
- * Writes an ALSSpecificConfig structure
+ * Write an ALSSpecificConfig structure.
  * @return 0 on success, AVERROR(x) otherwise
  */
 static int write_specific_config(AVCodecContext *avctx)
@@ -2843,7 +2843,7 @@ static int write_specific_config(AVCodecContext *avctx)
 
 
 /**
- * Encodes a single frame
+ * Encode a single frame.
  * @return Overall bit count for the frame
  */
 static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
@@ -2941,7 +2941,7 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
 
 /**
- * Encodes all frames of a random access unit
+ * Encode all frames of a random access unit.
  * @return Overall bit count read, AVERROR(x) otherwise
  */
 static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
@@ -2986,7 +2986,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
 
 
 /**
- * Rearranges internal order of channels to optimize joint-channel coding
+ * Rearrange internal order of channels to optimize joint-channel coding.
  */
 static void channel_sorting(ALSEncContext *ctx)
 {
@@ -2997,9 +2997,8 @@ static void channel_sorting(ALSEncContext *ctx)
 
 
 /**
- * Determines the number of samples in each frame,
- * constant for all frames in the stream except the
- * very last one which may differ
+ * Determine the number of samples in each frame, which is constant for all
+ * frames in the stream except the very last one which may be smaller.
  */
 static void frame_partitioning(ALSEncContext *ctx)
 {
@@ -3049,7 +3048,7 @@ static void frame_partitioning(ALSEncContext *ctx)
 
 
 /**
- * Determine the ALSSpecificConfig structure used to encode
+ * Determine the ALSSpecificConfig structure used to encode.
  * @return 0 on success, -1 otherwise
  */
 static av_cold int get_specific_config(AVCodecContext *avctx)

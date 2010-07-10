@@ -69,19 +69,19 @@ typedef struct {
 
 
 /**
- * Prints out AlSSpecificConfig
+ * Print out AlSSpecificConfig
  */
 void ff_als_dprint_specific_config(AVCodecContext *avctx,
                                    ALSSpecificConfig *sconf);
 
 
 /**
- * Converts PARCOR coefficient k to direct filter coefficient.
+ * Convert PARCOR coefficient k to direct filter coefficient.
  */
 int ff_als_parcor_to_lpc(unsigned int k, const int32_t *par, int32_t *cof);
 
 
-/** Parses the bs_info field to extract the block partitioning used in
+/** Parse the bs_info field to extract the block partitioning used in
  *  block switching mode, refer to ISO/IEC 14496-3, section 11.6.2.
  */
 void ff_als_parse_bs_info(const uint32_t bs_info, unsigned int n,
