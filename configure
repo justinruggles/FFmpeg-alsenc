@@ -960,6 +960,7 @@ ARCH_EXT_LIST='
 
 HAVE_LIST_PUB='
     bigendian
+    fast_unaligned
 '
 
 HAVE_LIST="
@@ -991,7 +992,6 @@ HAVE_LIST="
     fast_64bit
     fast_clz
     fast_cmov
-    fast_unaligned
     fcntl
     fork
     getaddrinfo
