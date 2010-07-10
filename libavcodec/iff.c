@@ -215,7 +215,7 @@ static void decodeplane32(uint32_t *dst, const uint8_t *buf, int buf_size, int p
 }
 
 /**
- * Decodes one complete byterun1 encoded line.
+ * Decode one complete byterun1 encoded line.
  *
  * @param dst the destination buffer where to store decompressed bitstream
  * @param dst_size the destination plane size in bytes
@@ -293,7 +293,7 @@ static int decode_frame_ilbm(AVCodecContext *avctx,
         for(y = 0; y < avctx->height; y++ ) {
             uint8_t *row = &s->frame.data[0][y * s->frame.linesize[0]];
             memcpy(row, buf, FFMIN(avctx->width, buf_end - buf));
-            buf += avctx->width;
+            buf += avctx->width + (avctx->width % 2); // padding if odd
         }
     }
 
