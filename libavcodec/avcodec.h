@@ -30,7 +30,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 52
-#define LIBAVCODEC_VERSION_MINOR 82
+#define LIBAVCODEC_VERSION_MINOR 83
 #define LIBAVCODEC_VERSION_MICRO  0
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
@@ -524,6 +524,18 @@ enum AVChromaLocation{
     AVCHROMA_LOC_BOTTOMLEFT =5,
     AVCHROMA_LOC_BOTTOM     =6,
     AVCHROMA_LOC_NB           , ///< Not part of ABI
+};
+
+/**
+ * LPC analysis type
+ */
+enum AVLPCType {
+    AV_LPC_TYPE_DEFAULT     = -1, ///< use the codec default LPC type
+    AV_LPC_TYPE_NONE        =  0, ///< do not use LPC prediction or use all zero coefficients
+    AV_LPC_TYPE_FIXED       =  1, ///< fixed LPC coefficients
+    AV_LPC_TYPE_LEVINSON    =  2, ///< Levinson-Durbin recursion
+    AV_LPC_TYPE_CHOLESKY    =  3, ///< Cholesky factorization
+    AV_LPC_TYPE_NB              , ///< Not part of ABI
 };
 
 typedef struct RcOverride{
@@ -2676,21 +2688,16 @@ typedef struct AVCodecContext {
 
     int log_level_offset;
 
-    /*
-     * Sets which LPC analysis algorithm to use.
-     * - encoding: Set by user.
+    /**
+     * Determines which LPC analysis algorithm to use.
+     * - encoding: Set by user
      * - decoding: unused
      */
-    int lpc_type;
-#define FF_LPC_TYPE_DEFAULT   -1
-#define FF_LPC_TYPE_NONE       0
-#define FF_LPC_TYPE_FIXED      1
-#define FF_LPC_TYPE_LEVINSON   2
-#define FF_LPC_TYPE_CHOLESKY   3
+    enum AVLPCType lpc_type;
 
     /**
-     * Sets the number of passes to use for Cholesky factorization during LPC analysis.
-     * - encoding: Set by user.
+     * Number of passes to use for Cholesky factorization during LPC analysis
+     * - encoding: Set by user
      * - decoding: unused
      */
     int lpc_passes;

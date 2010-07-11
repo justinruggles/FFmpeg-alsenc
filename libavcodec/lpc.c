@@ -179,9 +179,9 @@ static int estimate_best_order(double *ref, int min_order, int max_order)
 int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
-                      int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
-                      int lpc_passes, int omethod, int max_shift,
-                      int zero_shift)
+                      int32_t coefs[][MAX_LPC_ORDER], int *shift,
+                      enum AVLPCType lpc_type, int lpc_passes,
+                      int omethod, int max_shift, int zero_shift)
 {
     double autoc[MAX_LPC_ORDER+1];
     double ref[MAX_LPC_ORDER];
@@ -190,9 +190,9 @@ int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
     int opt_order;
 
     assert(max_order >= MIN_LPC_ORDER && max_order <= MAX_LPC_ORDER &&
-           lpc_type > FF_LPC_TYPE_FIXED);
+           lpc_type > AV_LPC_TYPE_FIXED);
 
-    if (lpc_type == FF_LPC_TYPE_LEVINSON) {
+    if (lpc_type == AV_LPC_TYPE_LEVINSON) {
         int w_pad;
         double *w_buffer, *w_samples;
 
@@ -210,7 +210,7 @@ int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
 
         // free windowed sample buffer
         av_freep(&w_buffer);
-    } else if (lpc_type == FF_LPC_TYPE_CHOLESKY) {
+    } else if (lpc_type == AV_LPC_TYPE_CHOLESKY) {
         ff_lpc_calc_coefs_cholesky(samples, blocksize, max_order, lpc_passes,
                                    omethod == ORDER_METHOD_EST ? ref : NULL,
                                    &lpc[0][0], MAX_LPC_ORDER);
@@ -218,7 +218,7 @@ int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
     opt_order = max_order;
 
     if(omethod == ORDER_METHOD_EST) {
-        if (lpc_type == FF_LPC_TYPE_CHOLESKY) {
+        if (lpc_type == AV_LPC_TYPE_CHOLESKY) {
             // FIXME: There are problems with the reflection coeffs from
             //        Cholesky factorization.
             opt_order = max_order;
