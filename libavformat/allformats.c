@@ -222,6 +222,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX (LIBNUT, libnut);
 
     /* protocols */
+    REGISTER_PROTOCOL (CONCAT, concat);
     REGISTER_PROTOCOL (FILE, file);
     REGISTER_PROTOCOL (GOPHER, gopher);
     REGISTER_PROTOCOL (HTTP, http);
@@ -238,5 +239,4 @@ void av_register_all(void)
     REGISTER_PROTOCOL (RTP, rtp);
     REGISTER_PROTOCOL (TCP, tcp);
     REGISTER_PROTOCOL (UDP, udp);
-    REGISTER_PROTOCOL (CONCAT, concat);
 }
