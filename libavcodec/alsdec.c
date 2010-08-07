@@ -43,6 +43,7 @@
 
 #include <stdint.h>
 
+
 /** Inter-channel weighting factors for multi-channel correlation.
  *  To be indexed by the Rice coded indices.
  */
