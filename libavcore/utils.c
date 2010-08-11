@@ -1,9 +1,4 @@
 /*
- * Xiph RTP Protocols
- * Based off RFC 5215 (Vorbis RTP) and the Theora RTP draft.
- * Copyright (c) 2009 Colin McQuillian
- * Copyright (c) 2010 Josh Allmann
- *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -21,20 +16,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFORMAT_RTPDEC_XIPH_H
-#define AVFORMAT_RTPDEC_XIPH_H
-
-#include "libavcodec/avcodec.h"
-#include "rtpdec.h"
+#include "config.h"
+#include "avcore.h"
 
 /**
- * Theora RTP callbacks.
+ * @file
+ * various utility functions
  */
-extern RTPDynamicProtocolHandler ff_theora_dynamic_handler;
 
-/**
- * Vorbis RTP callbacks.
- */
-extern RTPDynamicProtocolHandler ff_vorbis_dynamic_handler;
+unsigned avcore_version(void)
+{
+    return LIBAVCORE_VERSION_INT;
+}
 
-#endif /* AVFORMAT_RTPDEC_XIPH_H */
+const char *avcore_configuration(void)
+{
+    return FFMPEG_CONFIGURATION;
+}
+
+const char *avcore_license(void)
+{
+#define LICENSE_PREFIX "libavcore license: "
+    return LICENSE_PREFIX FFMPEG_LICENSE + sizeof(LICENSE_PREFIX) - 1;
+}

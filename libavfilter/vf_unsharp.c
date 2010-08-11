@@ -195,17 +195,17 @@ static av_cold void uninit(AVFilterContext *ctx)
 static void end_frame(AVFilterLink *link)
 {
     UnsharpContext *unsharp = link->dst->priv;
-    AVFilterPicRef *in  = link->cur_pic;
-    AVFilterPicRef *out = link->dst->outputs[0]->outpic;
+    AVFilterBufferRef *in  = link->cur_buf;
+    AVFilterBufferRef *out = link->dst->outputs[0]->out_buf;
 
     unsharpen(out->data[0], in->data[0], out->linesize[0], in->linesize[0], link->w,            link->h,             &unsharp->luma);
     unsharpen(out->data[1], in->data[1], out->linesize[1], in->linesize[1], CHROMA_WIDTH(link), CHROMA_HEIGHT(link), &unsharp->chroma);
     unsharpen(out->data[2], in->data[2], out->linesize[2], in->linesize[2], CHROMA_WIDTH(link), CHROMA_HEIGHT(link), &unsharp->chroma);
 
-    avfilter_unref_pic(in);
+    avfilter_unref_buffer(in);
     avfilter_draw_slice(link->dst->outputs[0], 0, link->h, 1);
     avfilter_end_frame(link->dst->outputs[0]);
-    avfilter_unref_pic(out);
+    avfilter_unref_buffer(out);
 }
 
 static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)

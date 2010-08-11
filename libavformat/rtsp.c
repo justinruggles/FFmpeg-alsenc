@@ -38,7 +38,7 @@
 
 #include "rtpdec.h"
 #include "rdt.h"
-#include "rtpdec_asf.h"
+#include "rtpdec_formats.h"
 
 //#define DEBUG
 //#define DEBUG_RTP_TCP
@@ -52,6 +52,7 @@ int rtsp_default_protocols = (1 << RTSP_LOWER_TRANSPORT_UDP);
 #define SELECT_TIMEOUT_MS 100
 #define READ_PACKET_TIMEOUT_S 10
 #define MAX_TIMEOUTS READ_PACKET_TIMEOUT_S * 1000 / SELECT_TIMEOUT_MS
+#define SDP_MAX_SIZE 16384
 
 static void get_word_until_chars(char *buf, int buf_size,
                                  const char *sep, const char **pp)
@@ -823,6 +824,7 @@ int ff_rtsp_read_reply(AVFormatContext *s, RTSPMessageHeader *reply,
             get_word(buf1, sizeof(buf1), &p);
             get_word(buf1, sizeof(buf1), &p);
             reply->status_code = atoi(buf1);
+            av_strlcpy(reply->reason, p, sizeof(reply->reason));
         } else {
             ff_rtsp_parse_line(reply, p, &rt->auth_state);
             av_strlcat(rt->last_reply, p,    sizeof(rt->last_reply));
@@ -958,6 +960,14 @@ retry:
     if (reply->status_code == 401 && cur_auth_type == HTTP_AUTH_NONE &&
         rt->auth_state.auth_type != HTTP_AUTH_NONE)
         goto retry;
+
+    if (reply->status_code > 400){
+        av_log(s, AV_LOG_ERROR, "method %s failed: %d%s\n",
+               method,
+               reply->status_code,
+               reply->reason);
+        av_log(s, AV_LOG_DEBUG, "%s\n", rt->last_reply);
+    }
 
     return 0;
 }
@@ -1119,7 +1129,7 @@ static int make_setup_request(AVFormatContext *s, const char *host, int port,
             rt->transport = reply->transports[0].transport;
         }
 
-        /* close RTP connection if not choosen */
+        /* close RTP connection if not chosen */
         if (reply->transports[0].lower_transport != RTSP_LOWER_TRANSPORT_UDP &&
             (lower_transport == RTSP_LOWER_TRANSPORT_UDP)) {
             url_close(rtsp_st->rtp_handle);
@@ -1288,7 +1298,7 @@ static int rtsp_setup_output_streams(AVFormatContext *s, const char *addr)
     rt->start_time = av_gettime();
 
     /* Announce the stream */
-    sdp = av_mallocz(8192);
+    sdp = av_mallocz(SDP_MAX_SIZE);
     if (sdp == NULL)
         return AVERROR(ENOMEM);
     /* We create the SDP based on the RTSP AVFormatContext where we
@@ -1307,7 +1317,7 @@ static int rtsp_setup_output_streams(AVFormatContext *s, const char *addr)
     ff_url_join(sdp_ctx.filename, sizeof(sdp_ctx.filename),
                 "rtsp", NULL, addr, -1, NULL);
     ctx_array[0] = &sdp_ctx;
-    if (avf_sdp_create(ctx_array, 1, sdp, 8192)) {
+    if (avf_sdp_create(ctx_array, 1, sdp, SDP_MAX_SIZE)) {
         av_free(sdp);
         return AVERROR_INVALIDDATA;
     }
@@ -1355,7 +1365,7 @@ int ff_rtsp_connect(AVFormatContext *s)
     char host[1024], path[1024], tcpname[1024], cmd[2048], auth[128];
     char *option_list, *option, *filename;
     int port, err, tcp_fd;
-    RTSPMessageHeader reply1 = {}, *reply = &reply1;
+    RTSPMessageHeader reply1 = {0}, *reply = &reply1;
     int lower_transport_mask = 0;
     char real_challenge[64];
     struct sockaddr_storage peer;
@@ -1601,11 +1611,17 @@ redirect:
 static int rtsp_read_header(AVFormatContext *s,
                             AVFormatParameters *ap)
 {
+    RTSPState *rt = s->priv_data;
     int ret;
 
     ret = ff_rtsp_connect(s);
     if (ret)
         return ret;
+
+    rt->real_setup_cache = av_mallocz(2 * s->nb_streams * sizeof(*rt->real_setup_cache));
+    if (!rt->real_setup_cache)
+        return AVERROR(ENOMEM);
+    rt->real_setup = rt->real_setup_cache + s->nb_streams * sizeof(*rt->real_setup);
 
     if (ap->initial_pause) {
          /* do not start immediately */
@@ -1825,13 +1841,12 @@ static int rtsp_read_packet(AVFormatContext *s, AVPacket *pkt)
 
     if (rt->server_type == RTSP_SERVER_REAL) {
         int i;
-        enum AVDiscard cache[MAX_STREAMS];
 
         for (i = 0; i < s->nb_streams; i++)
-            cache[i] = s->streams[i]->discard;
+            rt->real_setup[i] = s->streams[i]->discard;
 
         if (!rt->need_subscription) {
-            if (memcmp (cache, rt->real_setup_cache,
+            if (memcmp (rt->real_setup, rt->real_setup_cache,
                         sizeof(enum AVDiscard) * s->nb_streams)) {
                 snprintf(cmd, sizeof(cmd),
                          "Unsubscribe: %s\r\n",
@@ -1847,7 +1862,7 @@ static int rtsp_read_packet(AVFormatContext *s, AVPacket *pkt)
         if (rt->need_subscription) {
             int r, rule_nr, first = 1;
 
-            memcpy(rt->real_setup_cache, cache,
+            memcpy(rt->real_setup_cache, rt->real_setup,
                    sizeof(enum AVDiscard) * s->nb_streams);
             rt->last_subscription[0] = 0;
 
@@ -1959,6 +1974,8 @@ static int rtsp_read_close(AVFormatContext *s)
     ff_rtsp_close_streams(s);
     ff_rtsp_close_connections(s);
     ff_network_close();
+    rt->real_setup = NULL;
+    av_freep(&rt->real_setup_cache);
     return 0;
 }
 
@@ -1995,8 +2012,6 @@ static int sdp_probe(AVProbeData *p1)
     }
     return 0;
 }
-
-#define SDP_MAX_SIZE 8192
 
 static int sdp_read_header(AVFormatContext *s, AVFormatParameters *ap)
 {

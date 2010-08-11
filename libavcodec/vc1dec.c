@@ -162,17 +162,27 @@ enum Imode {
 
 static void vc1_loop_filter_iblk(MpegEncContext *s, int pq)
 {
-    int i, j;
-    if(!s->first_slice_line)
+    int j;
+    if (!s->first_slice_line) {
         s->dsp.vc1_v_loop_filter16(s->dest[0], s->linesize, pq);
-    s->dsp.vc1_v_loop_filter16(s->dest[0] + 8*s->linesize, s->linesize, pq);
-    for(i = !s->mb_x*8; i < 16; i += 8)
-        s->dsp.vc1_h_loop_filter16(s->dest[0] + i, s->linesize, pq);
-    for(j = 0; j < 2; j++){
-        if(!s->first_slice_line)
+        if (s->mb_x)
+            s->dsp.vc1_h_loop_filter16(s->dest[0] - 16*s->linesize, s->linesize, pq);
+        s->dsp.vc1_h_loop_filter16(s->dest[0] - 16*s->linesize+8, s->linesize, pq);
+        for(j = 0; j < 2; j++){
             s->dsp.vc1_v_loop_filter8(s->dest[j+1], s->uvlinesize, pq);
-        if(s->mb_x)
-            s->dsp.vc1_h_loop_filter8(s->dest[j+1], s->uvlinesize, pq);
+            if (s->mb_x)
+                s->dsp.vc1_h_loop_filter8(s->dest[j+1]-8*s->uvlinesize, s->uvlinesize, pq);
+        }
+    }
+    s->dsp.vc1_v_loop_filter16(s->dest[0] + 8*s->linesize, s->linesize, pq);
+
+    if (s->mb_y == s->mb_height-1) {
+        if (s->mb_x) {
+            s->dsp.vc1_h_loop_filter16(s->dest[0], s->linesize, pq);
+            s->dsp.vc1_h_loop_filter8(s->dest[1], s->uvlinesize, pq);
+            s->dsp.vc1_h_loop_filter8(s->dest[2], s->uvlinesize, pq);
+        }
+        s->dsp.vc1_h_loop_filter16(s->dest[0] + 8, s->linesize, pq);
     }
 }
 
@@ -2680,9 +2690,15 @@ static void vc1_decode_i_blocks(VC1Context *v)
                 return;
             }
         }
-        ff_draw_horiz_band(s, s->mb_y * 16, 16);
+        if (!v->s.loop_filter)
+            ff_draw_horiz_band(s, s->mb_y * 16, 16);
+        else if (s->mb_y)
+            ff_draw_horiz_band(s, (s->mb_y-1) * 16, 16);
+
         s->first_slice_line = 0;
     }
+    if (v->s.loop_filter)
+        ff_draw_horiz_band(s, (s->mb_height-1)*16, 16);
     ff_er_add_slice(s, 0, 0, s->mb_width - 1, s->mb_height - 1, (AC_END|DC_END|MV_END));
 }
 
@@ -2812,9 +2828,14 @@ static void vc1_decode_i_blocks_adv(VC1Context *v)
                 return;
             }
         }
-        ff_draw_horiz_band(s, s->mb_y * 16, 16);
+        if (!v->s.loop_filter)
+            ff_draw_horiz_band(s, s->mb_y * 16, 16);
+        else if (s->mb_y)
+            ff_draw_horiz_band(s, (s->mb_y-1) * 16, 16);
         s->first_slice_line = 0;
     }
+    if (v->s.loop_filter)
+        ff_draw_horiz_band(s, (s->mb_height-1)*16, 16);
     ff_er_add_slice(s, 0, 0, s->mb_width - 1, s->mb_height - 1, (AC_END|DC_END|MV_END));
 }
 
@@ -2913,9 +2934,14 @@ static void vc1_decode_b_blocks(VC1Context *v)
             }
             if(v->s.loop_filter) vc1_loop_filter_iblk(s, v->pq);
         }
-        ff_draw_horiz_band(s, s->mb_y * 16, 16);
+        if (!v->s.loop_filter)
+            ff_draw_horiz_band(s, s->mb_y * 16, 16);
+        else if (s->mb_y)
+            ff_draw_horiz_band(s, (s->mb_y-1) * 16, 16);
         s->first_slice_line = 0;
     }
+    if (v->s.loop_filter)
+        ff_draw_horiz_band(s, (s->mb_height-1)*16, 16);
     ff_er_add_slice(s, 0, 0, s->mb_width - 1, s->mb_height - 1, (AC_END|DC_END|MV_END));
 }
 

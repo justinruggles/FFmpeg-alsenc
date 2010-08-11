@@ -1,7 +1,6 @@
-/**
- * Common code for the RTP depacketization of MPEG-4 formats.
- * Copyright (c) 2010 Fabrice Bellard
- *                    Romain Degez
+/*
+ * SAUCE header parser
+ * Copyright (c) 2010 Peter Ross <pross@xvid.org>
  *
  * This file is part of FFmpeg.
  *
@@ -20,20 +19,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFORMAT_RTPDEC_MPEG4_H
-#define AVFORMAT_RTPDEC_MPEG4_H
+/**
+ * @file
+ * SAUCE header parser
+ */
 
-#include "rtpdec.h"
+#ifndef AVFORMAT_SAUCE_H
+#define AVFORMAT_SAUCE_H
+
+#include "avformat.h"
 
 /**
- * MPEG-4 Video RTP callbacks. (RFC 3016)
+ * @param avctx AVFormatContext
+ * @param[out] fsize return length of file, less SAUCE header
+ * @param[out] got_width set to non-zero if SAUCE header reported height
+ * @param get_height Tell SAUCE header to parse height
  */
-extern RTPDynamicProtocolHandler ff_mp4v_es_dynamic_handler;
+int ff_sauce_read(AVFormatContext *avctx, uint64_t *fsize, int *got_width, int get_height);
 
-/**
- * AAC RTP callbacks. (RFC 3640)
- */
-extern RTPDynamicProtocolHandler ff_mpeg4_generic_dynamic_handler;
-
-#endif /* AVFORMAT_RTPDEC_MPEG4_H */
-
+#endif /* AVFORMAT_SAUCE_H */

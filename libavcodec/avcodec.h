@@ -30,8 +30,8 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVCODEC_VERSION_MAJOR 52
-#define LIBAVCODEC_VERSION_MINOR 81
-#define LIBAVCODEC_VERSION_MICRO  0
+#define LIBAVCODEC_VERSION_MINOR 84
+#define LIBAVCODEC_VERSION_MICRO  3
 
 #define LIBAVCODEC_VERSION_INT  AV_VERSION_INT(LIBAVCODEC_VERSION_MAJOR, \
                                                LIBAVCODEC_VERSION_MINOR, \
@@ -212,6 +212,7 @@ enum CodecID {
     CODEC_ID_YOP,
     CODEC_ID_VP8,
     CODEC_ID_PICTOR,
+    CODEC_ID_ANSI,
 
     /* various PCM "codecs" */
     CODEC_ID_PCM_S16LE= 0x10000,
@@ -347,6 +348,7 @@ enum CodecID {
     CODEC_ID_MOV_TEXT,
     CODEC_ID_HDMV_PGS_SUBTITLE,
     CODEC_ID_DVB_TELETEXT,
+    CODEC_ID_SRT,
 
     /* other specific kind of codecs (generally used for attachments) */
     CODEC_ID_TTF= 0x18000,
@@ -524,6 +526,18 @@ enum AVChromaLocation{
     AVCHROMA_LOC_BOTTOMLEFT =5,
     AVCHROMA_LOC_BOTTOM     =6,
     AVCHROMA_LOC_NB           , ///< Not part of ABI
+};
+
+/**
+ * LPC analysis type
+ */
+enum AVLPCType {
+    AV_LPC_TYPE_DEFAULT     = -1, ///< use the codec default LPC type
+    AV_LPC_TYPE_NONE        =  0, ///< do not use LPC prediction or use all zero coefficients
+    AV_LPC_TYPE_FIXED       =  1, ///< fixed LPC coefficients
+    AV_LPC_TYPE_LEVINSON    =  2, ///< Levinson-Durbin recursion
+    AV_LPC_TYPE_CHOLESKY    =  3, ///< Cholesky factorization
+    AV_LPC_TYPE_NB              , ///< Not part of ABI
 };
 
 typedef struct RcOverride{
@@ -1397,7 +1411,7 @@ typedef struct AVCodecContext {
      * avcodec_default_get_buffer() instead of providing buffers allocated by
      * some other means.
      * - encoding: unused
-     * - decoding: Set by libavcodec., user can override.
+     * - decoding: Set by libavcodec, user can override.
      */
     int (*get_buffer)(struct AVCodecContext *c, AVFrame *pic);
 
@@ -1406,7 +1420,7 @@ typedef struct AVCodecContext {
      * A released buffer can be reused in get_buffer().
      * pic.data[*] must be set to NULL.
      * - encoding: unused
-     * - decoding: Set by libavcodec., user can override.
+     * - decoding: Set by libavcodec, user can override.
      */
     void (*release_buffer)(struct AVCodecContext *c, AVFrame *pic);
 
@@ -1643,8 +1657,12 @@ typedef struct AVCodecContext {
 #define FF_MM_MMX2     0x0002 ///< SSE integer functions or AMD MMX ext
 #define FF_MM_SSE      0x0008 ///< SSE functions
 #define FF_MM_SSE2     0x0010 ///< PIV SSE2 functions
+#define FF_MM_SSE2SLOW 0x40000000 ///< SSE2 supported, but usually not faster
+                                  ///< than regular MMX/SSE (e.g. Core1)
 #define FF_MM_3DNOWEXT 0x0020 ///< AMD 3DNowExt
 #define FF_MM_SSE3     0x0040 ///< Prescott SSE3 functions
+#define FF_MM_SSE3SLOW 0x20000000 ///< SSE3 supported, but usually not faster
+                                  ///< than regular MMX/SSE (e.g. Core1)
 #define FF_MM_SSSE3    0x0080 ///< Conroe SSSE3 functions
 #define FF_MM_SSE4     0x0100 ///< Penryn SSE4.1 functions
 #define FF_MM_SSE42    0x0200 ///< Nehalem SSE4.2 functions
@@ -2029,7 +2047,7 @@ typedef struct AVCodecContext {
      * avcodec_default_reget_buffer() instead of providing buffers allocated by
      * some other means.
      * - encoding: unused
-     * - decoding: Set by libavcodec., user can override
+     * - decoding: Set by libavcodec, user can override.
      */
     int (*reget_buffer)(struct AVCodecContext *c, AVFrame *pic);
 
@@ -2676,6 +2694,7 @@ typedef struct AVCodecContext {
 
     int log_level_offset;
 
+<<<<<<< HEAD
     /*
      * Sets which LPC analysis algorithm to use.
      * - encoding: Set by user.
@@ -2691,6 +2710,18 @@ typedef struct AVCodecContext {
     /**
      * Sets the number of passes to use for Cholesky factorization during LPC analysis.
      * - encoding: Set by user.
+=======
+    /**
+     * Determines which LPC analysis algorithm to use.
+     * - encoding: Set by user
+     * - decoding: unused
+     */
+    enum AVLPCType lpc_type;
+
+    /**
+     * Number of passes to use for Cholesky factorization during LPC analysis
+     * - encoding: Set by user
+>>>>>>> master
      * - decoding: unused
      */
     int lpc_passes;
@@ -3379,15 +3410,14 @@ void avcodec_align_dimensions(AVCodecContext *s, int *width, int *height);
 void avcodec_align_dimensions2(AVCodecContext *s, int *width, int *height,
                                int linesize_align[4]);
 
+#if LIBAVCODEC_VERSION_MAJOR < 53
 /**
- * Check if the given dimension of a picture is valid, meaning that all
- * bytes of the picture can be addressed with a signed int.
- *
- * @param[in] w Width of the picture.
- * @param[in] h Height of the picture.
- * @return Zero if valid, a negative value if invalid.
+ * @deprecated Deprecated in favor of av_check_image_size().
  */
+attribute_deprecated
 int avcodec_check_dimensions(void *av_log_ctx, unsigned int w, unsigned int h);
+#endif
+
 enum PixelFormat avcodec_default_get_format(struct AVCodecContext *s, const enum PixelFormat * fmt);
 
 int avcodec_thread_init(AVCodecContext *s, int thread_count);
@@ -3564,15 +3594,28 @@ attribute_deprecated int avcodec_decode_subtitle(AVCodecContext *avctx, AVSubtit
  * Return a negative value on error, otherwise return the number of bytes used.
  * If no subtitle could be decompressed, got_sub_ptr is zero.
  * Otherwise, the subtitle is stored in *sub.
+ * Note that CODEC_CAP_DR1 is not available for subtitle codecs. This is for
+ * simplicity, because the performance difference is expect to be negligible
+ * and reusing a get_buffer written for video codecs would probably perform badly
+ * due to a potentially very different allocation pattern.
  *
  * @param avctx the codec context
- * @param[out] sub The AVSubtitle in which the decoded subtitle will be stored.
+ * @param[out] sub The AVSubtitle in which the decoded subtitle will be stored, must be
+                   freed with avsubtitle_free if *got_sub_ptr is set.
  * @param[in,out] got_sub_ptr Zero if no subtitle could be decompressed, otherwise, it is nonzero.
  * @param[in] avpkt The input AVPacket containing the input buffer.
  */
 int avcodec_decode_subtitle2(AVCodecContext *avctx, AVSubtitle *sub,
                             int *got_sub_ptr,
                             AVPacket *avpkt);
+
+/**
+ * Frees all allocated data in the given subtitle struct.
+ *
+ * @param sub AVSubtitle to free.
+ */
+void avsubtitle_free(AVSubtitle *sub);
+
 int avcodec_parse_frame(AVCodecContext *avctx, uint8_t **pdata,
                         int *data_size_ptr,
                         uint8_t *buf, int buf_size);
@@ -3938,29 +3981,21 @@ int av_picture_pad(AVPicture *dst, const AVPicture *src, int height, int width, 
  */
 unsigned int av_xiphlacing(unsigned char *s, unsigned int v);
 
+#if LIBAVCODEC_VERSION_MAJOR < 53
 /**
  * Parse str and put in width_ptr and height_ptr the detected values.
  *
- * @return 0 in case of a successful parsing, a negative value otherwise
- * @param[in] str the string to parse: it has to be a string in the format
- * width x height or a valid video frame size abbreviation.
- * @param[in,out] width_ptr pointer to the variable which will contain the detected
- * frame width value
- * @param[in,out] height_ptr pointer to the variable which will contain the detected
- * frame height value
+ * @deprecated Deprecated in favor of av_parse_video_size().
  */
-int av_parse_video_frame_size(int *width_ptr, int *height_ptr, const char *str);
+attribute_deprecated int av_parse_video_frame_size(int *width_ptr, int *height_ptr, const char *str);
 
 /**
  * Parse str and store the detected values in *frame_rate.
  *
- * @return 0 in case of a successful parsing, a negative value otherwise
- * @param[in] str the string to parse: it has to be a string in the format
- * frame_rate_num / frame_rate_den, a float number or a valid video rate abbreviation
- * @param[in,out] frame_rate pointer to the AVRational which will contain the detected
- * frame rate
+ * @deprecated Deprecated in favor of av_parse_video_rate().
  */
-int av_parse_video_frame_rate(AVRational *frame_rate, const char *str);
+attribute_deprecated int av_parse_video_frame_rate(AVRational *frame_rate, const char *str);
+#endif
 
 /**
  * Logs a generic warning message about a missing feature. This function is

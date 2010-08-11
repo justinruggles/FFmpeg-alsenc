@@ -26,6 +26,7 @@
 #include "libavutil/avstring.h"
 #include "libavutil/colorspace.h"
 #include "libavutil/pixdesc.h"
+#include "libavcore/parseutils.h"
 #include "libavformat/avformat.h"
 #include "libavdevice/avdevice.h"
 #include "libswscale/swscale.h"
@@ -104,7 +105,7 @@ typedef struct VideoPicture {
     enum PixelFormat pix_fmt;
 
 #if CONFIG_AVFILTER
-    AVFilterPicRef *picref;
+    AVFilterBufferRef *picref;
 #endif
 } VideoPicture;
 
@@ -677,18 +678,7 @@ static void blend_subrect(AVPicture *dst, const AVSubtitleRect *rect, int imgw, 
 
 static void free_subpicture(SubPicture *sp)
 {
-    int i;
-
-    for (i = 0; i < sp->sub.num_rects; i++)
-    {
-        av_freep(&sp->sub.rects[i]->pict.data[0]);
-        av_freep(&sp->sub.rects[i]->pict.data[1]);
-        av_freep(&sp->sub.rects[i]);
-    }
-
-    av_free(sp->sub.rects);
-
-    memset(&sp->sub, 0, sizeof(AVSubtitle));
+    avsubtitle_free(&sp->sub);
 }
 
 static void video_image_display(VideoState *is)
@@ -1314,7 +1304,7 @@ static void alloc_picture(void *opaque)
 
 #if CONFIG_AVFILTER
     if (vp->picref)
-        avfilter_unref_pic(vp->picref);
+        avfilter_unref_buffer(vp->picref);
     vp->picref = NULL;
 
     vp->width   = is->out_video_filter->inputs[0]->w;
@@ -1399,7 +1389,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts, int64_t
         AVPicture pict;
 #if CONFIG_AVFILTER
         if(vp->picref)
-            avfilter_unref_pic(vp->picref);
+            avfilter_unref_buffer(vp->picref);
         vp->picref = src_frame->opaque;
 #endif
 
@@ -1570,7 +1560,7 @@ typedef struct {
 static int input_get_buffer(AVCodecContext *codec, AVFrame *pic)
 {
     AVFilterContext *ctx = codec->opaque;
-    AVFilterPicRef  *ref;
+    AVFilterBufferRef  *ref;
     int perms = AV_PERM_WRITE;
     int i, w, h, stride[4];
     unsigned edge;
@@ -1595,8 +1585,8 @@ static int input_get_buffer(AVCodecContext *codec, AVFrame *pic)
     ref->w = codec->width;
     ref->h = codec->height;
     for(i = 0; i < 4; i ++) {
-        unsigned hshift = (i == 1 || i == 2) ? av_pix_fmt_descriptors[ref->pic->format].log2_chroma_w : 0;
-        unsigned vshift = (i == 1 || i == 2) ? av_pix_fmt_descriptors[ref->pic->format].log2_chroma_h : 0;
+        unsigned hshift = (i == 1 || i == 2) ? av_pix_fmt_descriptors[ref->format].log2_chroma_w : 0;
+        unsigned vshift = (i == 1 || i == 2) ? av_pix_fmt_descriptors[ref->format].log2_chroma_h : 0;
 
         if (ref->data[i]) {
             ref->data[i]    += (edge >> hshift) + ((edge * ref->linesize[i]) >> vshift);
@@ -1614,12 +1604,12 @@ static int input_get_buffer(AVCodecContext *codec, AVFrame *pic)
 static void input_release_buffer(AVCodecContext *codec, AVFrame *pic)
 {
     memset(pic->data, 0, sizeof(pic->data));
-    avfilter_unref_pic(pic->opaque);
+    avfilter_unref_buffer(pic->opaque);
 }
 
 static int input_reget_buffer(AVCodecContext *codec, AVFrame *pic)
 {
-    AVFilterPicRef *ref = pic->opaque;
+    AVFilterBufferRef *ref = pic->opaque;
 
     if (pic->data[0] == NULL) {
         pic->buffer_hints |= FF_BUFFER_HINTS_READABLE;
@@ -1627,7 +1617,7 @@ static int input_reget_buffer(AVCodecContext *codec, AVFrame *pic)
     }
 
     if ((codec->width != ref->w) || (codec->height != ref->h) ||
-        (codec->pix_fmt != ref->pic->format)) {
+        (codec->pix_fmt != ref->format)) {
         av_log(codec, AV_LOG_ERROR, "Picture properties changed.\n");
         return -1;
     }
@@ -1666,7 +1656,7 @@ static void input_uninit(AVFilterContext *ctx)
 static int input_request_frame(AVFilterLink *link)
 {
     FilterPriv *priv = link->src->priv;
-    AVFilterPicRef *picref;
+    AVFilterBufferRef *picref;
     int64_t pts = 0;
     AVPacket pkt;
     int ret;
@@ -1677,11 +1667,11 @@ static int input_request_frame(AVFilterLink *link)
         return -1;
 
     if(priv->use_dr1) {
-        picref = avfilter_ref_pic(priv->frame->opaque, ~0);
+        picref = avfilter_ref_buffer(priv->frame->opaque, ~0);
     } else {
         picref = avfilter_get_video_buffer(link, AV_PERM_WRITE, link->w, link->h);
         av_picture_copy((AVPicture *)&picref->data, (AVPicture *)priv->frame,
-                        picref->pic->format, link->w, link->h);
+                        picref->format, link->w, link->h);
     }
     av_free_packet(&pkt);
 
@@ -1751,13 +1741,13 @@ static int output_query_formats(AVFilterContext *ctx)
 static int get_filtered_video_frame(AVFilterContext *ctx, AVFrame *frame,
                                     int64_t *pts, int64_t *pos)
 {
-    AVFilterPicRef *pic;
+    AVFilterBufferRef *pic;
 
     if(avfilter_request_frame(ctx->inputs[0]))
         return -1;
-    if(!(pic = ctx->inputs[0]->cur_pic))
+    if(!(pic = ctx->inputs[0]->cur_buf))
         return -1;
-    ctx->inputs[0]->cur_pic = NULL;
+    ctx->inputs[0]->cur_buf = NULL;
 
     frame->opaque = pic;
     *pts          = pic->pts;
@@ -2682,7 +2672,7 @@ static void stream_close(VideoState *is)
         vp = &is->pictq[i];
 #if CONFIG_AVFILTER
         if (vp->picref) {
-            avfilter_unref_pic(vp->picref);
+            avfilter_unref_buffer(vp->picref);
             vp->picref = NULL;
         }
 #endif
@@ -2960,7 +2950,7 @@ static void event_loop(void)
 
 static void opt_frame_size(const char *arg)
 {
-    if (av_parse_video_frame_size(&frame_width, &frame_height, arg) < 0) {
+    if (av_parse_video_size(&frame_width, &frame_height, arg) < 0) {
         fprintf(stderr, "Incorrect frame size\n");
         exit(1);
     }

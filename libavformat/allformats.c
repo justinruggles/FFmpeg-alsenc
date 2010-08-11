@@ -70,7 +70,7 @@ void av_register_all(void)
     REGISTER_DEMUXER  (BINK, bink);
     REGISTER_DEMUXER  (C93, c93);
     REGISTER_DEMUXER  (CAF, caf);
-    REGISTER_DEMUXER  (CAVSVIDEO, cavsvideo);
+    REGISTER_MUXDEMUX (CAVSVIDEO, cavsvideo);
     REGISTER_DEMUXER  (CDG, cdg);
     REGISTER_MUXER    (CRC, crc);
     REGISTER_MUXDEMUX (DAUD, daud);
@@ -175,6 +175,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX (RM, rm);
     REGISTER_MUXDEMUX (ROQ, roq);
     REGISTER_DEMUXER  (RPL, rpl);
+    REGISTER_MUXDEMUX (RSO, rso);
     REGISTER_MUXER    (RTP, rtp);
     REGISTER_MUXDEMUX (RTSP, rtsp);
     REGISTER_DEMUXER  (SDP, sdp);
@@ -189,6 +190,7 @@ void av_register_all(void)
     REGISTER_DEMUXER  (SOL, sol);
     REGISTER_MUXDEMUX (SOX, sox);
     REGISTER_MUXER    (SPDIF, spdif);
+    REGISTER_MUXDEMUX (SRT, srt);
     REGISTER_DEMUXER  (STR, str);
     REGISTER_MUXDEMUX (SWF, swf);
     REGISTER_MUXER    (TG2, tg2);
@@ -199,6 +201,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX (TRUEHD, truehd);
     REGISTER_DEMUXER  (TTA, tta);
     REGISTER_DEMUXER  (TXD, txd);
+    REGISTER_DEMUXER  (TTY, tty);
     REGISTER_DEMUXER  (VC1, vc1);
     REGISTER_MUXDEMUX (VC1T, vc1t);
     REGISTER_DEMUXER  (VMD, vmd);
@@ -219,10 +222,12 @@ void av_register_all(void)
     REGISTER_MUXDEMUX (LIBNUT, libnut);
 
     /* protocols */
+    REGISTER_PROTOCOL (CONCAT, concat);
     REGISTER_PROTOCOL (FILE, file);
     REGISTER_PROTOCOL (GOPHER, gopher);
     REGISTER_PROTOCOL (HTTP, http);
     REGISTER_PROTOCOL (MMST, mmst);
+    REGISTER_PROTOCOL (MD5,  md5);
     REGISTER_PROTOCOL (PIPE, pipe);
     REGISTER_PROTOCOL (RTMP, rtmp);
 #if CONFIG_LIBRTMP
@@ -234,5 +239,4 @@ void av_register_all(void)
     REGISTER_PROTOCOL (RTP, rtp);
     REGISTER_PROTOCOL (TCP, tcp);
     REGISTER_PROTOCOL (UDP, udp);
-    REGISTER_PROTOCOL (CONCAT, concat);
 }

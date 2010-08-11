@@ -53,6 +53,16 @@ const char *small_strptime(const char *p, const char *fmt,
 
 char *ff_data_to_hex(char *buf, const uint8_t *src, int size, int lowercase);
 
+/**
+ * Parse a string of hexadecimal strings. Any space between the hexadecimal
+ * digits is ignored.
+ *
+ * @param data if non-null, the parsed data is written to this pointer
+ * @param p the string to parse
+ * @return the number of bytes written (or to be written, if data is null)
+ */
+int ff_hex_to_data(uint8_t *data, const char *p);
+
 void ff_program_add_stream_index(AVFormatContext *ac, int progid, unsigned int idx);
 
 /**
@@ -166,5 +176,20 @@ int ff_get_v_length(uint64_t val);
  * Put val using a variable number of bytes.
  */
 void ff_put_v(ByteIOContext *bc, uint64_t val);
+
+/**
+ * Read a whole line of text from ByteIOContext. Stop reading after reaching
+ * either a \n, a \0 or EOF. The returned string is always \0 terminated,
+ * and may be truncated if the buffer is too small.
+ *
+ * @param s the read-only ByteIOContext
+ * @param buf buffer to store the read line
+ * @param maxlen size of the buffer
+ * @return the length of the string written in the buffer, not including the
+ *         final \0
+ */
+int ff_get_line(ByteIOContext *s, char *buf, int maxlen);
+
+#define SPACE_CHARS " \t\r\n"
 
 #endif /* AVFORMAT_INTERNAL_H */

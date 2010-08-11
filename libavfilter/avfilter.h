@@ -25,7 +25,7 @@
 #include "libavutil/avutil.h"
 
 #define LIBAVFILTER_VERSION_MAJOR  1
-#define LIBAVFILTER_VERSION_MINOR 22
+#define LIBAVFILTER_VERSION_MINOR 31
 #define LIBAVFILTER_VERSION_MICRO  0
 
 #define LIBAVFILTER_VERSION_INT AV_VERSION_INT(LIBAVFILTER_VERSION_MAJOR, \
@@ -59,96 +59,94 @@ typedef struct AVFilterContext AVFilterContext;
 typedef struct AVFilterLink    AVFilterLink;
 typedef struct AVFilterPad     AVFilterPad;
 
-/* TODO: look for other flags which may be useful in this structure (interlace
- * flags, etc)
- */
 /**
- * A reference-counted picture data type used by the filter system. Filters
+ * A reference-counted buffer data type used by the filter system. Filters
  * should not store pointers to this structure directly, but instead use the
- * AVFilterPicRef structure below.
+ * AVFilterBufferRef structure below.
  */
-typedef struct AVFilterPic
+typedef struct AVFilterBuffer
 {
-    uint8_t *data[4];           ///< picture data for each plane
-    int linesize[4];            ///< number of bytes per line
-    enum PixelFormat format;    ///< colorspace
+    uint8_t *data[8];           ///< buffer data for each plane/channel
+    int linesize[8];            ///< number of bytes per line
 
-    unsigned refcount;          ///< number of references to this image
+    unsigned refcount;          ///< number of references to this buffer
 
     /** private data to be used by a custom free function */
     void *priv;
     /**
-     * A pointer to the function to deallocate this image if the default
+     * A pointer to the function to deallocate this buffer if the default
      * function is not sufficient. This could, for example, add the memory
      * back into a memory pool to be reused later without the overhead of
      * reallocating it from scratch.
      */
-    void (*free)(struct AVFilterPic *pic);
+    void (*free)(struct AVFilterBuffer *buf);
+} AVFilterBuffer;
 
-    int w, h;                  ///< width and height of the allocated buffer
-} AVFilterPic;
-
-/**
- * A reference to an AVFilterPic. Since filters can manipulate the origin of
- * a picture to, for example, crop image without any memcpy, the picture origin
- * and dimensions are per-reference properties. Linesize is also useful for
- * image flipping, frame to field filters, etc, and so is also per-reference.
- *
- * TODO: add anything necessary for frame reordering
- */
-typedef struct AVFilterPicRef
-{
-    AVFilterPic *pic;           ///< the picture that this is a reference to
-    uint8_t *data[4];           ///< picture data for each plane
-    int linesize[4];            ///< number of bytes per line
-    int w;                      ///< image width
-    int h;                      ///< image height
-
-    int64_t pts;                ///< presentation timestamp in units of 1/AV_TIME_BASE
-    int64_t pos;                ///< byte position in stream, -1 if unknown
-
-    AVRational pixel_aspect;    ///< pixel aspect ratio
-
-    int perms;                  ///< permissions
 #define AV_PERM_READ     0x01   ///< can read from the buffer
 #define AV_PERM_WRITE    0x02   ///< can write to the buffer
 #define AV_PERM_PRESERVE 0x04   ///< nobody else can overwrite the buffer
 #define AV_PERM_REUSE    0x08   ///< can output the buffer multiple times, with the same contents each time
 #define AV_PERM_REUSE2   0x10   ///< can output the buffer multiple times, modified each time
 
+/**
+ * A reference to an AVFilterBuffer. Since filters can manipulate the origin of
+ * a buffer to, for example, crop image without any memcpy, the buffer origin
+ * and dimensions are per-reference properties. Linesize is also useful for
+ * image flipping, frame to field filters, etc, and so is also per-reference.
+ *
+ * TODO: add anything necessary for frame reordering
+ */
+typedef struct AVFilterBufferRef
+{
+    AVFilterBuffer *buf;        ///< the buffer that this is a reference to
+    uint8_t *data[4];           ///< picture data for each plane
+    int linesize[4];            ///< number of bytes per line
+    int w;                      ///< image width
+    int h;                      ///< image height
+    int format;                 ///< media format
+
+    int64_t pts;                ///< presentation timestamp in units of 1/AV_TIME_BASE
+    int64_t pos;                ///< byte position in stream, -1 if unknown
+
+    AVRational pixel_aspect;    ///< pixel aspect ratio
+
+    int perms;                  ///< permissions, see the AV_PERM_* flags
+
     int interlaced;             ///< is frame interlaced
     int top_field_first;
-} AVFilterPicRef;
+} AVFilterBufferRef;
 
 /**
  * Copy properties of src to dst, without copying the actual video
  * data.
  */
-static inline void avfilter_copy_picref_props(AVFilterPicRef *dst, AVFilterPicRef *src)
+static inline void avfilter_copy_buffer_ref_props(AVFilterBufferRef *dst, AVFilterBufferRef *src)
 {
     dst->pts             = src->pts;
     dst->pos             = src->pos;
     dst->pixel_aspect    = src->pixel_aspect;
     dst->interlaced      = src->interlaced;
     dst->top_field_first = src->top_field_first;
+    dst->w               = src->w;
+    dst->h               = src->h;
 }
 
 /**
- * Add a new reference to a picture.
- * @param ref   an existing reference to the picture
+ * Add a new reference to a buffer.
+ * @param ref   an existing reference to the buffer
  * @param pmask a bitmask containing the allowable permissions in the new
  *              reference
- * @return      a new reference to the picture with the same properties as the
+ * @return      a new reference to the buffer with the same properties as the
  *              old, excluding any permissions denied by pmask
  */
-AVFilterPicRef *avfilter_ref_pic(AVFilterPicRef *ref, int pmask);
+AVFilterBufferRef *avfilter_ref_buffer(AVFilterBufferRef *ref, int pmask);
 
 /**
- * Remove a reference to a picture. If this is the last reference to the
- * picture, the picture itself is also automatically freed.
- * @param ref reference to the picture
+ * Remove a reference to a buffer. If this is the last reference to the
+ * buffer, the buffer itself is also automatically freed.
+ * @param ref reference to the buffer
  */
-void avfilter_unref_pic(AVFilterPicRef *ref);
+void avfilter_unref_buffer(AVFilterBufferRef *ref);
 
 /**
  * A list of supported formats for one end of a filter link. This is used
@@ -194,7 +192,7 @@ typedef struct AVFilterFormats AVFilterFormats;
 struct AVFilterFormats
 {
     unsigned format_count;      ///< number of formats
-    enum PixelFormat *formats;  ///< list of pixel formats
+    int *formats;               ///< list of media formats
 
     unsigned refcount;          ///< number of references to this list
     AVFilterFormats ***refs;    ///< references to this list
@@ -203,25 +201,25 @@ struct AVFilterFormats
 /**
  * Create a list of supported formats. This is intended for use in
  * AVFilter->query_formats().
- * @param pix_fmts list of pixel formats, terminated by PIX_FMT_NONE
+ * @param fmts list of media formats, terminated by -1
  * @return the format list, with no existing references
  */
-AVFilterFormats *avfilter_make_format_list(const enum PixelFormat *pix_fmts);
+AVFilterFormats *avfilter_make_format_list(const int *fmts);
 
 /**
- * Add pix_fmt to the list of pixel formats contained in *avff.
+ * Add fmt to the list of media formats contained in *avff.
  * If *avff is NULL the function allocates the filter formats struct
  * and puts its pointer in *avff.
  *
  * @return a non negative value in case of success, or a negative
  * value corresponding to an AVERROR code in case of error
  */
-int avfilter_add_colorspace(AVFilterFormats **avff, enum PixelFormat pix_fmt);
+int avfilter_add_format(AVFilterFormats **avff, int fmt);
 
 /**
- * Return a list of all colorspaces supported by FFmpeg.
+ * Return a list of all formats supported by FFmpeg for the given media type.
  */
-AVFilterFormats *avfilter_all_colorspaces(void);
+AVFilterFormats *avfilter_all_formats(enum AVMediaType type);
 
 /**
  * Return a format list which contains the intersection of the formats of
@@ -325,7 +323,7 @@ struct AVFilterPad
      *
      * Input video pads only.
      */
-    void (*start_frame)(AVFilterLink *link, AVFilterPicRef *picref);
+    void (*start_frame)(AVFilterLink *link, AVFilterBufferRef *picref);
 
     /**
      * Callback function to get a buffer. If NULL, the filter system will
@@ -333,7 +331,7 @@ struct AVFilterPad
      *
      * Input video pads only.
      */
-    AVFilterPicRef *(*get_video_buffer)(AVFilterLink *link, int perms, int w, int h);
+    AVFilterBufferRef *(*get_video_buffer)(AVFilterLink *link, int perms, int w, int h);
 
     /**
      * Callback called after the slices of a frame are completely sent. If
@@ -390,7 +388,7 @@ struct AVFilterPad
 };
 
 /** default handler for start_frame() for video inputs */
-void avfilter_default_start_frame(AVFilterLink *link, AVFilterPicRef *picref);
+void avfilter_default_start_frame(AVFilterLink *link, AVFilterBufferRef *picref);
 /** default handler for draw_slice() for video inputs */
 void avfilter_default_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 /** default handler for end_frame() for video inputs */
@@ -400,7 +398,7 @@ int avfilter_default_config_output_link(AVFilterLink *link);
 /** default handler for config_props() for video inputs */
 int avfilter_default_config_input_link (AVFilterLink *link);
 /** default handler for get_video_buffer() for video inputs */
-AVFilterPicRef *avfilter_default_get_video_buffer(AVFilterLink *link,
+AVFilterBufferRef *avfilter_default_get_video_buffer(AVFilterLink *link,
                                                   int perms, int w, int h);
 /**
  * A helper for query_formats() which sets all links to the same list of
@@ -412,7 +410,7 @@ void avfilter_set_common_formats(AVFilterContext *ctx, AVFilterFormats *formats)
 int avfilter_default_query_formats(AVFilterContext *ctx);
 
 /** start_frame() handler for filters which simply pass video along */
-void avfilter_null_start_frame(AVFilterLink *link, AVFilterPicRef *picref);
+void avfilter_null_start_frame(AVFilterLink *link, AVFilterBufferRef *picref);
 
 /** draw_slice() handler for filters which simply pass video along */
 void avfilter_null_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
@@ -421,7 +419,7 @@ void avfilter_null_draw_slice(AVFilterLink *link, int y, int h, int slice_dir);
 void avfilter_null_end_frame(AVFilterLink *link);
 
 /** get_video_buffer() handler for filters which simply pass video along */
-AVFilterPicRef *avfilter_null_get_video_buffer(AVFilterLink *link,
+AVFilterBufferRef *avfilter_null_get_video_buffer(AVFilterLink *link,
                                                   int perms, int w, int h);
 
 /**
@@ -444,7 +442,7 @@ typedef struct AVFilter
 
     /**
      * Filter uninitialization function. Should deallocate any memory held
-     * by the filter, release any picture references, etc. This does not need
+     * by the filter, release any buffer references, etc. This does not need
      * to deallocate the AVFilterContext->priv memory itself.
      */
     void (*uninit)(AVFilterContext *ctx);
@@ -511,9 +509,11 @@ struct AVFilterLink
         AVLINK_INIT             ///< complete
     } init_state;
 
+    enum AVMediaType type;      ///< filter media type
+
     int w;                      ///< agreed upon image width
     int h;                      ///< agreed upon image height
-    enum PixelFormat format;    ///< agreed upon image colorspace
+    int format;                 ///< agreed upon media format
 
     /**
      * Lists of formats supported by the input and output filters respectively.
@@ -524,16 +524,16 @@ struct AVFilterLink
     AVFilterFormats *out_formats;
 
     /**
-     * The picture reference currently being sent across the link by the source
+     * The buffer reference currently being sent across the link by the source
      * filter. This is used internally by the filter system to allow
-     * automatic copying of pictures which do not have sufficient permissions
+     * automatic copying of buffers which do not have sufficient permissions
      * for the destination. This should not be accessed directly by the
      * filters.
      */
-    AVFilterPicRef *srcpic;
+    AVFilterBufferRef *src_buf;
 
-    AVFilterPicRef *cur_pic;
-    AVFilterPicRef *outpic;
+    AVFilterBufferRef *cur_buf;
+    AVFilterBufferRef *out_buf;
 };
 
 /**
@@ -548,7 +548,7 @@ int avfilter_link(AVFilterContext *src, unsigned srcpad,
                   AVFilterContext *dst, unsigned dstpad);
 
 /**
- * Negotiate the colorspace, dimensions, etc of all inputs to a filter.
+ * Negotiate the media format, dimensions, etc of all inputs to a filter.
  * @param filter the filter to negotiate the properties for its inputs
  * @return       zero on successful negotiation
  */
@@ -556,15 +556,15 @@ int avfilter_config_links(AVFilterContext *filter);
 
 /**
  * Request a picture buffer with a specific set of permissions.
- * @param link  the output link to the filter from which the picture will
+ * @param link  the output link to the filter from which the buffer will
  *              be requested
  * @param perms the required access permissions
  * @param w     the minimum width of the buffer to allocate
  * @param h     the minimum height of the buffer to allocate
- * @return      A reference to the picture. This must be unreferenced with
- *              avfilter_unref_pic when you are finished with it.
+ * @return      A reference to the buffer. This must be unreferenced with
+ *              avfilter_unref_buffer when you are finished with it.
  */
-AVFilterPicRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
+AVFilterBufferRef *avfilter_get_video_buffer(AVFilterLink *link, int perms,
                                           int w, int h);
 
 /**
@@ -590,7 +590,7 @@ int avfilter_poll_frame(AVFilterLink *link);
  *               portion. The receiving filter will free this reference when
  *               it no longer needs it.
  */
-void avfilter_start_frame(AVFilterLink *link, AVFilterPicRef *picref);
+void avfilter_start_frame(AVFilterLink *link, AVFilterBufferRef *picref);
 
 /**
  * Notifie the next filter that the current frame has finished.

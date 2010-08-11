@@ -156,7 +156,7 @@ library:
 @item QCP                       @tab   @tab X
 @item raw ADTS (AAC)            @tab X @tab X
 @item raw AC-3                  @tab X @tab X
-@item raw Chinese AVS video     @tab   @tab X
+@item raw Chinese AVS video     @tab X @tab X
 @item raw CRI ADX               @tab X @tab X
 @item raw Dirac                 @tab X @tab X
 @item raw DNxHD                 @tab X @tab X
@@ -209,9 +209,10 @@ library:
 @item RL2                       @tab   @tab X
     @tab Audio and video format used in some games by Entertainment Software Partners.
 @item RPL/ARMovie               @tab   @tab X
+@item Lego Mindstorms RSO       @tab X @tab X
 @item RTMP                      @tab X @tab X
     @tab Output is performed by publishing stream to RTMP server
-@item RTP                       @tab   @tab X
+@item RTP                       @tab X @tab
 @item RTSP                      @tab X @tab X
 @item SDP                       @tab   @tab X
 @item Sega FILM/CPK             @tab   @tab X
@@ -228,6 +229,7 @@ library:
 @item Sony Wave64 (W64)         @tab   @tab X
 @item SoX native format         @tab X @tab X
 @item SUN AU format             @tab X @tab X
+@item Text files                @tab   @tab X
 @item THP                       @tab   @tab X
     @tab Used on the Nintendo GameCube.
 @item Tiertex Limited SEQ       @tab   @tab X
@@ -316,6 +318,7 @@ following image formats are supported:
     @tab Used in games like Mad Dog McCree.
 @item AMV Video              @tab     @tab  X
     @tab Used in Chinese MP3 players.
+@item ANSI/ASCII art         @tab     @tab  X
 @item Apple MJPEG-B          @tab     @tab  X
 @item Apple QuickDraw        @tab     @tab  X
     @tab fourcc: qdrw
@@ -347,8 +350,8 @@ following image formats are supported:
     @tab fourcc: CSCD
 @item CD+G                   @tab     @tab  X
     @tab Video codec for CD+G karaoke disks
-@item Chinese AVS video      @tab     @tab  X
-    @tab AVS1-P2, JiZhun profile
+@item Chinese AVS video      @tab  E  @tab  X
+    @tab AVS1-P2, JiZhun profile, encoding through external library libxavs
 @item Delphine Software International CIN video  @tab     @tab  X
     @tab Codec used in Delphine Software International games.
 @item Cinepak                @tab     @tab  X
@@ -429,7 +432,7 @@ following image formats are supported:
 @item MPEG-2 video           @tab  X  @tab  X
 @item MPEG-4 part 2          @tab  X  @tab  X
     @ libxvidcore can be used alternatively for encoding.
-@item MPEG-4 part 2 Microsoft variant version 1  @tab  X  @tab  X
+@item MPEG-4 part 2 Microsoft variant version 1  @tab     @tab  X
 @item MPEG-4 part 2 Microsoft variant version 2  @tab  X  @tab  X
 @item MPEG-4 part 2 Microsoft variant version 3  @tab  X  @tab  X
 @item Nintendo Gamecube THP video  @tab     @tab  X
@@ -681,6 +684,7 @@ performance on systems without hardware floating point support).
 @item DVB          @tab X @tab X @tab X @tab X
 @item DVD          @tab X @tab X @tab X @tab X
 @item PGS          @tab   @tab   @tab   @tab X
+@item SubRip (SRT) @tab X @tab X
 @item XSUB         @tab   @tab   @tab X @tab X
 @end multitable
 
@@ -786,7 +790,8 @@ bash ./configure
 
 MacOS X on PowerPC or ARM (iPhone) requires a preprocessor from
 @url{http://github.com/yuvi/gas-preprocessor} to build the optimized
-assembler functions.
+assembler functions. Just download the Perl script and put it somewhere
+in your PATH, FFmpeg's configure will pick it up automatically.
 
 @section Windows
 

@@ -1,6 +1,6 @@
 /*
- * Sorenson-3 (SVQ3/SV3V) payload for RTP
- * Copyright (c) 2010 Ronald S. Bultje
+ * RSO format common data
+ * Copyright (c) 2010 Rafael Carre
  *
  * This file is part of FFmpeg.
  *
@@ -19,15 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFORMAT_RTPDEC_SVQ3_H
-#define AVFORMAT_RTPDEC_SVQ3_H
+#include "avformat.h"
+#include "internal.h"
+#include "rso.h"
 
-#include "libavcodec/avcodec.h"
-#include "rtpdec.h"
-
-/**
- * Sorenson-3 RTP callbacks.
- */
-extern RTPDynamicProtocolHandler ff_svq3_dynamic_handler;
-
-#endif /* AVFORMAT_RTPDEC_SVQ3_H */
+const AVCodecTag ff_codec_rso_tags[] = {
+    { CODEC_ID_PCM_U8,          0x0100 },
+    { CODEC_ID_ADPCM_IMA_WAV,   0x0101 },
+    { CODEC_ID_NONE, 0 },
+};

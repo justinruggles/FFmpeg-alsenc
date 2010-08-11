@@ -20,6 +20,14 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+/* References
+ * MMS protocol specification:
+ *  [1]http://msdn.microsoft.com/en-us/library/cc234711(PROT.10).aspx
+ * ASF specification. Revision 01.20.03.
+ *  [2]http://msdn.microsoft.com/en-us/library/bb643323.aspx
+ */
+
 #include "avformat.h"
 #include "internal.h"
 #include "libavutil/intreadwrite.h"
@@ -112,10 +120,10 @@ typedef struct {
     int asf_header_size;                 ///< Size of stored ASF header.
     int header_parsed;                   ///< The header has been received and parsed.
     int asf_packet_len;
+    int asf_header_read_size;
     /*@}*/
 
     int stream_num;                      ///< stream numbers.
-    int is_playing;
 } MMSContext;
 
 /** Create MMST command packet header */
@@ -146,7 +154,8 @@ static void insert_command_prefixes(MMSContext *mms,
 /** Send a prepared MMST command packet. */
 static int send_command_packet(MMSContext *mms)
 {
-    int exact_length= mms->write_out_ptr - mms->out_buffer;
+    int len= mms->write_out_ptr - mms->out_buffer;
+    int exact_length = (len + 7) & ~7;
     int first_length= exact_length - 16;
     int len8= first_length/8;
     int write_result;
@@ -155,12 +164,16 @@ static int send_command_packet(MMSContext *mms)
     AV_WL32(mms->out_buffer + 8, first_length);
     AV_WL32(mms->out_buffer + 16, len8);
     AV_WL32(mms->out_buffer + 32, len8-2);
+    memset(mms->write_out_ptr, 0, exact_length - len);
 
     // write it out.
     write_result= url_write(mms->mms_hd, mms->out_buffer, exact_length);
     if(write_result != exact_length) {
-        dprintf(NULL, "url_write returned: %d != %d\n",
-                write_result, exact_length);
+        av_log(NULL, AV_LOG_ERROR,
+               "Failed to write data of length %d: %d (%s)\n",
+               exact_length, write_result,
+               write_result < 0 ? strerror(write_result) :
+                   "The server closed the connection");
         return AVERROR_IO;
     }
 
@@ -177,6 +190,13 @@ static void mms_put_utf16(MMSContext *mms, uint8_t *src)
 
     len = ff_put_str16_nolen(&bic, src);
     mms->write_out_ptr += len;
+}
+
+static int send_time_test_data(MMSContext *mms)
+{
+    start_command_packet(mms, CS_PKT_TIMING_DATA_REQUEST);
+    insert_command_prefixes(mms, 0xf0f0f0f1, 0x0004000b);
+    return send_command_packet(mms);
 }
 
 static int send_protocol_select(MMSContext *mms)
@@ -246,110 +266,132 @@ static MMSSCPacketType get_tcp_server_response(MMSContext *mms)
     MMSSCPacketType packet_type= -1;
 
     for(;;) {
-        if((read_result= url_read_complete(mms->mms_hd, mms->in_buffer, 8))==8) {
-            // handle command packet.
-            if(AV_RL32(mms->in_buffer + 4)==0xb00bface) {
-                mms->incoming_flags= mms->in_buffer[3];
-                read_result= url_read_complete(mms->mms_hd, mms->in_buffer+8, 4);
-                if(read_result == 4) {
-                    int length_remaining= AV_RL32(mms->in_buffer+8) + 4;
-
-                    dprintf(NULL, "Length remaining is %d\n", length_remaining);
-                    // read the rest of the packet.
-                    if (length_remaining < 0
-                        || length_remaining > sizeof(mms->in_buffer) - 12) {
-                        dprintf(NULL, "Incoming message len %d exceeds buffer len %d\n",
-                            length_remaining, sizeof(mms->in_buffer) - 12);
-                        return -1;
-                    }
-                    read_result = url_read_complete(mms->mms_hd, mms->in_buffer + 12,
-                                                  length_remaining) ;
-                    if (read_result == length_remaining) {
-                        packet_type= AV_RL16(mms->in_buffer+36);
-                    } else {
-                        dprintf(NULL, "read for packet type failed%d!\n", read_result);
-                        return -1;
-                    }
-                } else {
-                    dprintf(NULL, "read for length remaining failed%d!\n", read_result);
-                    return -1;
-                }
-            } else {
-                int length_remaining;
-                int packet_id_type;
-                int tmp;
-
-                assert(mms->remaining_in_len==0);
-
-                // note we cache the first 8 bytes,
-                // then fill up the buffer with the others
-                tmp                       = AV_RL16(mms->in_buffer + 6);
-                length_remaining          = (tmp - 8) & 0xffff;
-                mms->incoming_packet_seq  = AV_RL32(mms->in_buffer);
-                packet_id_type            = mms->in_buffer[4];
-                mms->incoming_flags       = mms->in_buffer[5];
-
-                if (length_remaining < 0
-                        || length_remaining > sizeof(mms->in_buffer) - 8) {
-                    dprintf(NULL, "Incoming data len %d exceeds buffer len %d\n",
-                            length_remaining, sizeof(mms->in_buffer));
-                    return -1;
-                }
-                mms->remaining_in_len    = length_remaining;
-                mms->read_in_ptr         = mms->in_buffer;
-                read_result= url_read_complete(mms->mms_hd, mms->in_buffer, length_remaining);
-                if(read_result != length_remaining) {
-                    dprintf(NULL, "read_bytes result: %d asking for %d\n",
-                            read_result, length_remaining);
-                    return -1;
-                } else {
-                    // if we successfully read everything.
-                    if(packet_id_type == mms->header_packet_id) {
-                        packet_type = SC_PKT_ASF_HEADER;
-                        // Store the asf header
-                        if(!mms->header_parsed) {
-                            void *p = av_realloc(mms->asf_header,
-                                              mms->asf_header_size
-                                              + mms->remaining_in_len);
-                            if (!p) {
-                                av_freep(&mms->asf_header);
-                                return AVERROR(ENOMEM);
-                            }
-                            mms->asf_header = p;
-                            memcpy(mms->asf_header + mms->asf_header_size,
-                                                 mms->read_in_ptr,
-                                                 mms->remaining_in_len);
-                            mms->asf_header_size += mms->remaining_in_len;
-                        }
-                    } else if(packet_id_type == mms->packet_id) {
-                        packet_type = SC_PKT_ASF_MEDIA;
-                    } else {
-                        dprintf(NULL, "packet id type %d is old.", packet_id_type);
-                        continue;
-                    }
-                }
-            }
-
-            // preprocess some packet type
-            if(packet_type == SC_PKT_KEEPALIVE) {
-                send_keepalive_packet(mms);
-                continue;
-            } else if(packet_type == SC_PKT_STREAM_CHANGING) {
-                handle_packet_stream_changing_type(mms);
-            } else if(packet_type == SC_PKT_ASF_MEDIA) {
-                pad_media_packet(mms);
-            }
-            return packet_type;
-        } else {
-            if(read_result<0) {
-                dprintf(NULL, "Read error (or cancelled) returned %d!\n", read_result);
+        read_result = url_read_complete(mms->mms_hd, mms->in_buffer, 8);
+        if (read_result != 8) {
+            if(read_result < 0) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Error reading packet header: %d (%s)\n",
+                       read_result, strerror(read_result));
                 packet_type = SC_PKT_CANCEL;
             } else {
-                dprintf(NULL, "Read result of zero?!\n");
+                av_log(NULL, AV_LOG_ERROR,
+                       "The server closed the connection\n");
                 packet_type = SC_PKT_NO_DATA;
             }
             return packet_type;
         }
+
+        // handle command packet.
+        if(AV_RL32(mms->in_buffer + 4)==0xb00bface) {
+            int length_remaining, hr;
+
+            mms->incoming_flags= mms->in_buffer[3];
+            read_result= url_read_complete(mms->mms_hd, mms->in_buffer+8, 4);
+            if(read_result != 4) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Reading command packet length failed: %d (%s)\n",
+                       read_result,
+                       read_result < 0 ? strerror(read_result) :
+                           "The server closed the connection");
+                return read_result < 0 ? read_result : AVERROR_IO;
+            }
+
+            length_remaining= AV_RL32(mms->in_buffer+8) + 4;
+            dprintf(NULL, "Length remaining is %d\n", length_remaining);
+            // read the rest of the packet.
+            if (length_remaining < 0
+                || length_remaining > sizeof(mms->in_buffer) - 12) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Incoming packet length %d exceeds bufsize %zu\n",
+                       length_remaining, sizeof(mms->in_buffer) - 12);
+                return AVERROR_INVALIDDATA;
+            }
+            read_result = url_read_complete(mms->mms_hd, mms->in_buffer + 12,
+                                            length_remaining) ;
+            if (read_result != length_remaining) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Reading pkt data (length=%d) failed: %d (%s)\n",
+                       length_remaining, read_result,
+                       read_result < 0 ? strerror(read_result) :
+                           "The server closed the connection");
+                return read_result < 0 ? read_result : AVERROR_IO;
+            }
+            packet_type= AV_RL16(mms->in_buffer+36);
+            hr = AV_RL32(mms->in_buffer + 40);
+            if (hr) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Server sent an error status code: 0x%08x\n", hr);
+                return AVERROR_UNKNOWN;
+            }
+        } else {
+            int length_remaining;
+            int packet_id_type;
+            int tmp;
+
+            // note we cache the first 8 bytes,
+            // then fill up the buffer with the others
+            tmp                       = AV_RL16(mms->in_buffer + 6);
+            length_remaining          = (tmp - 8) & 0xffff;
+            mms->incoming_packet_seq  = AV_RL32(mms->in_buffer);
+            packet_id_type            = mms->in_buffer[4];
+            mms->incoming_flags       = mms->in_buffer[5];
+
+            if (length_remaining < 0
+                || length_remaining > sizeof(mms->in_buffer) - 8) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Data length %d is invalid or too large (max=%zu)\n",
+                       length_remaining, sizeof(mms->in_buffer));
+                return AVERROR_INVALIDDATA;
+            }
+            mms->remaining_in_len    = length_remaining;
+            mms->read_in_ptr         = mms->in_buffer;
+            read_result= url_read_complete(mms->mms_hd, mms->in_buffer, length_remaining);
+            if(read_result != length_remaining) {
+                av_log(NULL, AV_LOG_ERROR,
+                       "Failed to read packet data of size %d: %d (%s)\n",
+                       length_remaining, read_result,
+                       read_result < 0 ? strerror(read_result) :
+                           "The server closed the connection");
+                return read_result < 0 ? read_result : AVERROR_IO;
+            }
+
+            // if we successfully read everything.
+            if(packet_id_type == mms->header_packet_id) {
+                packet_type = SC_PKT_ASF_HEADER;
+                // Store the asf header
+                if(!mms->header_parsed) {
+                    void *p = av_realloc(mms->asf_header,
+                                  mms->asf_header_size + mms->remaining_in_len);
+                    if (!p) {
+                        av_freep(&mms->asf_header);
+                        return AVERROR(ENOMEM);
+                    }
+                    mms->asf_header = p;
+                    memcpy(mms->asf_header + mms->asf_header_size,
+                           mms->read_in_ptr, mms->remaining_in_len);
+                    mms->asf_header_size += mms->remaining_in_len;
+                }
+                // 0x04 means asf header is sent in multiple packets.
+                if (mms->incoming_flags == 0x04)
+                    continue;
+            } else if(packet_id_type == mms->packet_id) {
+                packet_type = SC_PKT_ASF_MEDIA;
+            } else {
+                dprintf(NULL, "packet id type %d is old.", packet_id_type);
+                continue;
+            }
+        }
+
+        // preprocess some packet type
+        if(packet_type == SC_PKT_KEEPALIVE) {
+            send_keepalive_packet(mms);
+            continue;
+        } else if(packet_type == SC_PKT_STREAM_CHANGING) {
+            handle_packet_stream_changing_type(mms);
+        } else if(packet_type == SC_PKT_ASF_MEDIA) {
+            pad_media_packet(mms);
+        }
+        return packet_type;
     }
 }
 
@@ -367,8 +409,10 @@ static int mms_safe_send_recv(MMSContext *mms,
     }
 
     if ((type = get_tcp_server_response(mms)) != expect_type) {
-        dprintf(NULL,"Unexpected packet type %d with type %d\n", type, expect_type);
-        return -1;
+        av_log(NULL, AV_LOG_ERROR,
+               "Corrupt stream (unexpected packet type 0x%x, expected 0x%x)\n",
+               type, expect_type);
+        return AVERROR_INVALIDDATA;
     } else {
         return 0;
     }
@@ -417,31 +461,37 @@ static int asf_header_parser(MMSContext *mms)
 {
     uint8_t *p = mms->asf_header;
     uint8_t *end;
-    int flags, stream_id, real_header_size;
+    int flags, stream_id;
     mms->stream_num = 0;
 
     if (mms->asf_header_size < sizeof(ff_asf_guid) * 2 + 22 ||
-        memcmp(p, ff_asf_header, sizeof(ff_asf_guid)))
-        return -1;
+        memcmp(p, ff_asf_header, sizeof(ff_asf_guid))) {
+        av_log(NULL, AV_LOG_ERROR,
+               "Corrupt stream (invalid ASF header, size=%d)\n",
+               mms->asf_header_size);
+        return AVERROR_INVALIDDATA;
+    }
 
-    real_header_size = AV_RL64(p + sizeof(ff_asf_guid));
-    end = mms->asf_header + real_header_size;
+    end = mms->asf_header + mms->asf_header_size;
 
     p += sizeof(ff_asf_guid) + 14;
     while(end - p >= sizeof(ff_asf_guid) + 8) {
         uint64_t chunksize = AV_RL64(p + sizeof(ff_asf_guid));
         if (!chunksize || chunksize > end - p) {
-            dprintf(NULL, "chunksize is exceptional value:%d!\n", chunksize);
-            return -1;
+            av_log(NULL, AV_LOG_ERROR,
+                   "Corrupt stream (header chunksize %"PRId64" is invalid)\n",
+                   chunksize);
+            return AVERROR_INVALIDDATA;
         }
         if (!memcmp(p, ff_asf_file_header, sizeof(ff_asf_guid))) {
             /* read packet size */
             if (end - p > sizeof(ff_asf_guid) * 2 + 68) {
                 mms->asf_packet_len = AV_RL32(p + sizeof(ff_asf_guid) * 2 + 64);
                 if (mms->asf_packet_len <= 0 || mms->asf_packet_len > sizeof(mms->in_buffer)) {
-                    dprintf(NULL,"Too large packet len:%d"
-                        " may overwrite in_buffer when padding", mms->asf_packet_len);
-                    return -1;
+                    av_log(NULL, AV_LOG_ERROR,
+                           "Corrupt stream (too large pkt_len %d)\n",
+                           mms->asf_packet_len);
+                    return AVERROR_INVALIDDATA;
                 }
             }
         } else if (!memcmp(p, ff_asf_stream_header, sizeof(ff_asf_guid))) {
@@ -455,9 +505,12 @@ static int asf_header_parser(MMSContext *mms)
                 mms->streams[mms->stream_num].id = stream_id;
                 mms->stream_num++;
             } else {
-                dprintf(NULL, "Too many streams.\n");
-                return -1;
+                av_log(NULL, AV_LOG_ERROR,
+                       "Corrupt stream (too many A/V streams)\n");
+                return AVERROR_INVALIDDATA;
             }
+        } else if (!memcmp(p, ff_asf_head1_guid, sizeof(ff_asf_guid))) {
+            chunksize = 46; // see references [2] section 3.4. This should be set 46.
         }
         p += chunksize;
     }
@@ -478,9 +531,6 @@ static int send_stream_selection_request(MMSContext *mms)
         bytestream_put_le16(&mms->write_out_ptr, mms->streams[i].id);  // stream id
         bytestream_put_le16(&mms->write_out_ptr, 0);                   // selection
     }
-
-    bytestream_put_le16(&mms->write_out_ptr, 0);
-
     return send_command_packet(mms);
 }
 
@@ -492,56 +542,6 @@ static int read_data(MMSContext *mms, uint8_t *buf, const int buf_size)
     mms->remaining_in_len -= read_size;
     mms->read_in_ptr      += read_size;
     return read_size;
-}
-
-/** Read at most one media packet (or a whole header). */
-static int read_mms_packet(MMSContext *mms, uint8_t *buf, int buf_size)
-{
-    int result = 0, read_header_size = 0;
-    int size_to_copy;
-
-    do {
-        if(read_header_size < mms->asf_header_size && !mms->is_playing) {
-            /* Read from ASF header buffer */
-            size_to_copy= FFMIN(buf_size,
-                                mms->asf_header_size - read_header_size);
-            memcpy(buf, mms->asf_header + read_header_size, size_to_copy);
-            read_header_size += size_to_copy;
-            result += size_to_copy;
-            dprintf(NULL, "Copied %d bytes from stored header. left: %d\n",
-                   size_to_copy, mms->asf_header_size - read_header_size);
-            if (mms->asf_header_size == read_header_size) {
-                av_freep(&mms->asf_header);
-                mms->is_playing = 1;
-            }
-        } else if(mms->remaining_in_len) {
-            /* Read remaining packet data to buffer.
-             * the result can not be zero because remaining_in_len is positive.*/
-            result = read_data(mms, buf, buf_size);
-        } else {
-            /* Read from network */
-            int err = mms_safe_send_recv(mms, NULL, SC_PKT_ASF_MEDIA);
-            if (err == 0) {
-                if(mms->remaining_in_len>mms->asf_packet_len) {
-                    dprintf(NULL, "Incoming packet"
-                            "larger than the asf packet size stated (%d>%d)\n",
-                            mms->remaining_in_len, mms->asf_packet_len);
-                    result= AVERROR_IO;
-                } else {
-                    // copy the data to the packet buffer.
-                    result = read_data(mms, buf, buf_size);
-                    if (result == 0) {
-                        dprintf(NULL, "read asf media paket size is zero!\n");
-                        break;
-                    }
-                }
-            } else {
-                dprintf(NULL, "read packet error!\n");
-                break;
-            }
-        }
-    } while(!result); // only return one packet.
-    return result;
 }
 
 static int send_close_packet(MMSContext *mms)
@@ -567,6 +567,30 @@ static int mms_close(URLContext *h)
     av_freep(&h->priv_data);
 
     return 0;
+}
+
+static int send_media_packet_request(MMSContext *mms)
+{
+    start_command_packet(mms, CS_PKT_START_FROM_PKT_ID);
+    insert_command_prefixes(mms, 1, 0x0001FFFF);
+    bytestream_put_le64(&mms->write_out_ptr, 0);          // seek timestamp
+    bytestream_put_le32(&mms->write_out_ptr, 0xffffffff); // unknown
+    bytestream_put_le32(&mms->write_out_ptr, 0xffffffff); // packet offset
+    bytestream_put_byte(&mms->write_out_ptr, 0xff);       // max stream time limit
+    bytestream_put_byte(&mms->write_out_ptr, 0xff);       // max stream time limit
+    bytestream_put_byte(&mms->write_out_ptr, 0xff);       // max stream time limit
+    bytestream_put_byte(&mms->write_out_ptr, 0x00);       // stream time limit flag
+
+    mms->packet_id++;                                     // new packet_id
+    bytestream_put_le32(&mms->write_out_ptr, mms->packet_id);
+    return send_command_packet(mms);
+}
+
+
+static void clear_stream_buffers(MMSContext *mms)
+{
+    mms->remaining_in_len = 0;
+    mms->read_in_ptr      = mms->in_buffer;
 }
 
 static int mms_open(URLContext *h, const char *uri, int flags)
@@ -599,6 +623,9 @@ static int mms_open(URLContext *h, const char *uri, int flags)
     err = mms_safe_send_recv(mms, send_startup_packet, SC_PKT_CLIENT_ACCEPTED);
     if (err)
         goto fail;
+    err = mms_safe_send_recv(mms, send_time_test_data, SC_PKT_TIMING_TEST_REPLY);
+    if (err)
+        goto fail;
     err = mms_safe_send_recv(mms, send_protocol_select, SC_PKT_PROTOCOL_ACCEPTED);
     if (err)
         goto fail;
@@ -623,6 +650,15 @@ static int mms_open(URLContext *h, const char *uri, int flags)
     if (!mms->asf_packet_len || !mms->stream_num)
         goto fail;
 
+    clear_stream_buffers(mms);
+    err = mms_safe_send_recv(mms, send_stream_selection_request, SC_PKT_STREAM_ID_ACCEPTED);
+    if (err)
+        goto fail;
+    // send media packet request
+    err = mms_safe_send_recv(mms, send_media_packet_request, SC_PKT_MEDIA_PKT_FOLLOWS);
+    if (err) {
+        goto fail;
+    }
     dprintf(NULL, "Leaving open (success)\n");
     return 0;
 fail:
@@ -631,53 +667,55 @@ fail:
     return err;
 }
 
-static int send_media_packet_request(MMSContext *mms)
-{
-    start_command_packet(mms, CS_PKT_START_FROM_PKT_ID);
-    insert_command_prefixes(mms, 1, 0x0001FFFF);
-    bytestream_put_le64(&mms->write_out_ptr, 0);          // seek timestamp
-    bytestream_put_le32(&mms->write_out_ptr, 0xffffffff); // unknown
-    bytestream_put_le32(&mms->write_out_ptr, 0xffffffff); // packet offset
-    bytestream_put_byte(&mms->write_out_ptr, 0xff);       // max stream time limit
-    bytestream_put_byte(&mms->write_out_ptr, 0xff);       // max stream time limit
-    bytestream_put_byte(&mms->write_out_ptr, 0xff);       // max stream time limit
-    bytestream_put_byte(&mms->write_out_ptr, 0x00);       // stream time limit flag
-
-    mms->packet_id++;                                     // new packet_id
-    bytestream_put_le32(&mms->write_out_ptr, mms->packet_id);
-    return send_command_packet(mms);
-}
-
-
-static void clear_stream_buffers(MMSContext *mms)
-{
-    mms->remaining_in_len = 0;
-    mms->read_in_ptr      = mms->in_buffer;
-}
-
 /** Read ASF data through the protocol. */
 static int mms_read(URLContext *h, uint8_t *buf, int size)
 {
     /* TODO: see tcp.c:tcp_read() about a possible timeout scheme */
     MMSContext *mms = h->priv_data;
     int result = 0;
+    int size_to_copy;
 
-    /* Since we read the header at open(), this shouldn't be possible */
-    assert(mms->header_parsed);
-
-    if (!mms->is_playing) {
-        dprintf(NULL, "mms_read() before play().\n");
-        clear_stream_buffers(mms);
-        result = mms_safe_send_recv(mms, send_stream_selection_request, SC_PKT_STREAM_ID_ACCEPTED);
-        if (result)
-            return result;
-        // send media packet request
-        result = mms_safe_send_recv(mms, send_media_packet_request, SC_PKT_MEDIA_PKT_FOLLOWS);
-        if (result) {
-            return result;
+    do {
+        if(mms->asf_header_read_size < mms->asf_header_size) {
+            /* Read from ASF header buffer */
+            size_to_copy= FFMIN(size,
+                                mms->asf_header_size - mms->asf_header_read_size);
+            memcpy(buf, mms->asf_header + mms->asf_header_read_size, size_to_copy);
+            mms->asf_header_read_size += size_to_copy;
+            result += size_to_copy;
+            dprintf(NULL, "Copied %d bytes from stored header. left: %d\n",
+                   size_to_copy, mms->asf_header_size - mms->asf_header_read_size);
+            if (mms->asf_header_size == mms->asf_header_read_size) {
+                av_freep(&mms->asf_header);
+            }
+        } else if(mms->remaining_in_len) {
+            /* Read remaining packet data to buffer.
+             * the result can not be zero because remaining_in_len is positive.*/
+            result = read_data(mms, buf, size);
+        } else {
+            /* Read from network */
+            int err = mms_safe_send_recv(mms, NULL, SC_PKT_ASF_MEDIA);
+            if (err == 0) {
+                if(mms->remaining_in_len>mms->asf_packet_len) {
+                    av_log(NULL, AV_LOG_ERROR,
+                           "Incoming pktlen %d is larger than ASF pktsize %d\n",
+                           mms->remaining_in_len, mms->asf_packet_len);
+                    result= AVERROR_IO;
+                } else {
+                    // copy the data to the packet buffer.
+                    result = read_data(mms, buf, size);
+                    if (result == 0) {
+                        dprintf(NULL, "read asf media paket size is zero!\n");
+                        break;
+                    }
+                }
+            } else {
+                dprintf(NULL, "read packet error!\n");
+                break;
+            }
         }
-    }
-    return read_mms_packet(mms, buf, size);
+    } while(!result); // only return one packet.
+    return result;
 }
 
 URLProtocol mmst_protocol = {

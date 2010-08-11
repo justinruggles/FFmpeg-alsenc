@@ -43,9 +43,15 @@
 int ff_lpc_calc_coefs(DSPContext *s, WindowContext *wctx,
                       const int32_t *samples, int blocksize, int min_order,
                       int max_order, int precision,
+<<<<<<< HEAD
                       int32_t coefs[][MAX_LPC_ORDER], int *shift, int lpc_type,
                       int lpc_passes, int omethod, int max_shift,
                       int zero_shift);
+=======
+                      int32_t coefs[][MAX_LPC_ORDER], int *shift,
+                      enum AVLPCType lpc_type, int lpc_passes,
+                      int omethod, int max_shift, int zero_shift);
+>>>>>>> master
 
 void ff_lpc_compute_autocorr(const double *data, int len, int lag,
                              double *autoc);

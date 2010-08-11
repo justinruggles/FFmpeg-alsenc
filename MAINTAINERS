@@ -21,6 +21,9 @@ ffmpeg:
 ffplay:
   ffplay.c                              Michael Niedermayer
 
+ffprobe:
+  ffprobe.c                             Stefano Sabatini
+
 ffserver:
   ffserver.c, ffserver.h                Baptiste Coudurier
 
@@ -155,6 +158,7 @@ Codecs:
   libspeexdec.c                         Justin Ruggles
   libtheoraenc.c                        David Conrad
   libvorbis.c                           David Conrad
+  libxavs.c                             Stefan Gehrer
   libx264.c                             Mans Rullgard, Jason Garrett-Glaser
   loco.c                                Kostya Shishkov
   lzo.h, lzo.c                          Reimar Doeffinger
@@ -211,7 +215,7 @@ Codecs:
   vp3*                                  Mike Melanson
   vp5                                   Aurelien Jacobs
   vp6                                   Aurelien Jacobs
-  vp8                                   David Conrad
+  vp8                                   David Conrad, Jason Garrett-Glaser, Ronald Bultje
   vqavideo.c                            Mike Melanson
   wavpack.c                             Kostya Shishkov
   wmaprodec.c                           Sascha Sommer
@@ -281,6 +285,7 @@ Muxers/Demuxers:
   matroskaenc.c                         David Conrad
   metadata*                             Aurelien Jacobs
   mm.c                                  Peter Ross
+  mmst.c                                Ronald S. Bultje
   mov.c                                 Michael Niedermayer, Baptiste Coudurier
   movenc.c                              Michael Niedermayer, Baptiste Coudurier
   mpc.c                                 Kostya Shishkov
@@ -306,8 +311,8 @@ Muxers/Demuxers:
   rmdec.c, rmenc.c                      Ronald S. Bultje, Kostya Shishkov
   rtmp*                                 Kostya Shishkov
   rtp.c, rtpenc.c                       Luca Abeni
-  rtp_asf.*                             Ronald S. Bultje
-  rtp_mpv.*, rtp_aac.*                  Luca Abeni
+  rtpdec_asf.*                          Ronald S. Bultje
+  rtpenc_mpv.*, rtpenc_aac.*            Luca Abeni
   rtsp.c                                Luca Barbato
   sdp.c                                 Luca Abeni
   segafilm.c                            Mike Melanson
@@ -354,6 +359,7 @@ Daniel Verkamp                78A6 07ED 782C 653E C628 B8B9 F0EB 8DD8 2F0E 21C7
 Diego Biurrun                 8227 1E31 B6D9 4994 7427 E220 9CAE D6CC 4757 FCC5
 Jaikrishnan Menon             61A1 F09F 01C9 2D45 78E1 C862 25DC 8831 AF70 D368
 Loren Merritt                 ABD9 08F4 C920 3F65 D8BE 35D7 1540 DAA7 060F 56DE
+Luca Barbato                  6677 4209 213C 8843 5B67 29E7 E84C 78C2 84E9 0E34
 Michael Niedermayer           9FF2 128B 147E F673 0BAD F133 611E C787 040B 0FAB
 Panagiotis Issaris            515C E262 10A8 FDCE 5481 7B9C 3AD7 D9A5 071D B3A9
 Peter Ross                    A907 E02F A6E5 0CD2 34CD 20D2 6760 79C5 AC40 DD6B
@@ -361,3 +367,4 @@ Reimar Döffinger              C61D 16E5 9E2C D10C 8958 38A4 0899 A2B9 06D4 D9C7
 Reinhard Tartler              9300 5DC2 7E87 6C37 ED7B CA9A 9808 3544 9453 48A4
 Reynaldo H. Verdejo Pinochet  6E27 CD34 170C C78E 4D4F 5F40 C18E 077F 3114 452A
 Sascha Sommer                 38A0 F88B 868E 9D3A 97D4 D6A0 E823 706F 1E07 0D3C
+Stefano Sabatini              9A43 10F8 D32C D33C 48E7 C52C 5DF2 8E4D B2EE 066B

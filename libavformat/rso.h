@@ -1,6 +1,6 @@
 /*
- * RTP H.263 Depacketizer, RFC 4629
- * Copyright (c) 2010 Martin Storsjo
+ * RSO format common data
+ * Copyright (c) 2010 Rafael Carre
  *
  * This file is part of FFmpeg.
  *
@@ -19,12 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFORMAT_RTPDEC_H263_H
-#define AVFORMAT_RTPDEC_H263_H
+#ifndef AVFORMAT_RSO_H
+#define AVFORMAT_RSO_H
 
-#include "rtpdec.h"
+#include "internal.h"
 
-extern RTPDynamicProtocolHandler ff_h263_1998_dynamic_handler;
-extern RTPDynamicProtocolHandler ff_h263_2000_dynamic_handler;
+#define RSO_HEADER_SIZE 8
 
-#endif /* AVFORMAT_RTPDEC_H263_H */
+/* The ffmpeg codecs we support, and the IDs they have in the file */
+extern const AVCodecTag ff_codec_rso_tags[];
+
+#endif /* AVFORMAT_RSO_H */

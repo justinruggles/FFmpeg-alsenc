@@ -6,10 +6,14 @@ YASM-OBJS-FFT-$(HAVE_AMD3DNOWEXT)      += x86/fft_3dn2.o
 YASM-OBJS-FFT-$(HAVE_SSE)              += x86/fft_sse.o
 YASM-OBJS-$(CONFIG_FFT)                += x86/fft_mmx.o                 \
                                           $(YASM-OBJS-FFT-yes)
-YASM-OBJS-$(CONFIG_GPL)                += x86/h264_deblock_sse2.o       \
-                                          x86/h264_idct_sse2.o          \
+YASM-OBJS-$(CONFIG_GPL)                += x86/h264_idct_sse2.o          \
 
-YASM-OBJS-$(CONFIG_H264DSP)            += x86/h264_intrapred.o          \
+YASM-OBJS-$(CONFIG_H264DSP)            += x86/h264_deblock_sse2.o       \
+                                          x86/h264_weight_sse2.o        \
+
+YASM-OBJS-$(CONFIG_H264PRED)           += x86/h264_intrapred.o
+
+YASM-OBJS-$(CONFIG_VC1_DECODER)        += x86/vc1dsp_yasm.o
 
 MMX-OBJS-$(CONFIG_CAVS_DECODER)        += x86/cavsdsp_mmx.o
 MMX-OBJS-$(CONFIG_MP1FLOAT_DECODER)    += x86/mpegaudiodec_mmx.o
@@ -36,6 +40,7 @@ MMX-OBJS-$(CONFIG_VP6_DECODER)         += x86/vp3dsp_mmx.o              \
 YASM-OBJS-$(CONFIG_VP8_DECODER)        += x86/vp8dsp.o
 MMX-OBJS-$(CONFIG_VP8_DECODER)         += x86/vp8dsp-init.o
 MMX-OBJS-$(HAVE_YASM)                  += x86/dsputil_yasm.o            \
+                                          x86/deinterlace.o             \
                                           $(YASM-OBJS-yes)
 
 MMX-OBJS-$(CONFIG_FFT)                 += x86/fft.o

@@ -83,7 +83,8 @@ static int mp3_read_probe(AVProbeData *p)
 static int mp3_parse_vbr_tags(AVFormatContext *s, AVStream *st, int64_t base)
 {
     uint32_t v, spf;
-    int frames = -1; /* Total number of frames in file */
+    unsigned frames = 0; /* Total number of frames in file */
+    unsigned size = 0; /* Total number of bytes in the stream */
     const int64_t xing_offtbl[2][2] = {{32, 17}, {17,9}};
     MPADecodeHeader c;
     int vbrtag_size = 0;
@@ -104,6 +105,8 @@ static int mp3_parse_vbr_tags(AVFormatContext *s, AVStream *st, int64_t base)
         v = get_be32(s->pb);
         if(v & 0x1)
             frames = get_be32(s->pb);
+        if(v & 0x2)
+            size = get_be32(s->pb);
     }
 
     /* Check for VBRI tag (always 32 bytes after end of mpegaudio header) */
@@ -112,21 +115,26 @@ static int mp3_parse_vbr_tags(AVFormatContext *s, AVStream *st, int64_t base)
     if(v == MKBETAG('V', 'B', 'R', 'I')) {
         /* Check tag version */
         if(get_be16(s->pb) == 1) {
-            /* skip delay, quality and total bytes */
-            url_fseek(s->pb, 8, SEEK_CUR);
+            /* skip delay and quality */
+            url_fseek(s->pb, 4, SEEK_CUR);
             frames = get_be32(s->pb);
+            size = get_be32(s->pb);
         }
     }
 
-    if(frames < 0)
+    if(!frames && !size)
         return -1;
 
     /* Skip the vbr tag frame */
     url_fseek(s->pb, base + vbrtag_size, SEEK_SET);
 
     spf = c.lsf ? 576 : 1152; /* Samples per frame, layer 3 */
-    st->duration = av_rescale_q(frames, (AVRational){spf, c.sample_rate},
-                                st->time_base);
+    if(frames)
+        st->duration = av_rescale_q(frames, (AVRational){spf, c.sample_rate},
+                                    st->time_base);
+    if(size)
+        st->codec->bit_rate = av_rescale(size, 8 * c.sample_rate, frames * (int64_t)spf);
+
     return 0;
 }
 
@@ -214,18 +222,18 @@ static int id3v1_create_tag(AVFormatContext *s, uint8_t *buf)
     buf[0] = 'T';
     buf[1] = 'A';
     buf[2] = 'G';
-    count += id3v1_set_string(s, "title",   buf +  3, 30);
-    count += id3v1_set_string(s, "author",  buf + 33, 30);
-    count += id3v1_set_string(s, "album",   buf + 63, 30);
-    count += id3v1_set_string(s, "date",    buf + 93,  4);
+    count += id3v1_set_string(s, "TIT2",    buf +  3, 30);       //title
+    count += id3v1_set_string(s, "TPE1",    buf + 33, 30);       //author|artist
+    count += id3v1_set_string(s, "TALB",    buf + 63, 30);       //album
+    count += id3v1_set_string(s, "TDRL",    buf + 93,  4);       //date
     count += id3v1_set_string(s, "comment", buf + 97, 30);
-    if ((tag = av_metadata_get(s->metadata, "track", NULL, 0))) {
+    if ((tag = av_metadata_get(s->metadata, "TRCK", NULL, 0))) { //track
         buf[125] = 0;
         buf[126] = atoi(tag->value);
         count++;
     }
     buf[127] = 0xFF; /* default to unknown genre */
-    if ((tag = av_metadata_get(s->metadata, "genre", NULL, 0))) {
+    if ((tag = av_metadata_get(s->metadata, "TCON", NULL, 0))) { //genre
         for(i = 0; i <= ID3v1_GENRE_MAX; i++) {
             if (!strcasecmp(tag->value, ff_id3v1_genre_str[i])) {
                 buf[127] = i;
@@ -290,6 +298,7 @@ AVOutputFormat mp2_muxer = {
     NULL,
     mp3_write_packet,
     mp3_write_trailer,
+    .metadata_conv = ff_id3v2_metadata_conv,
 };
 #endif
 

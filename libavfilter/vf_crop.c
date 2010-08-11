@@ -32,7 +32,7 @@ typedef struct {
     int  w;             ///< width of the cropped area
     int  h;             ///< height of the cropped area
 
-    int bpp;            ///< bits per pixel
+    int max_step[4];    ///< max pixel step for each plane, expressed as a number of bytes
     int hsub, vsub;     ///< chroma subsampling
 } CropContext;
 
@@ -82,45 +82,18 @@ static int config_input(AVFilterLink *link)
 {
     AVFilterContext *ctx = link->dst;
     CropContext *crop = ctx->priv;
+    const AVPixFmtDescriptor *pix_desc = &av_pix_fmt_descriptors[link->format];
+    int i;
 
-    switch (link->format) {
-    case PIX_FMT_RGB48BE:
-    case PIX_FMT_RGB48LE:
-        crop->bpp = 48;
-        break;
-    case PIX_FMT_ARGB:
-    case PIX_FMT_RGBA:
-    case PIX_FMT_ABGR:
-    case PIX_FMT_BGRA:
-        crop->bpp = 32;
-        break;
-    case PIX_FMT_RGB24:
-    case PIX_FMT_BGR24:
-        crop->bpp = 24;
-        break;
-    case PIX_FMT_RGB565BE:
-    case PIX_FMT_RGB565LE:
-    case PIX_FMT_RGB555BE:
-    case PIX_FMT_RGB555LE:
-    case PIX_FMT_BGR565BE:
-    case PIX_FMT_BGR565LE:
-    case PIX_FMT_BGR555BE:
-    case PIX_FMT_BGR555LE:
-    case PIX_FMT_GRAY16BE:
-    case PIX_FMT_GRAY16LE:
-    case PIX_FMT_YUV420P16LE:
-    case PIX_FMT_YUV420P16BE:
-    case PIX_FMT_YUV422P16LE:
-    case PIX_FMT_YUV422P16BE:
-    case PIX_FMT_YUV444P16LE:
-    case PIX_FMT_YUV444P16BE:
-        crop->bpp = 16;
-        break;
-    default:
-        crop->bpp = 8;
+    memset(crop->max_step, 0, sizeof(crop->max_step));
+    for (i = 0; i < 4; i++) {
+        const AVComponentDescriptor *comp = &(pix_desc->comp[i]);
+        if ((comp->step_minus1+1) > crop->max_step[comp->plane])
+            crop->max_step[comp->plane] = comp->step_minus1+1;
     }
 
-    avcodec_get_chroma_sub_sample(link->format, &crop->hsub, &crop->vsub);
+    crop->hsub = av_pix_fmt_descriptors[link->format].log2_chroma_w;
+    crop->vsub = av_pix_fmt_descriptors[link->format].log2_chroma_h;
 
     if (crop->w == 0)
         crop->w = link->w - crop->x;
@@ -140,7 +113,7 @@ static int config_input(AVFilterLink *link)
         av_log(ctx, AV_LOG_ERROR,
                "Output area %d:%d:%d:%d not within the input area 0:0:%d:%d or zero-sized\n",
                crop->x, crop->y, crop->w, crop->h, link->w, link->h);
-        return -1;
+        return AVERROR(EINVAL);
     }
 
     return 0;
@@ -156,23 +129,23 @@ static int config_output(AVFilterLink *link)
     return 0;
 }
 
-static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
+static void start_frame(AVFilterLink *link, AVFilterBufferRef *picref)
 {
     CropContext *crop = link->dst->priv;
-    AVFilterPicRef *ref2 = avfilter_ref_pic(picref, ~0);
+    AVFilterBufferRef *ref2 = avfilter_ref_buffer(picref, ~0);
     int i;
 
     ref2->w        = crop->w;
     ref2->h        = crop->h;
 
     ref2->data[0] += crop->y * ref2->linesize[0];
-    ref2->data[0] += (crop->x * crop->bpp) >> 3;
+    ref2->data[0] += (crop->x * crop->max_step[0]);
 
     if (!(av_pix_fmt_descriptors[link->format].flags & PIX_FMT_PAL)) {
         for (i = 1; i < 3; i ++) {
             if (ref2->data[i]) {
                 ref2->data[i] += (crop->y >> crop->vsub) * ref2->linesize[i];
-                ref2->data[i] += ((crop->x * crop->bpp) >> 3) >> crop->hsub;
+                ref2->data[i] += (crop->x * crop->max_step[i]) >> crop->hsub;
             }
         }
     }
@@ -180,7 +153,7 @@ static void start_frame(AVFilterLink *link, AVFilterPicRef *picref)
     /* alpha plane */
     if (ref2->data[3]) {
         ref2->data[3] += crop->y * ref2->linesize[3];
-        ref2->data[3] += (crop->x * crop->bpp) >> 3;
+        ref2->data[3] += (crop->x * crop->max_step[3]);
     }
 
     avfilter_start_frame(link->dst->outputs[0], ref2);

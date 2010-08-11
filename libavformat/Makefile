@@ -1,7 +1,7 @@
 include $(SUBDIR)../config.mak
 
 NAME = avformat
-FFLIBS = avcodec avutil
+FFLIBS = avcodec avcore avutil
 
 HEADERS = avformat.h avio.h
 
@@ -119,7 +119,7 @@ OBJS-$(CONFIG_MMF_DEMUXER)               += mmf.o raw.o
 OBJS-$(CONFIG_MMF_MUXER)                 += mmf.o riff.o
 OBJS-$(CONFIG_MOV_DEMUXER)               += mov.o riff.o isom.o
 OBJS-$(CONFIG_MOV_MUXER)                 += movenc.o riff.o isom.o avc.o movenchint.o
-OBJS-$(CONFIG_MP2_MUXER)                 += mp3.o id3v1.o
+OBJS-$(CONFIG_MP2_MUXER)                 += mp3.o id3v1.o id3v2.o
 OBJS-$(CONFIG_MP3_DEMUXER)               += mp3.o id3v1.o id3v2.o
 OBJS-$(CONFIG_MP3_MUXER)                 += mp3.o id3v1.o id3v2.o
 OBJS-$(CONFIG_MPC_DEMUXER)               += mpc.o id3v1.o id3v2.o apetag.o
@@ -210,6 +210,8 @@ OBJS-$(CONFIG_RM_DEMUXER)                += rmdec.o rm.o
 OBJS-$(CONFIG_RM_MUXER)                  += rmenc.o rm.o
 OBJS-$(CONFIG_ROQ_DEMUXER)               += idroq.o
 OBJS-$(CONFIG_ROQ_MUXER)                 += raw.o
+OBJS-$(CONFIG_RSO_DEMUXER)               += rsodec.o rso.o raw.o
+OBJS-$(CONFIG_RSO_MUXER)                 += rsoenc.o rso.o
 OBJS-$(CONFIG_RPL_DEMUXER)               += rpl.o
 OBJS-$(CONFIG_RTP_MUXER)                 += rtp.o         \
                                             rtpenc_aac.o     \
@@ -218,6 +220,7 @@ OBJS-$(CONFIG_RTP_MUXER)                 += rtp.o         \
                                             rtpenc_mpv.o     \
                                             rtpenc.o      \
                                             rtpenc_h264.o \
+                                            rtpenc_xiph.o \
                                             avc.o
 OBJS-$(CONFIG_RTSP_DEMUXER)              += rtsp.o httpauth.o
 OBJS-$(CONFIG_RTSP_MUXER)                += rtsp.o rtspenc.o httpauth.o
@@ -230,6 +233,7 @@ OBJS-$(CONFIG_SDP_DEMUXER)               += rtsp.o        \
                                             rtpdec_h263.o \
                                             rtpdec_h264.o \
                                             rtpdec_mpeg4.o \
+                                            rtpdec_qdm2.o \
                                             rtpdec_svq3.o \
                                             rtpdec_xiph.o
 OBJS-$(CONFIG_SEGAFILM_DEMUXER)          += segafilm.o
@@ -240,6 +244,8 @@ OBJS-$(CONFIG_SOL_DEMUXER)               += sol.o raw.o
 OBJS-$(CONFIG_SOX_DEMUXER)               += soxdec.o raw.o
 OBJS-$(CONFIG_SOX_MUXER)                 += soxenc.o
 OBJS-$(CONFIG_SPDIF_MUXER)               += spdif.o
+OBJS-$(CONFIG_SRT_DEMUXER)               += srtdec.o
+OBJS-$(CONFIG_SRT_MUXER)                 += raw.o
 OBJS-$(CONFIG_STR_DEMUXER)               += psxstr.o
 OBJS-$(CONFIG_SWF_DEMUXER)               += swfdec.o
 OBJS-$(CONFIG_SWF_MUXER)                 += swfenc.o
@@ -249,6 +255,7 @@ OBJS-$(CONFIG_TMV_DEMUXER)               += tmv.o
 OBJS-$(CONFIG_TRUEHD_DEMUXER)            += raw.o
 OBJS-$(CONFIG_TRUEHD_MUXER)              += raw.o
 OBJS-$(CONFIG_TTA_DEMUXER)               += tta.o id3v1.o id3v2.o
+OBJS-$(CONFIG_TTY_DEMUXER)               += tty.o sauce.o
 OBJS-$(CONFIG_TXD_DEMUXER)               += txd.o
 OBJS-$(CONFIG_VC1_DEMUXER)               += raw.o
 OBJS-$(CONFIG_VC1T_DEMUXER)              += vc1test.o
@@ -283,6 +290,7 @@ OBJS-$(CONFIG_FILE_PROTOCOL)             += file.o
 OBJS-$(CONFIG_GOPHER_PROTOCOL)           += gopher.o
 OBJS-$(CONFIG_HTTP_PROTOCOL)             += http.o httpauth.o
 OBJS-$(CONFIG_MMST_PROTOCOL)             += mmst.o asf.o
+OBJS-$(CONFIG_MD5_PROTOCOL)              += md5proto.o
 OBJS-$(CONFIG_PIPE_PROTOCOL)             += file.o
 
 # external or internal rtmp

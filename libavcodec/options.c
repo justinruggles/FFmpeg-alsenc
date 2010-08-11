@@ -117,8 +117,8 @@ static const AVOption options[]={
 {"delay", NULL, OFFSET(delay), FF_OPT_TYPE_INT, DEFAULT, INT_MIN, INT_MAX},
 {"qcomp", "video quantizer scale compression (VBR)", OFFSET(qcompress), FF_OPT_TYPE_FLOAT, 0.5, -FLT_MAX, FLT_MAX, V|E},
 {"qblur", "video quantizer scale blur (VBR)", OFFSET(qblur), FF_OPT_TYPE_FLOAT, 0.5, 0, FLT_MAX, V|E},
-{"qmin", "min video quantizer scale (VBR)", OFFSET(qmin), FF_OPT_TYPE_INT, 2, 1, 63, V|E},
-{"qmax", "max video quantizer scale (VBR)", OFFSET(qmax), FF_OPT_TYPE_INT, 31, 1, 63, V|E},
+{"qmin", "min video quantizer scale (VBR)", OFFSET(qmin), FF_OPT_TYPE_INT, 2, 0, 63, V|E},
+{"qmax", "max video quantizer scale (VBR)", OFFSET(qmax), FF_OPT_TYPE_INT, 31, 0, 63, V|E},
 {"qdiff", "max difference between the quantizer scale (VBR)", OFFSET(max_qdiff), FF_OPT_TYPE_INT, 3, INT_MIN, INT_MAX, V|E},
 {"bf", "use 'frames' B frames", OFFSET(max_b_frames), FF_OPT_TYPE_INT, DEFAULT, 0, FF_MAX_B_FRAMES, V|E},
 {"b_qfactor", "qp factor between p and b frames", OFFSET(b_quant_factor), FF_OPT_TYPE_FLOAT, 1.25, -FLT_MAX, FLT_MAX, V|E},
@@ -273,7 +273,7 @@ static const AVOption options[]={
 {"rd", "rate distortion optimal, slow", 0, FF_OPT_TYPE_CONST, FF_CMP_RD, INT_MIN, INT_MAX, V|E, "cmp_func"},
 {"zero", "0", 0, FF_OPT_TYPE_CONST, FF_CMP_ZERO, INT_MIN, INT_MAX, V|E, "cmp_func"},
 {"vsad", "sum of absolute vertical differences", 0, FF_OPT_TYPE_CONST, FF_CMP_VSAD, INT_MIN, INT_MAX, V|E, "cmp_func"},
-{"vsse","sum of squared vertical differences", 0, FF_OPT_TYPE_CONST, FF_CMP_VSSE, INT_MIN, INT_MAX, V|E, "cmp_func"},
+{"vsse", "sum of squared vertical differences", 0, FF_OPT_TYPE_CONST, FF_CMP_VSSE, INT_MIN, INT_MAX, V|E, "cmp_func"},
 {"nsse", "noise preserving sum of squared differences", 0, FF_OPT_TYPE_CONST, FF_CMP_NSSE, INT_MIN, INT_MAX, V|E, "cmp_func"},
 #if CONFIG_SNOW_ENCODER
 {"w53", "5/3 wavelet, only used in snow", 0, FF_OPT_TYPE_CONST, FF_CMP_W53, INT_MIN, INT_MAX, V|E, "cmp_func"},
@@ -419,12 +419,21 @@ static const AVOption options[]={
 {"intra_refresh", "use periodic insertion of intra blocks instead of keyframes", 0, FF_OPT_TYPE_CONST, CODEC_FLAG2_INTRA_REFRESH, INT_MIN, INT_MAX, V|E, "flags2"},
 {"crf_max", "in crf mode, prevents vbv from lowering quality beyond this point", OFFSET(crf_max), FF_OPT_TYPE_FLOAT, DEFAULT, 0, 51, V|E},
 {"log_level_offset", "set the log level offset", OFFSET(log_level_offset), FF_OPT_TYPE_INT, 0, INT_MIN, INT_MAX },
+<<<<<<< HEAD
 {"lpc_type", "sets which LPC algorithm to use", OFFSET(lpc_type), FF_OPT_TYPE_INT, FF_LPC_TYPE_DEFAULT, INT_MIN, INT_MAX, A|E},
 {"none",     NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_NONE,     INT_MIN, INT_MAX, A|E, "lpc_type"},
 {"fixed",    NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_FIXED,    INT_MIN, INT_MAX, A|E, "lpc_type"},
 {"levinson", NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_LEVINSON, INT_MIN, INT_MAX, A|E, "lpc_type"},
 {"cholesky", NULL, 0, FF_OPT_TYPE_CONST, FF_LPC_TYPE_CHOLESKY, INT_MIN, INT_MAX, A|E, "lpc_type"},
 {"lpc_passes", "sets the number of passes to use for Cholesky decomposition during LPC analysis", OFFSET(lpc_passes), FF_OPT_TYPE_INT, -1, INT_MIN, INT_MAX, A|E},
+=======
+{"lpc_type", "specify LPC algorithm", OFFSET(lpc_type), FF_OPT_TYPE_INT, AV_LPC_TYPE_DEFAULT, AV_LPC_TYPE_DEFAULT, AV_LPC_TYPE_NB-1, A|E},
+{"none",     NULL, 0, FF_OPT_TYPE_CONST, AV_LPC_TYPE_NONE,     INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"fixed",    NULL, 0, FF_OPT_TYPE_CONST, AV_LPC_TYPE_FIXED,    INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"levinson", NULL, 0, FF_OPT_TYPE_CONST, AV_LPC_TYPE_LEVINSON, INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"cholesky", NULL, 0, FF_OPT_TYPE_CONST, AV_LPC_TYPE_CHOLESKY, INT_MIN, INT_MAX, A|E, "lpc_type"},
+{"lpc_passes", "number of passes to use for Cholesky factorization during LPC analysis", OFFSET(lpc_passes), FF_OPT_TYPE_INT, -1, INT_MIN, INT_MAX, A|E},
+>>>>>>> master
 {NULL},
 };
 

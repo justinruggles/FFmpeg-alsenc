@@ -49,6 +49,7 @@ typedef struct {
     char location[URL_SIZE];
     HTTPAuthState auth_state;
     unsigned char headers[BUFFER_SIZE];
+    int willclose;          /**< Set if the server correctly handles Connection: close and will close the connection after feeding us the content. */
 } HTTPContext;
 
 #define OFFSET(x) offsetof(HTTPContext, x)
@@ -210,7 +211,7 @@ static int process_line(URLContext *h, char *line, int line_count,
                         int *new_location)
 {
     HTTPContext *s = h->priv_data;
-    char *tag, *p;
+    char *tag, *p, *end;
 
     /* end of header */
     if (line[0] == '\0')
@@ -222,14 +223,18 @@ static int process_line(URLContext *h, char *line, int line_count,
             p++;
         while (isspace(*p))
             p++;
-        s->http_code = strtol(p, NULL, 10);
+        s->http_code = strtol(p, &end, 10);
 
         dprintf(NULL, "http_code=%d\n", s->http_code);
 
         /* error codes are 4xx and 5xx, but regard 401 as a success, so we
          * don't abort until all headers have been parsed. */
-        if (s->http_code >= 400 && s->http_code < 600 && s->http_code != 401)
+        if (s->http_code >= 400 && s->http_code < 600 && s->http_code != 401) {
+            end += strspn(end, SPACE_CHARS);
+            av_log(NULL, AV_LOG_WARNING, "HTTP error %d %s\n",
+                   s->http_code, end);
             return -1;
+        }
     } else {
         while (*p != '\0' && *p != ':')
             p++;
@@ -263,6 +268,9 @@ static int process_line(URLContext *h, char *line, int line_count,
             ff_http_auth_handle_header(&s->auth_state, tag, p);
         } else if (!strcmp (tag, "Authentication-Info")) {
             ff_http_auth_handle_header(&s->auth_state, tag, p);
+        } else if (!strcmp (tag, "Connection")) {
+            if (!strcmp(p, "close"))
+                s->willclose = 1;
         }
     }
     return 1;
@@ -333,6 +341,7 @@ static int http_connect(URLContext *h, const char *path, const char *hoststr,
     s->line_count = 0;
     s->off = 0;
     s->filesize = -1;
+    s->willclose = 0;
     if (post) {
         /* Pretend that it did work. We didn't read any header yet, since
          * we've still to send the POST data, but the code calling this
@@ -395,6 +404,8 @@ static int http_read(URLContext *h, uint8_t *buf, int size)
         memcpy(buf, s->buf_ptr, len);
         s->buf_ptr += len;
     } else {
+        if (!s->willclose && s->filesize >= 0 && s->off >= s->filesize)
+            return AVERROR_EOF;
         len = url_read(s->hd, buf, size);
     }
     if (len > 0) {

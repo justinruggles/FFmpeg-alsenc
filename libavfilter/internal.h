@@ -1,7 +1,4 @@
 /*
- * RTP AMR Depacketizer, RFC 3267
- * Copyright (c) 2010 Martin Storsjo
- *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -19,12 +16,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFORMAT_RTPDEC_AMR_H
-#define AVFORMAT_RTPDEC_AMR_H
+#ifndef AVFILTER_INTERNAL_H
+#define AVFILTER_INTERNAL_H
 
-#include "rtpdec.h"
+/**
+ * @file
+ * internal API functions
+ */
 
-extern RTPDynamicProtocolHandler ff_amr_nb_dynamic_handler;
-extern RTPDynamicProtocolHandler ff_amr_wb_dynamic_handler;
+#include "avfilter.h"
 
-#endif /* AVFORMAT_RTPDEC_AMR_H */
+void ff_dprintf_picref(void *ctx, AVFilterBufferRef *picref, int end);
+
+void ff_dprintf_link(void *ctx, AVFilterLink *link, int end);
+
+#define FF_DPRINTF_START(ctx, func) dprintf(NULL, "%-16s: ", #func)
+
+#endif  /* AVFILTER_INTERNAL_H */
