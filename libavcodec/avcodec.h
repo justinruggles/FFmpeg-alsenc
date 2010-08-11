@@ -2694,23 +2694,6 @@ typedef struct AVCodecContext {
 
     int log_level_offset;
 
-<<<<<<< HEAD
-    /*
-     * Sets which LPC analysis algorithm to use.
-     * - encoding: Set by user.
-     * - decoding: unused
-     */
-    int lpc_type;
-#define FF_LPC_TYPE_DEFAULT   -1
-#define FF_LPC_TYPE_NONE       0
-#define FF_LPC_TYPE_FIXED      1
-#define FF_LPC_TYPE_LEVINSON   2
-#define FF_LPC_TYPE_CHOLESKY   3
-
-    /**
-     * Sets the number of passes to use for Cholesky factorization during LPC analysis.
-     * - encoding: Set by user.
-=======
     /**
      * Determines which LPC analysis algorithm to use.
      * - encoding: Set by user
@@ -2721,7 +2704,6 @@ typedef struct AVCodecContext {
     /**
      * Number of passes to use for Cholesky factorization during LPC analysis
      * - encoding: Set by user
->>>>>>> master
      * - decoding: unused
      */
     int lpc_passes;

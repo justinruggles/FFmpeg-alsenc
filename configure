@@ -1169,6 +1169,7 @@ dct_select="rdft"
 mdct_select="fft"
 rdft_select="fft"
 lpc_select="window"
+dct_select="rdft"
 
 # decoders / encoders / hardware accelerators
 aac_decoder_select="mdct rdft"
