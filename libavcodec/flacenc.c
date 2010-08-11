@@ -906,7 +906,7 @@ static int encode_residual_ch(FlacEncodeContext *s, int ch)
 
     /* LPC */
     sub->type = FLAC_SUBFRAME_LPC;
-    opt_order = ff_lpc_calc_coefs(&s->dsp, smp, n, min_order, max_order,
+    opt_order = ff_lpc_calc_coefs(&s->dsp, &s->wctx, smp, n, min_order, max_order,
                                   s->options.lpc_coeff_precision, coefs, shift, s->options.lpc_type,
                                   s->options.lpc_passes, omethod,
                                   MAX_LPC_SHIFT, 0);
