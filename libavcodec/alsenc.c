@@ -240,6 +240,7 @@ typedef struct {
     double *corr_buffer;            ///< temporary buffer to store the signal during LTP autocorrelation
     double *corr_samples;           ///< pointer to the beginning of the block in corr_buffer
     uint8_t *frame_buffer;          ///< buffer containing all already encoded frames of an RA-unit
+    int frame_buffer_size;          ///< size of the frame_buffer in bytes
     uint8_t *cur_frame;             ///< pointer into frame_buffer to encode the next frame of an RA-unit to
 } ALSEncContext;
 
@@ -2973,13 +2974,13 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
         avctx->frame_size   != sconf->frame_length) {
         memcpy(frame, ctx->frame_buffer, encoded);
         encoded                 += encode_frame(avctx, frame + encoded,
-                                                buf_size - encoded, data);
+                                                ctx->frame_buffer_size - encoded, data);
         avctx->coded_frame->pts  = sconf->samples;
         ctx->cur_frame           = ctx->frame_buffer;
         return encoded;
     } else {
         ctx->cur_frame += encode_frame(avctx, ctx->cur_frame,
-                                       buf_size - encoded, data);
+                                       ctx->frame_buffer_size - encoded, data);
         return 0;
     }
 }
@@ -3444,8 +3445,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     // initialize local frame buffer if necessary
     if (sconf->ra_distance > 1) {
-        int frame_buffer_size = sconf->frame_length * (avctx->channels * avctx->bits_per_raw_sample / 8);
-        AV_PMALLOC(ctx->frame_buffer, frame_buffer_size);
+        ctx->frame_buffer_size = sconf->ra_distance * sconf->frame_length * (avctx->channels * avctx->bits_per_raw_sample / 8);
+        AV_PMALLOC(ctx->frame_buffer, ctx->frame_buffer_size);
 
         if (!ctx->frame_buffer) {
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
