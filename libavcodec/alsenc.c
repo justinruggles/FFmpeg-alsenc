@@ -2948,14 +2948,31 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
                           int buf_size, void *data)
 {
+#define COPY_FRAME_BUFFER(size) {                                  \
+    if (size <= buf_size) {                                        \
+        memcpy(frame, ctx->frame_buffer, size);                    \
+    } else {                                                       \
+        av_log(avctx, AV_LOG_ERROR, "Output buffer too small.\n"); \
+        return AVERROR(ENOMEM);                                    \
+    }                                                              \
+}
+
     ALSEncContext *ctx       = avctx->priv_data;
     ALSSpecificConfig *sconf = &ctx->sconf;
     unsigned int encoded;
 
-    // last frame has been encoded, update extradata
     if (!data) {
+        int ret;
+
+        // write remaining samples from the frame buffer
+        if (ctx->cur_frame != ctx->frame_buffer) {
+            COPY_FRAME_BUFFER(ctx->cur_frame - ctx->frame_buffer);
+            avctx->coded_frame->pts = sconf->samples;
+        }
+
+        // last frame has been encoded,
         // rewrite AudioSpecificConfig & ALSSpecificConfig to extradata
-        int ret = write_specific_config(avctx);
+        ret = write_specific_config(avctx);
         if (ret) {
             av_log(avctx, AV_LOG_ERROR, "Rewriting of extradata failed.\n");
             return ret;
@@ -2968,19 +2985,17 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
     if (sconf->ra_distance < 2)
         return encode_frame(avctx, frame, buf_size, data);
 
-    encoded = ctx->cur_frame - ctx->frame_buffer;
+    encoded         = ctx->cur_frame - ctx->frame_buffer;
+    ctx->cur_frame += encode_frame(avctx, ctx->cur_frame, ctx->frame_buffer_size - encoded, data);
 
     if (ctx->ra_counter + 1 == sconf->ra_distance ||
         avctx->frame_size   != sconf->frame_length) {
-        memcpy(frame, ctx->frame_buffer, encoded);
-        encoded                 += encode_frame(avctx, frame + encoded,
-                                                ctx->frame_buffer_size - encoded, data);
+        encoded = ctx->cur_frame - ctx->frame_buffer;
+        COPY_FRAME_BUFFER(encoded);
         avctx->coded_frame->pts  = sconf->samples;
         ctx->cur_frame           = ctx->frame_buffer;
         return encoded;
     } else {
-        ctx->cur_frame += encode_frame(avctx, ctx->cur_frame,
-                                       ctx->frame_buffer_size - encoded, data);
         return 0;
     }
 }
@@ -3453,9 +3468,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
             encode_end(avctx);
             return AVERROR(ENOMEM);
         }
-
-        ctx->cur_frame = ctx->frame_buffer;
     }
+
+    ctx->cur_frame = ctx->frame_buffer;
 
     return 0;
 }
