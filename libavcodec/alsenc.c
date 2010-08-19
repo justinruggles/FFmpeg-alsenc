@@ -3047,19 +3047,11 @@ static void frame_partitioning(ALSEncContext *ctx)
     // determine distance between ra-frames. 0 = no ra, 1 = all ra
     // defaults to 10s intervals for random access
     sconf->ra_distance = avctx->gop_size;
-    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 255);
-
-    // setting avctx->frame_size to ra_unit_size
-    if(sconf->ra_distance) {
-        // protect from frame size being larger than AVCODEC_MAX_AUDIO_FRAME_SIZE
-        int sample_size = avctx->channels * avctx->bits_per_raw_sample / 8;
-        if (avctx->frame_size * sconf->ra_distance * sample_size  >
-            AVCODEC_MAX_AUDIO_FRAME_SIZE) {
-            sconf->ra_distance = AVCODEC_MAX_AUDIO_FRAME_SIZE /
-                                 (avctx->frame_size * sample_size);
-            sconf->ra_distance = FFMAX(1, sconf->ra_distance);
-        }
-    }
+    /* There is an API issue where the required output audio buffer size cannot
+       be known to the user, and the default buffer size in ffmpeg.c is too
+       small to consistently fit more than about 8 frames.  Once this issue
+       is resolved, the maximum value can be changed from 8 to 255. */
+    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 8);
 }
 
 
@@ -3268,12 +3260,18 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_JOINT_STEREO].sb_part     = sconf->sb_part;
     if (avctx->compression_level > 1)
         ctx->stages[STAGE_JOINT_STEREO].max_order = sconf->max_order;
+    else
+        ctx->stages[STAGE_JOINT_STEREO].max_order = FFMIN(sconf->max_order,
+                                    ctx->stages[STAGE_JOINT_STEREO].max_order);
 
     /* block switching stage sconf overrides */
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order = sconf->adapt_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part     = sconf->sb_part;
     if (avctx->compression_level > 0)
         ctx->stages[STAGE_BLOCK_SWITCHING].max_order = sconf->max_order;
+    else
+        ctx->stages[STAGE_BLOCK_SWITCHING].max_order = FFMIN(sconf->max_order,
+                                ctx->stages[STAGE_BLOCK_SWITCHING].max_order);
 
     /* final stage sconf overrides */
     ctx->stages[STAGE_FINAL].adapt_order = sconf->adapt_order;
