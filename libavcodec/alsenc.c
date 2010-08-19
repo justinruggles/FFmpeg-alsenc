@@ -2062,6 +2062,8 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
     int32_t *res_ptr = block->res_ptr;
     int32_t *smp_ptr = block->cur_ptr;
 
+    assert(order > 0);
+
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
     int64_t y = 1 << 19;\
