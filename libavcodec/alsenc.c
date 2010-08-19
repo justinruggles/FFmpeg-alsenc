@@ -3253,12 +3253,18 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->stages[STAGE_JOINT_STEREO].sb_part     = sconf->sb_part;
     if (avctx->compression_level > 1)
         ctx->stages[STAGE_JOINT_STEREO].max_order = sconf->max_order;
+    else
+        ctx->stages[STAGE_JOINT_STEREO].max_order = FFMIN(sconf->max_order,
+                                    ctx->stages[STAGE_JOINT_STEREO].max_order);
 
     /* block switching stage sconf overrides */
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order = sconf->adapt_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part     = sconf->sb_part;
     if (avctx->compression_level > 0)
         ctx->stages[STAGE_BLOCK_SWITCHING].max_order = sconf->max_order;
+    else
+        ctx->stages[STAGE_BLOCK_SWITCHING].max_order = FFMIN(sconf->max_order,
+                                ctx->stages[STAGE_BLOCK_SWITCHING].max_order);
 
     /* final stage sconf overrides */
     ctx->stages[STAGE_FINAL].adapt_order = sconf->adapt_order;
