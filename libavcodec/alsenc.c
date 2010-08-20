@@ -2966,8 +2966,11 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
 
         // write remaining samples from the frame buffer
         if (ctx->cur_frame != ctx->frame_buffer) {
-            COPY_FRAME_BUFFER(ctx->cur_frame - ctx->frame_buffer);
+            encoded = ctx->cur_frame - ctx->frame_buffer;
+            COPY_FRAME_BUFFER(encoded);
             avctx->coded_frame->pts = sconf->samples;
+        } else {
+            encoded = 0;
         }
 
         // last frame has been encoded,
@@ -2977,7 +2980,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
             av_log(avctx, AV_LOG_ERROR, "Rewriting of extradata failed.\n");
             return ret;
         }
-        return 0;
+        return encoded;
     }
 
     // no need to take special care of always/never using ra-frames
