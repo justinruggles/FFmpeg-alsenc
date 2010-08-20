@@ -2062,6 +2062,8 @@ static int calc_short_term_prediction(ALSEncContext *ctx, ALSBlock *block,
     int32_t *res_ptr = block->res_ptr;
     int32_t *smp_ptr = block->cur_ptr;
 
+    assert(order > 0);
+
 #define LPC_PREDICT_SAMPLE(lpc, smp_ptr, res_ptr, order)\
 {\
     int64_t y = 1 << 19;\
@@ -3202,8 +3204,10 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->corr_buffer);
     av_freep(&ctx->frame_buffer);
 
-    for (b = 0; b < 6; b++)
-        ff_window_close(&ctx->acf_window[b]);
+    if (ctx->sconf.max_order > 0) {
+        for (b = 0; b < 6; b++)
+            ff_window_close(&ctx->acf_window[b]);
+    }
 
     av_freep(&avctx->extradata);
     avctx->extradata_size = 0;
@@ -3321,12 +3325,14 @@ static av_cold int encode_init(AVCodecContext *avctx)
     AV_PMALLOC (ctx->bs_info,           avctx->channels);
     AV_PMALLOCZ(ctx->block_buffer,      avctx->channels * ALS_MAX_BLOCKS);
     AV_PMALLOC (ctx->blocks,            avctx->channels);
-    AV_PMALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
-    AV_PMALLOC (ctx->acf_coeff,        (sconf->max_order + 1));
-    AV_PMALLOC (ctx->parcor_coeff,      sconf->max_order);
-    AV_PMALLOC (ctx->lpc_coeff,         sconf->max_order);
-    AV_PMALLOC (ctx->parcor_error,      sconf->max_order);
-    AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
+    if (sconf->max_order > 0) {
+        AV_PMALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
+        AV_PMALLOC (ctx->acf_coeff,        (sconf->max_order + 1));
+        AV_PMALLOC (ctx->parcor_coeff,      sconf->max_order);
+        AV_PMALLOC (ctx->lpc_coeff,         sconf->max_order);
+        AV_PMALLOC (ctx->parcor_error,      sconf->max_order);
+        AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
+    }
 
 
     // check buffers
@@ -3390,13 +3396,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->raw_dif_samples[c] = ctx->raw_dif_samples[c - 1] + channel_size;
     }
 
-    ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
-    for (c = 0; c < avctx->channels; c++) {
-        for (b = 0; b < ALS_MAX_BLOCKS; b++) {
-            if (b)
-                ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
-            else if (c)
-                ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
+    if (sconf->max_order > 0) {
+        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
+        for (c = 0; c < avctx->channels; c++) {
+            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
+                if (b)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
+                else if (c)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
+            }
         }
     }
 
@@ -3439,18 +3447,20 @@ static av_cold int encode_init(AVCodecContext *avctx)
     dsputil_init(&ctx->dsp, avctx);
 
     // initialize autocorrelation window for each block size
-    for (b = 0; b <= sconf->block_switching; b++) {
-        int block_length = sconf->frame_length / (1 << b);
-        if (block_length & 1)
-            block_length++;
+    if (sconf->max_order > 0) {
+        for (b = 0; b <= sconf->block_switching; b++) {
+            int block_length = sconf->frame_length / (1 << b);
+            if (block_length & 1)
+                block_length++;
 
-        if (avctx->sample_rate <= 48000)
-            ff_window_init(&ctx->acf_window[b], WINDOW_TYPE_SINERECT, block_length, 4.0);
-        else
-            ff_window_init(&ctx->acf_window[b], WINDOW_TYPE_HANNRECT, block_length, 4.0);
+            if (avctx->sample_rate <= 48000)
+                ff_window_init(&ctx->acf_window[b], WINDOW_TYPE_SINERECT, block_length, 4.0);
+            else
+                ff_window_init(&ctx->acf_window[b], WINDOW_TYPE_HANNRECT, block_length, 4.0);
 
-        if (!sconf->block_switching)
-            break;
+            if (!sconf->block_switching)
+                break;
+        }
     }
 
     // initialize CRC calculation
