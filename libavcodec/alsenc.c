@@ -3498,7 +3498,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
             return AVERROR(ENOMEM);
         }
 
-    ctx->cur_frame = ctx->frame_buffer;
+        ctx->cur_frame = ctx->frame_buffer;
     }
 
     return 0;
