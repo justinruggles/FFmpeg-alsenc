@@ -3254,12 +3254,12 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
-    /* fill stage options based on compression level */
+    // fill stage options based on compression level
     ctx->stages[STAGE_JOINT_STEREO]    = *stage_js_settings[avctx->compression_level];
     ctx->stages[STAGE_BLOCK_SWITCHING] = *stage_bs_settings[avctx->compression_level];
     ctx->stages[STAGE_FINAL]           = *stage_final_settings[avctx->compression_level];
 
-    /* joint-stereo stage sconf overrides */
+    // joint-stereo stage sconf overrides
     ctx->stages[STAGE_JOINT_STEREO].adapt_order = sconf->adapt_order;
     ctx->stages[STAGE_JOINT_STEREO].sb_part     = sconf->sb_part;
     if (avctx->compression_level > 1)
@@ -3268,7 +3268,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->stages[STAGE_JOINT_STEREO].max_order = FFMIN(sconf->max_order,
                                     ctx->stages[STAGE_JOINT_STEREO].max_order);
 
-    /* block switching stage sconf overrides */
+    // block switching stage sconf overrides
     ctx->stages[STAGE_BLOCK_SWITCHING].adapt_order = sconf->adapt_order;
     ctx->stages[STAGE_BLOCK_SWITCHING].sb_part     = sconf->sb_part;
     if (avctx->compression_level > 0)
@@ -3277,7 +3277,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->stages[STAGE_BLOCK_SWITCHING].max_order = FFMIN(sconf->max_order,
                                 ctx->stages[STAGE_BLOCK_SWITCHING].max_order);
 
-    /* final stage sconf overrides */
+    // final stage sconf overrides
     ctx->stages[STAGE_FINAL].adapt_order = sconf->adapt_order;
     ctx->stages[STAGE_FINAL].sb_part     = sconf->sb_part;
     ctx->stages[STAGE_FINAL].max_order   = sconf->max_order;
@@ -3286,6 +3286,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->stages[STAGE_FINAL].param_algorithm = EC_PARAM_ALGORITHM_BGMC_ESTIMATE;
     }
 
+    // debug print stage options
     dprintf(avctx, "\n");
     if (sconf->joint_stereo) {
         dprintf(avctx, "Joint-Stereo:\n");
@@ -3331,7 +3332,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
         AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
     }
 
-
     // check buffers
     if (!ctx->independent_bs    ||
         !ctx->raw_buffer        || !ctx->raw_samples     ||
@@ -3345,6 +3345,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
+    // allocate long-term prediction buffers
     if (sconf->long_term_prediction) {
         AV_PMALLOC(ctx->ltp_buffer,      avctx->channels * channel_size);
         AV_PMALLOC(ctx->ltp_samples,     avctx->channels);
@@ -3360,6 +3361,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
         for (c = 1; c < avctx->channels; c++)
             ctx->ltp_samples[c] = ctx->ltp_samples[c - 1] + channel_size;
     }
+
+    // allocate autocorrelation buffers (used for short-term and long-term prediction)
     if (sconf->long_term_prediction || sconf->max_order) {
         int corr_pad = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
         corr_pad     = FFMAX(corr_pad, sconf->max_order + 1);
@@ -3427,6 +3430,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
+    // assign buffer pointers for block-switching and joint-stereo
     for (c = 0; c < avctx->channels; c++) {
         ctx->bs_sizes[c] = ctx->bs_sizes_buffer + c * num_bs_sizes;
     }
@@ -3438,9 +3442,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->js_infos[c + 1] = ctx->js_infos_buffer + (c + 1) * num_bs_sizes;
     }
 
+    // allocate coded_frame
     avctx->coded_frame            = avcodec_alloc_frame();
     avctx->coded_frame->key_frame = 1;
 
+    // initialize DSPContext
     dsputil_init(&ctx->dsp, avctx);
 
     // initialize autocorrelation window for each block size
@@ -3466,7 +3472,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->crc       = 0xFFFFFFFF;
     }
 
-    // initialize local frame buffer if necessary
+    // allocate local frame buffer if necessary
     if (sconf->ra_distance > 1) {
         ctx->frame_buffer_size = sconf->ra_distance * sconf->frame_length * (avctx->channels * avctx->bits_per_raw_sample / 8);
         AV_PMALLOC(ctx->frame_buffer, ctx->frame_buffer_size);
