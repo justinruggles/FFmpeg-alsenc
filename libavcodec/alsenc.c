@@ -2967,7 +2967,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
         int ret;
 
         // write remaining samples from the frame buffer
-        if (ctx->cur_frame != ctx->frame_buffer) {
+        if (sconf->ra_distance > 1 && ctx->cur_frame != ctx->frame_buffer) {
             encoded = ctx->cur_frame - ctx->frame_buffer;
             COPY_FRAME_BUFFER(encoded);
             avctx->coded_frame->pts = sconf->samples;
@@ -3497,9 +3497,9 @@ static av_cold int encode_init(AVCodecContext *avctx)
             encode_end(avctx);
             return AVERROR(ENOMEM);
         }
-    }
 
     ctx->cur_frame = ctx->frame_buffer;
+    }
 
     return 0;
 }
