@@ -3356,16 +3356,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
             encode_end(avctx);
             return AVERROR(ENOMEM);
         }
-
-        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
-        for (c = 0; c < avctx->channels; c++) {
-            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
-                if (b)
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
-                else if (c)
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
-            }
-        }
     }
 
     // allocate long-term prediction buffers
@@ -3417,6 +3407,18 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     for (c = 1; c < (avctx->channels >> 1); c++) {
         ctx->raw_dif_samples[c] = ctx->raw_dif_samples[c - 1] + channel_size;
+    }
+
+    if (sconf->max_order) {
+        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
+        for (c = 0; c < avctx->channels; c++) {
+            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
+                if (b)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
+                else if (c)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
+            }
+        }
     }
 
     // channel sorting
