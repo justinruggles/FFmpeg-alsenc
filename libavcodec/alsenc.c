@@ -3201,7 +3201,7 @@ static av_cold int encode_end(AVCodecContext *avctx)
     av_freep(&ctx->corr_buffer);
     av_freep(&ctx->frame_buffer);
 
-    if (ctx->sconf.max_order > 0) {
+    if (ctx->sconf.max_order) {
         for (b = 0; b < 6; b++)
             ff_window_close(&ctx->acf_window[b]);
     }
@@ -3322,7 +3322,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     AV_PMALLOC (ctx->bs_info,           avctx->channels);
     AV_PMALLOCZ(ctx->block_buffer,      avctx->channels * ALS_MAX_BLOCKS);
     AV_PMALLOC (ctx->blocks,            avctx->channels);
-    if (sconf->max_order > 0) {
+    if (sconf->max_order) {
         AV_PMALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
         AV_PMALLOC (ctx->acf_coeff,        (sconf->max_order + 1));
         AV_PMALLOC (ctx->parcor_coeff,      sconf->max_order);
@@ -3360,7 +3360,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         for (c = 1; c < avctx->channels; c++)
             ctx->ltp_samples[c] = ctx->ltp_samples[c - 1] + channel_size;
     }
-    if (sconf->long_term_prediction || sconf->max_order > 0) {
+    if (sconf->long_term_prediction || sconf->max_order) {
         int corr_pad = FFMIN(ALS_MAX_LTP_LAG, sconf->frame_length);
         corr_pad     = FFMAX(corr_pad, sconf->max_order + 1);
         if (corr_pad & 1)
@@ -3393,7 +3393,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
         ctx->raw_dif_samples[c] = ctx->raw_dif_samples[c - 1] + channel_size;
     }
 
-    if (sconf->max_order > 0) {
+    if (sconf->max_order) {
         ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
         for (c = 0; c < avctx->channels; c++) {
             for (b = 0; b < ALS_MAX_BLOCKS; b++) {
@@ -3444,7 +3444,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     dsputil_init(&ctx->dsp, avctx);
 
     // initialize autocorrelation window for each block size
-    if (sconf->max_order > 0) {
+    if (sconf->max_order) {
         for (b = 0; b <= sconf->block_switching; b++) {
             int block_length = sconf->frame_length / (1 << b);
             if (block_length & 1)
