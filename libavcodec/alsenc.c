@@ -3323,14 +3323,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
     AV_PMALLOC (ctx->bs_info,           avctx->channels);
     AV_PMALLOCZ(ctx->block_buffer,      avctx->channels * ALS_MAX_BLOCKS);
     AV_PMALLOC (ctx->blocks,            avctx->channels);
-    if (sconf->max_order) {
-        AV_PMALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
-        AV_PMALLOC (ctx->acf_coeff,        (sconf->max_order + 1));
-        AV_PMALLOC (ctx->parcor_coeff,      sconf->max_order);
-        AV_PMALLOC (ctx->lpc_coeff,         sconf->max_order);
-        AV_PMALLOC (ctx->parcor_error,      sconf->max_order);
-        AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
-    }
 
     // check buffers
     if (!ctx->independent_bs    ||
@@ -3343,6 +3335,34 @@ static av_cold int encode_init(AVCodecContext *avctx)
         av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
         encode_end(avctx);
         return AVERROR(ENOMEM);
+    }
+
+    // allocate short-term prediction coefficient buffers
+    if (sconf->max_order) {
+        AV_PMALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
+        AV_PMALLOC (ctx->acf_coeff,        (sconf->max_order + 1));
+        AV_PMALLOC (ctx->parcor_coeff,      sconf->max_order);
+        AV_PMALLOC (ctx->lpc_coeff,         sconf->max_order);
+        AV_PMALLOC (ctx->parcor_error,      sconf->max_order);
+        AV_PMALLOC (ctx->r_parcor_coeff,    sconf->max_order);
+
+        if (!ctx->q_parcor_coeff_buffer || !ctx->acf_coeff      ||
+            !ctx->parcor_coeff          || !ctx->lpc_coeff      ||
+            !ctx->parcor_error          || !ctx->r_parcor_coeff) {
+            av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
+            encode_end(avctx);
+            return AVERROR(ENOMEM);
+        }
+
+        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
+        for (c = 0; c < avctx->channels; c++) {
+            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
+                if (b)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
+                else if (c)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
+            }
+        }
     }
 
     // allocate long-term prediction buffers
@@ -3394,18 +3414,6 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     for (c = 1; c < (avctx->channels >> 1); c++) {
         ctx->raw_dif_samples[c] = ctx->raw_dif_samples[c - 1] + channel_size;
-    }
-
-    if (sconf->max_order) {
-        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
-        for (c = 0; c < avctx->channels; c++) {
-            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
-                if (b)
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
-                else if (c)
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
-            }
-        }
     }
 
     // channel sorting
