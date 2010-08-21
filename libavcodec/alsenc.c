@@ -2971,6 +2971,7 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
             encoded = ctx->cur_frame - ctx->frame_buffer;
             COPY_FRAME_BUFFER(encoded);
             avctx->coded_frame->pts = sconf->samples;
+            ctx->cur_frame          = ctx->frame_buffer;
         } else {
             encoded = 0;
         }
