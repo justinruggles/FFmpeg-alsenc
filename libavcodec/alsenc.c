@@ -3063,9 +3063,9 @@ static void frame_partitioning(ALSEncContext *ctx)
     sconf->ra_distance = avctx->gop_size;
     /* There is an API issue where the required output audio buffer size cannot
        be known to the user, and the default buffer size in ffmpeg.c is too
-       small to consistently fit more than about 8 frames.  Once this issue
-       is resolved, the maximum value can be changed from 8 to 255. */
-    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 8);
+       small to consistently fit more than about 7 frames.  Once this issue
+       is resolved, the maximum value can be changed from 7 to 255. */
+    sconf->ra_distance = av_clip(sconf->ra_distance, 0, 7);
 }
 
 
@@ -3501,7 +3501,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     // allocate local frame buffer if necessary
     if (sconf->ra_distance > 1) {
         ctx->frame_buffer_size = sconf->ra_distance * sconf->frame_length *
-                                 (avctx->channels * avctx->bits_per_raw_sample / 8);
+                                 (avctx->channels * avctx->bits_per_raw_sample / 8) *
+                                 11 / 10;
         AV_PMALLOC(ctx->frame_buffer, ctx->frame_buffer_size);
 
         if (!ctx->frame_buffer) {
