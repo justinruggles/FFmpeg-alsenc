@@ -3525,5 +3525,6 @@ AVCodec als_encoder = {
     NULL,
     .capabilities = CODEC_CAP_SMALL_LAST_FRAME | CODEC_CAP_DELAY,
     .long_name = NULL_IF_CONFIG_SMALL("MPEG-4 Audio Lossless Coding (ALS)"),
-    .sample_fmts = (const enum SampleFormat[]){SAMPLE_FMT_U8,SAMPLE_FMT_S16,SAMPLE_FMT_S32,SAMPLE_FMT_NONE},
+    .sample_fmts = (const enum SampleFormat[]){ SAMPLE_FMT_U8,  SAMPLE_FMT_S16,
+                                                SAMPLE_FMT_S32, SAMPLE_FMT_NONE },
 };
