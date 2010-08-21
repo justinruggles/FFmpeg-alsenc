@@ -2938,13 +2938,11 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
         sconf->samples += avctx->frame_size;
 
     // store previous samples
-    if (ctx->ra_counter || !sconf->ra_distance) {
         for (c = 0; c < avctx->channels; c++) {
             memcpy(ctx->raw_samples[c] - sconf->max_order,
                    ctx->raw_samples[c] + avctx->frame_size - sconf->max_order,
                    sizeof(*ctx->raw_samples[c]) * sconf->max_order);
         }
-    }
 
     return frame_data_size;
 }
