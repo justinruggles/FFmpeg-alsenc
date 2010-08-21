@@ -3340,6 +3340,10 @@ static av_cold int encode_init(AVCodecContext *avctx)
         return AVERROR(ENOMEM);
     }
 
+    ctx->blocks[0] = ctx->block_buffer;
+    for (c = 1; c < avctx->channels; c++)
+        ctx->blocks[c] = ctx->blocks[c - 1] + 32;
+
     // allocate short-term prediction coefficient buffers
     if (sconf->max_order) {
         AV_PMALLOC (ctx->q_parcor_coeff_buffer, avctx->channels * ALS_MAX_BLOCKS * sconf->max_order);
@@ -3355,6 +3359,16 @@ static av_cold int encode_init(AVCodecContext *avctx)
             av_log(avctx, AV_LOG_ERROR, "Allocating buffer memory failed.\n");
             encode_end(avctx);
             return AVERROR(ENOMEM);
+        }
+
+        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
+        for (c = 0; c < avctx->channels; c++) {
+            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
+                if (b)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
+                else if (c)
+                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
+            }
         }
     }
 
@@ -3396,29 +3410,15 @@ static av_cold int encode_init(AVCodecContext *avctx)
     ctx->raw_dif_samples[0] = ctx->raw_dif_buffer + channel_offset;
     ctx->raw_lsb_samples[0] = ctx->raw_lsb_buffer + channel_offset;
     ctx->res_samples    [0] = ctx->res_buffer     + channel_offset;
-    ctx->blocks         [0] = ctx->block_buffer;
 
     for (c = 1; c < avctx->channels; c++) {
         ctx->raw_samples    [c] = ctx->raw_samples[c - 1] + channel_size;
         ctx->res_samples    [c] = ctx->res_samples[c - 1] + channel_size;
         ctx->raw_lsb_samples[c] = ctx->raw_lsb_samples[c - 1] + channel_size;
-        ctx->blocks         [c] = ctx->blocks     [c - 1] + 32;
     }
 
     for (c = 1; c < (avctx->channels >> 1); c++) {
         ctx->raw_dif_samples[c] = ctx->raw_dif_samples[c - 1] + channel_size;
-    }
-
-    if (sconf->max_order) {
-        ctx->blocks[0][0].q_parcor_coeff = ctx->q_parcor_coeff_buffer;
-        for (c = 0; c < avctx->channels; c++) {
-            for (b = 0; b < ALS_MAX_BLOCKS; b++) {
-                if (b)
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c][b-1].q_parcor_coeff + sconf->max_order;
-                else if (c)
-                    ctx->blocks[c][b].q_parcor_coeff = ctx->blocks[c-1][0].q_parcor_coeff + ALS_MAX_BLOCKS * sconf->max_order;
-            }
-        }
     }
 
     // channel sorting
