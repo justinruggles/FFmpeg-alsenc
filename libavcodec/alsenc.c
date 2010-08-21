@@ -3500,7 +3500,8 @@ static av_cold int encode_init(AVCodecContext *avctx)
     if (sconf->ra_distance > 1) {
         // TODO: use realloc() to increase buffer size if necessary
         ctx->frame_buffer_size = sconf->ra_distance * sconf->frame_length *
-                                 (avctx->channels * avctx->bits_per_raw_sample / 8) * 2;
+                                 (avctx->channels * avctx->bits_per_raw_sample / 8) *
+                                 5 / 4 + 1024;
         AV_PMALLOC(ctx->frame_buffer, ctx->frame_buffer_size);
 
         if (!ctx->frame_buffer) {
