@@ -884,7 +884,8 @@ static unsigned int get_partition(ALSEncContext *ctx, unsigned int c1, unsigned 
         // set joint-stereo sizes
         ALSBlock *ptr_blocks_c1 = ctx->blocks[c1];
         ALSBlock *ptr_blocks_c2 = ctx->blocks[c2];
-        bs_set_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1, &ptr_blocks_c2);
+        bs_set_js(ctx->bs_info[c1], 0, ctx->js_infos[c1 >> 1], &ptr_blocks_c1,
+                  &ptr_blocks_c2);
     }
 
     // get bit count for the chosen partitioning
@@ -2998,7 +2999,8 @@ static int encode_ra_unit(AVCodecContext *avctx, uint8_t *frame,
         return encode_frame(avctx, frame, buf_size, data);
 
     encoded         = ctx->cur_frame - ctx->frame_buffer;
-    ctx->cur_frame += encode_frame(avctx, ctx->cur_frame, ctx->frame_buffer_size - encoded, data);
+    ctx->cur_frame += encode_frame(avctx, ctx->cur_frame,
+                                   ctx->frame_buffer_size - encoded, data);
 
     if (ctx->ra_counter + 1 == sconf->ra_distance ||
         avctx->frame_size   != sconf->frame_length) {
