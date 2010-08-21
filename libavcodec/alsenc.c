@@ -3451,7 +3451,7 @@ static av_cold int encode_init(AVCodecContext *avctx)
     }
 
     // allocate coded_frame
-    avctx->coded_frame            = avcodec_alloc_frame();
+    avctx->coded_frame = avcodec_alloc_frame();
 
     // initialize DSPContext
     dsputil_init(&ctx->dsp, avctx);
