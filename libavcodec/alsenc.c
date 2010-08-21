@@ -3452,6 +3452,11 @@ static av_cold int encode_init(AVCodecContext *avctx)
 
     // allocate coded_frame
     avctx->coded_frame = avcodec_alloc_frame();
+    if (!avctx->coded_frame) {
+        av_log(avctx, AV_LOG_ERROR, "Allocating coded_frame memory failed.\n");
+        encode_end(avctx);
+        return AVERROR(ENOMEM);
+    }
 
     // initialize DSPContext
     dsputil_init(&ctx->dsp, avctx);
