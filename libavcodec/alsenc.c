@@ -518,7 +518,13 @@ static void deinterleave_raw_samples(ALSEncContext *ctx, void *data)
                 ctx->raw_samples[c][sample] = (*src++) >> shift;    \
     }
 
-    if (ctx->avctx->bits_per_raw_sample <= 16) {
+    if (ctx->avctx->bits_per_raw_sample <= 8) {
+        uint8_t *src = (uint8_t *)data;
+        shift = 8 - ctx->avctx->bits_per_raw_sample;
+        for (sample = 0; sample < ctx->avctx->frame_size; sample++)
+            for (c = 0; c < ctx->avctx->channels; c++)
+                ctx->raw_samples[c][sample] = ((int)(*src++) - 128) >> shift;
+    } else if (ctx->avctx->bits_per_raw_sample <= 16) {
         DEINTERLEAVE_INPUT(16)
     } else {
         DEINTERLEAVE_INPUT(32)
@@ -2870,12 +2876,12 @@ static int encode_frame(AVCodecContext *avctx, uint8_t *frame,
 
     // update CRC
     if (sconf->crc_enabled) {
-        if (ctx->avctx->bits_per_raw_sample == 16 || ctx->avctx->bits_per_raw_sample == 32) {
+        if (sconf->resolution != 2) {
             frame_data_size = ctx->avctx->bits_per_raw_sample >> 3;
             ctx->crc        = av_crc(ctx->crc_table, ctx->crc, data,
                                      avctx->frame_size * avctx->channels *
                                      frame_data_size);
-        } else if (ctx->avctx->bits_per_raw_sample == 24) {
+        } else {
             int i;
             int frame_values = avctx->frame_size * avctx->channels;
             int32_t *samples = data;
@@ -3519,5 +3525,5 @@ AVCodec als_encoder = {
     NULL,
     .capabilities = CODEC_CAP_SMALL_LAST_FRAME | CODEC_CAP_DELAY,
     .long_name = NULL_IF_CONFIG_SMALL("MPEG-4 Audio Lossless Coding (ALS)"),
-    .sample_fmts = (const enum SampleFormat[]){SAMPLE_FMT_S16,SAMPLE_FMT_S32,SAMPLE_FMT_NONE},
+    .sample_fmts = (const enum SampleFormat[]){SAMPLE_FMT_U8,SAMPLE_FMT_S16,SAMPLE_FMT_S32,SAMPLE_FMT_NONE},
 };

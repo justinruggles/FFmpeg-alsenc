@@ -1252,7 +1252,13 @@ static int decode_frame(AVCodecContext *avctx,
                 *dest++ = ctx->raw_samples[c][sample] << shift;    \
     }
 
-    if (ctx->avctx->bits_per_raw_sample <= 16) {
+    if (ctx->avctx->bits_per_raw_sample <= 8) {
+        uint8_t *dest = (uint8_t *)data;
+        shift = 8 - ctx->avctx->bits_per_raw_sample;
+        for (sample = 0; sample < ctx->cur_frame_length; sample++)
+            for (c = 0; c < avctx->channels; c++)
+                *dest++ = ((int)ctx->raw_samples[c][sample] + 128) << shift;
+    } else if (ctx->avctx->bits_per_raw_sample <= 16) {
         INTERLEAVE_OUTPUT(16)
     } else {
         INTERLEAVE_OUTPUT(32)
@@ -1260,7 +1266,8 @@ static int decode_frame(AVCodecContext *avctx,
 
     // update CRC
     if (sconf->crc_enabled && avctx->error_recognition >= FF_ER_CAREFUL) {
-        int swap = HAVE_BIGENDIAN != sconf->msb_first;
+        int swap = (ctx->avctx->bits_per_raw_sample > 8) &&
+                   (HAVE_BIGENDIAN != sconf->msb_first);
 
         if (ctx->avctx->bits_per_raw_sample == 24) {
             int32_t *src = data;
@@ -1382,8 +1389,17 @@ static av_cold int decode_init(AVCodecContext *avctx)
         avctx->sample_fmt          = SAMPLE_FMT_FLT;
         avctx->bits_per_raw_sample = 32;
     } else {
-        avctx->sample_fmt          = sconf->resolution > 1
-                                     ? SAMPLE_FMT_S32 : SAMPLE_FMT_S16;
+        switch (sconf->resolution) {
+        case 0: avctx->sample_fmt = SAMPLE_FMT_U8;  break;
+        case 1: avctx->sample_fmt = SAMPLE_FMT_S16; break;
+        case 2:
+        case 3: avctx->sample_fmt = SAMPLE_FMT_S32; break;
+        default:
+            av_log(avctx, AV_LOG_ERROR, "Invalid resolution: %d.\n",
+                   sconf->resolution);
+            decode_end(avctx);
+            return -1;
+        }
         avctx->bits_per_raw_sample = (sconf->resolution + 1) * 8;
     }
 
