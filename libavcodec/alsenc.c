@@ -193,7 +193,8 @@ typedef struct {
     int32_t *cur_ptr;               ///< points to the current sample buffer for this block
     int bits_const_block;           ///< bit count for const block params
     int bits_misc;                  ///< bit count for js_block and shift_lsbs
-    int bits_parcor_coeff;          ///< bit count for LPC order and PARCOR coeffs
+    int bits_adapt_order;           ///< bit count for LPC order when adaptive order is used
+    int bits_parcor_coeff[1024];    ///< cumulative bit counts for PARCOR coeffs
 } ALSBlock;
 
 
@@ -1232,9 +1233,7 @@ static int write_block(ALSEncContext *ctx, ALSBlock *block)
         if (!sconf->rlslms) {
             // opt_order
             if (sconf->adapt_order) {
-                int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
-                                                    2, sconf->max_order + 1));
-                PUT_BITS_SAFE(pb, opt_order_length, block->opt_order, return -1;)
+                PUT_BITS_SAFE(pb, block->bits_adapt_order, block->opt_order, return -1;)
             }
 
             // for each quant_cof, put(quant_cof) in rice code
@@ -1439,59 +1438,66 @@ static int write_frame(ALSEncContext *ctx, uint8_t *frame, int buf_size)
 }
 
 
-static void quantize_parcor_coeffs(const double *parcor, int order,
-                                   int32_t *q_parcor, int32_t *r_parcor)
+/**
+ * Quantize and rescale a single PARCOR coefficient.
+ * @param ctx Encoder context
+ * @param parcor double-precision PARCOR coefficient
+ * @param index  coefficient index number
+ * @param[out] q_parcor 7-bit quantized coefficient
+ * @param[out] r_parcor 21-bit reconstructed coefficient
+ * @return the number of bits used to encode the coefficient
+ */
+static int quantize_single_parcor_coeff(ALSEncContext *ctx, double parcor,
+                                        int index, int32_t *q_parcor,
+                                        int32_t *r_parcor)
 {
-    int i;
+    int rice_param, offset;
+    int sign = !index - index;
 
-    // first coefficient
-    q_parcor[0] = (int)floor(64.0 * (sqrt(2.0*(parcor[0]+1.0)) - 1.0));
-    q_parcor[0] = av_clip(q_parcor[0], -64, 63);
-    r_parcor[0] = 32 * ff_als_parcor_scaled_values[q_parcor[0] + 64];
+    // compand coefficient for index 0 or 1
+    if (index < 2)
+        parcor = sqrt(2.0 * (sign * parcor + 1.0)) - 1.0;
 
-    if (order > 1) {
-        // second coefficient
-        q_parcor[1] = (int)floor(64.0 * ((sqrt(2.0*(1.0-parcor[1]))) - 1.0));
-        q_parcor[1] = av_clip(q_parcor[1], -64, 63);
-        r_parcor[1] = -32 * ff_als_parcor_scaled_values[q_parcor[1] + 64];
+    // quantize to signed 7-bit
+    *q_parcor = av_clip((int32_t)floor(64.0 * parcor), -64, 63);
 
-        // remaining coefficients
-        for (i = 2; i < order; i++) {
-            q_parcor[i] = (int)floor(64.0 * parcor[i]);
-            q_parcor[i] = av_clip(q_parcor[i], -64, 63);
-            r_parcor[i] = (q_parcor[i] << 14) + (1 << 13);
-        }
+    // rescale to signed 21-bit
+    if (index < 2)
+        *r_parcor =  sign * 32 * ff_als_parcor_scaled_values[*q_parcor + 64];
+    else
+        *r_parcor = (*q_parcor << 14) + (1 << 13);
+
+    // count bits used for this coefficient
+    if (index < 20) {
+        rice_param = ff_als_parcor_rice_table[ctx->sconf.coef_table][index][1];
+        offset     = ff_als_parcor_rice_table[ctx->sconf.coef_table][index][0];
+    } else if (index < 127) {
+        rice_param = 2;
+        offset     = index & 1;
+    } else {
+        rice_param = 1;
+        offset     = 0;
     }
+    return rice_count(*q_parcor - offset, rice_param);
 }
 
 
-static void calc_parcor_coeff_bit_size(ALSEncContext *ctx, ALSBlock *block,
-                                       int order)
+/**
+ * Quantize all PARCOR coefficients up to max_order and set the cumulative
+ * bit counts for each order.
+ */
+static void quantize_parcor_coeffs(ALSEncContext *ctx, ALSBlock *block,
+                                   const double *parcor, int max_order)
 {
-    int i, next_max_order, bit_count;
+    int i;
 
-    bit_count = 0;
-
-    if (ctx->sconf.adapt_order) {
-        bit_count += av_ceil_log2(av_clip((block->length >> 3) - 1,
-                                          2, ctx->sconf.max_order + 1));
+    block->bits_parcor_coeff[0] = 0;
+    for (i = 0; i < max_order; i++) {
+        block->bits_parcor_coeff[i+1] = block->bits_parcor_coeff[i] +
+                                        quantize_single_parcor_coeff(ctx, parcor[i], i,
+                                                                     &block->q_parcor_coeff[i],
+                                                                     &ctx->r_parcor_coeff[i]);
     }
-
-    next_max_order = FFMIN(order, 20);
-    for (i = 0; i < next_max_order; i++) {
-        int rice_param = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][1];
-        int offset     = ff_als_parcor_rice_table[ctx->sconf.coef_table][i][0];
-        bit_count     += rice_count(block->q_parcor_coeff[i] - offset, rice_param);
-    }
-    next_max_order = FFMIN(order, 127);
-    for (; i < next_max_order; i++) {
-        bit_count += rice_count(block->q_parcor_coeff[i] - (i & 1), 2);
-    }
-    for (; i < order; i++) {
-        bit_count += rice_count(block->q_parcor_coeff[i], 1);
-    }
-
-    block->bits_parcor_coeff = bit_count;
 }
 
 
@@ -2390,8 +2396,8 @@ static void check_ltp(ALSEncContext *ctx, ALSBlock *block, int *bit_count)
                     rice_count(ltp->gain[4],               1);
 
     // test if LTP pays off
-    bit_count_ltp = block->bits_misc +
-                    block->bits_parcor_coeff +
+    bit_count_ltp = block->bits_misc + block->bits_adapt_order +
+                    block->bits_parcor_coeff[block->opt_order] +
                     block->ent_info[ltp->use_ltp].bits_ec_param_and_res +
                     ltp->bits_ltp;
     bit_count_ltp += (8 - (bit_count_ltp & 7)) & 7;
@@ -2419,12 +2425,11 @@ static int calc_block_size_fixed_order(ALSEncContext *ctx, ALSBlock *block,
             return -1;
         block->cur_ptr = block->res_ptr;
     }
-    calc_parcor_coeff_bit_size(ctx, block, order);
 
     find_block_entropy_params (ctx, block, order);
 
-    count  = block->bits_misc + block->bits_parcor_coeff +
-                    ent->bits_ec_param_and_res;
+    count  = block->bits_misc + block->bits_adapt_order +
+             block->bits_parcor_coeff[order] + ent->bits_ec_param_and_res;
     count += (8 - (count & 7)) & 7; // byte align
 #if 0
     if (ctx->sconf.long_term_prediction)
@@ -2455,8 +2460,8 @@ static void find_block_adapt_order(ALSEncContext *ctx, ALSBlock *block,
             count[i] = calc_block_size_fixed_order(ctx, block, i);
         } else {
             if (i && ctx->parcor_error[i-1] >= 1.0) {
-                calc_parcor_coeff_bit_size(ctx, block, i);
-                count[i]  = block->bits_misc + block->bits_parcor_coeff;
+                count[i]  = block->bits_misc + block->bits_adapt_order +
+                            block->bits_parcor_coeff[i];
                 count[i] += 0.5 * log2(ctx->parcor_error[i-1]) * block->length;
             } else {
                 count[i]  = INT32_MAX;
@@ -2515,15 +2520,19 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     // LPC / PARCOR coefficients to be stored in context
     // they depend on js_block and opt_order which may be changing later on
 
+    // calculate bits needed to store adaptive LPC order
+    if (sconf->adapt_order)
+        block->bits_adapt_order = av_ceil_log2(av_clip((block->length >> 3) - 1,
+                                               2, sconf->max_order + 1));
+    else
+        block->bits_adapt_order = 0;
+
     max_order = ctx->cur_stage->max_order;
     if (sconf->max_order) {
         double *corr_ptr;
 
-        if (sconf->adapt_order) {
-            int opt_order_length = av_ceil_log2(av_clip((block->length >> 3) - 1,
-                                                2, sconf->max_order + 1));
-            max_order = FFMIN(max_order, (1 << opt_order_length) - 1);
-        }
+        if (sconf->adapt_order)
+            max_order = FFMIN(max_order, (1 << block->bits_adapt_order) - 1);
 
         // calculate PARCOR coefficients
         corr_ptr = ctx->corr_buffer;
@@ -2539,8 +2548,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
                           ctx->parcor_error);
 
         // quantize PARCOR coefficients to 7-bit and reconstruct to 21-bit
-        quantize_parcor_coeffs(ctx->parcor_coeff, max_order,
-                               block->q_parcor_coeff, ctx->r_parcor_coeff);
+        quantize_parcor_coeffs(ctx, block, ctx->parcor_coeff, max_order);
     }
 
     // Determine optimal LPC order:
@@ -2552,7 +2560,6 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     } else {
         block->opt_order = max_order;
     }
-    calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
 
     // generate residuals using parameters:
 
@@ -2567,10 +2574,8 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
 
             memset(parcor, 0, sizeof(parcor));
             parcor[0] = -0.9;
-            quantize_parcor_coeffs(parcor, block->opt_order,
-                                   block->q_parcor_coeff, ctx->r_parcor_coeff);
+            quantize_parcor_coeffs(ctx, block, parcor, block->opt_order);
 
-            calc_parcor_coeff_bit_size(ctx, block, block->opt_order);
             calc_short_term_prediction(ctx, block, block->opt_order);
         }
         block->cur_ptr = block->res_ptr;
@@ -2582,7 +2587,7 @@ static int find_block_params(ALSEncContext *ctx, ALSBlock *block)
     find_block_entropy_params(ctx, block, block->opt_order);
 
     ltp->bits_ltp = !!sconf->long_term_prediction;
-    bit_count     = block->bits_misc + block->bits_parcor_coeff +
+    bit_count     = block->bits_misc + block->bits_parcor_coeff[block->opt_order] +
                     ent->bits_ec_param_and_res + ltp->bits_ltp;
     bit_count    += (8 - (bit_count & 7)) & 7; // byte align
 
