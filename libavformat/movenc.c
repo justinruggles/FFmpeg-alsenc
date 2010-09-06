@@ -441,7 +441,7 @@ static int mov_write_audio_tag(ByteIOContext *pb, MOVTrack *track)
         }
 
         put_be16(pb, 0); /* packet size (= 0) */
-        put_be16(pb, track->timescale & 0xFFFF); /* Time scale */
+        put_be16(pb, track->timescale > UINT16_MAX ? 0 : track->timescale); /* Time scale */
         put_be16(pb, 0); /* Reserved */
     }
 
